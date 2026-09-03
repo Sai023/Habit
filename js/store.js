@@ -129,7 +129,10 @@ export async function ensureBindings(source = SOURCE.MANUAL) {
 export async function setupCode() {
   const { memberId, name, code } = await identity();
   if (!code) return "";
-  return encodeSetup({ url: SUPABASE_URL, key: SUPABASE_ANON_KEY, code, memberId, name });
+  // location.origin travels too: Pause fires the daily reminders, and tapping one has to open
+  // this app rather than dead-ending in the shell.
+  const web = typeof location !== "undefined" ? location.origin : "";
+  return encodeSetup({ url: SUPABASE_URL, key: SUPABASE_ANON_KEY, code, memberId, name, web });
 }
 
 /**

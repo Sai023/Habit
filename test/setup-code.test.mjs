@@ -19,6 +19,7 @@ const sample = {
   code: "HABIT-7Q2XK9",
   memberId: "3f1c9a12-88b4-4c1e-9b0a-2d7e5f4a6c31",
   name: "Sahil",
+  web: "https://habit-six-inky.vercel.app",
 };
 
 test("a setup code round-trips exactly", () => {
@@ -68,6 +69,17 @@ test("a name is optional — everything else is not", () => {
   const decoded = decodeSetup(encodeSetup({ ...sample, name: "" }));
   assert.equal(decoded.name, "");
   assert.equal(decoded.memberId, sample.memberId);
+});
+
+test("an older code with no web address still works", () => {
+  // Codes generated before reminders existed must keep working; the reminder just has nowhere to
+  // send you, which the shell handles by opening itself instead.
+  const older = "HS1." + Buffer.from(JSON.stringify({
+    u: sample.url, k: sample.key, c: sample.code, m: sample.memberId, n: sample.name,
+  })).toString("base64url");
+  const decoded = decodeSetup(older);
+  assert.equal(decoded.memberId, sample.memberId);
+  assert.equal(decoded.web, "");
 });
 
 if (failures.length) {

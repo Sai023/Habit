@@ -40,10 +40,10 @@ function fromBase64Url(encoded) {
  * Keys are single letters because the result is read off one screen and typed or pasted into
  * another, and every character is one more chance to lose the end of it.
  */
-export function encodeSetup({ url, key, code, memberId, name }) {
+export function encodeSetup({ url, key, code, memberId, name, web }) {
   if (!url || !key || !code || !memberId) return "";
   return PREFIX + toBase64Url(JSON.stringify({
-    u: url, k: key, c: code, m: memberId, n: name || "",
+    u: url, k: key, c: code, m: memberId, n: name || "", w: web || "",
   }));
 }
 
@@ -60,6 +60,8 @@ export function decodeSetup(text) {
       code: String(parsed.c),
       memberId: String(parsed.m),
       name: String(parsed.n || ""),
+      // Where this app lives, so a reminder fired by Pause has somewhere to send you.
+      web: String(parsed.w || ""),
     };
   } catch {
     return null;
