@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Group habit tracking for a close-knit group \u2014 the web layer of the Pause app.",
   "scripts": {
-    "test": "node test/habits.test.mjs && node test/periods.test.mjs && node test/goals.test.mjs && node test/ingest.test.mjs && node test/sync.test.mjs && node test/convergence.test.mjs && node test/wire.test.mjs && node test/setup-code.test.mjs && node test/group-code.test.mjs",
-    "dev": "node scripts/dev-server.mjs"
+    "test": "node scripts/gen-sw-shell.mjs --check && node test/habits.test.mjs && node test/periods.test.mjs && node test/goals.test.mjs && node test/ingest.test.mjs && node test/sync.test.mjs && node test/convergence.test.mjs && node test/wire.test.mjs && node test/setup-code.test.mjs && node test/group-code.test.mjs",
+    "dev": "node scripts/dev-server.mjs",
+    "build:sw": "node scripts/gen-sw-shell.mjs"
   }
 }

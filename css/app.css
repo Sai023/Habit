@@ -60,8 +60,18 @@ html, body {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Room for the app's own fixed bottom bar, plus whatever the device reserves for its gesture
+     bar. Both terms matter: drop the first and content slides under the tabs, drop the second and
+     it slides under the phone's navigation. */
   padding-bottom: calc(68px + env(safe-area-inset-bottom));
 }
+
+/* Embedded in Pause, the tab bar is native and the web one is gone, so the 68px reserve becomes
+   dead space above the real bar. The device inset still applies — the WebView draws edge to edge
+   so that the app and its host share one continuous surface, which is exactly the situation where
+   forgetting an inset puts a button underneath the gesture pill. */
+body.embedded .app { padding-bottom: env(safe-area-inset-bottom); }
+body.embedded .nav { display: none; }
 
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; border-radius: 6px; }
@@ -302,7 +312,16 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 .onboard { justify-content: center; }
 
-.form { display: flex; flex-direction: column; gap: 16px; padding: 28px 0 8px; }
+/* Its own bottom reserve rather than borrowing the one on .app: these screens render with the
+   tab bar hidden, and once they become sheets they leave .app's box entirely. Depending on a
+   parent's padding for the last button to be reachable is how that button ends up under the
+   gesture bar the first time the layout moves. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 0 calc(24px + env(safe-area-inset-bottom));
+}
 .form h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
 .lede { margin: -8px 0 4px; color: var(--dim); font-size: 14px; }
 .stack-btn { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 280px; }
