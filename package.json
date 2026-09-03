@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Group habit tracking for a close-knit group \u2014 the web layer of the Pause app.",
   "scripts": {
-    "test": "node test/habits.test.mjs && node test/ingest.test.mjs && node test/setup-code.test.mjs && node test/group-code.test.mjs",
+    "test": "node test/habits.test.mjs && node test/periods.test.mjs && node test/ingest.test.mjs && node test/setup-code.test.mjs && node test/group-code.test.mjs",
     "dev": "node scripts/dev-server.mjs"
   }
 }

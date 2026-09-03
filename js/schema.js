@@ -44,6 +44,34 @@ export const METRIC = {
   SLEEP: "sleep_minutes",
   ACTIVE_CALORIES: "active_calories",
   URGES: "urges",
+  PUFFS: "puffs",                 // read off the vape and typed in
+  APP_OPENS: "app_opens",         // Pause already counts these
+  SCREEN_MINUTES: "screen_minutes",
+  SESSIONS: "sessions",           // workouts, meditations — things you did N of
+  AMOUNT: "amount",               // money saved, in whatever the group counts in
+};
+
+/**
+ * How long a habit gets to be judged over.
+ *
+ * Not every commitment is daily, and forcing one to be makes it a lie. "Exercise three times
+ * a week" is not "exercise 0.43 times a day", and a savings target is a single question asked
+ * once a month. A period changes what a streak counts, what a miss means, and — most of all —
+ * how the leaderboard combines habits that produce wildly different numbers of results.
+ */
+export const PERIOD = { DAY: "day", WEEK: "week", MONTH: "month" };
+
+/**
+ * Grace scales with the period, or it means nothing.
+ *
+ * One token per seven clean days is a fortnight of good behaviour for a daily habit. Applied
+ * to a monthly goal it would be seven months, which nobody will ever reach; applied the other
+ * way it would forgive a third of the year.
+ */
+export const GRACE_BY_PERIOD = {
+  [PERIOD.DAY]: { earnEvery: 7, cap: 2 },
+  [PERIOD.WEEK]: { earnEvery: 4, cap: 1 },
+  [PERIOD.MONTH]: { earnEvery: 3, cap: 1 },
 };
 
 /** Goal direction. `at_least` counts up to a target; `at_most` stays under a ceiling. */
@@ -91,7 +119,9 @@ export const MAX_BACKFILL_DAYS = 2;
 export const HABIT_DEFAULTS = {
   direction: AT_LEAST,
   target: 1,
-  days: [1, 2, 3, 4, 5, 6, 7],   // ISO weekdays the habit is active (1 = Mon .. 7 = Sun)
+  period: PERIOD.DAY,            // day | week | month — see PERIOD
+  weight: 1,                     // how much this habit counts on the board, relative to the rest
+  days: [1, 2, 3, 4, 5, 6, 7],   // ISO weekdays the habit is active. Daily habits only.
   dayStartHour: 4,               // 01:00 counts as yesterday — see dayKey()
   tz: "Africa/Johannesburg",     // PINNED, not read from the device: travel must not move the boundary
   metric: null,                  // null = nothing automatic can feed it; see METRIC

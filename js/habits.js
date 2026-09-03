@@ -24,8 +24,8 @@
 // exactly the person the leaderboard would otherwise punish.
 
 import {
-  T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY,
-  MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
+  T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY, AGGREGATE,
+  PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
 } from "./schema.js";
 
 export const HIT = "HIT";
@@ -95,6 +95,96 @@ export function isoDayOfWeek(day) {
 }
 
 // ============================================================================
+// Periods — the unit a habit is actually judged over
+// ============================================================================
+//
+// Not every commitment is daily, and forcing one to be makes it a lie: "exercise three times a
+// week" is not "exercise 0.43 times a day", and a savings target is one question asked once a
+// month. A period key is a day ("2026-03-02"), an ISO week ("2026-W10") or a month ("2026-03"),
+// and status, streaks, grace and the board all work in whichever one a habit uses.
+//
+// Logs are unchanged: they still carry a day, and the period is derived from it. That is
+// deliberate — changing a habit from daily to weekly must not orphan its history.
+
+const MS_DAY = 86400000;
+
+function utcOf(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+function dayOf(ms) {
+  const dt = new Date(ms);
+  const pad = (x) => String(x).padStart(2, "0");
+  return dt.getUTCFullYear() + "-" + pad(dt.getUTCMonth() + 1) + "-" + pad(dt.getUTCDate());
+}
+
+/**
+ * The ISO week a day belongs to, as "YYYY-Www".
+ *
+ * ISO rather than "the week containing 1 January", because that convention produces a one- or
+ * two-day stub week at the turn of the year — a week a weekly target cannot physically be met in,
+ * handing everyone a guaranteed miss every new year.
+ */
+export function isoWeekKey(day) {
+  const monday = utcOf(day) - (isoDayOfWeek(day) - 1) * MS_DAY;
+  const thursday = monday + 3 * MS_DAY; // the week's Thursday decides which year it belongs to
+  const isoYear = new Date(thursday).getUTCFullYear();
+  const jan4 = Date.UTC(isoYear, 0, 4);
+  const week1Monday = jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * MS_DAY;
+  const week = Math.round((monday - week1Monday) / (7 * MS_DAY)) + 1;
+  return isoYear + "-W" + String(week).padStart(2, "0");
+}
+
+/** Which period a day falls in, for a habit on that cadence. */
+export function periodKey(day, period) {
+  if (period === PERIOD.MONTH) return day.slice(0, 7);
+  if (period === PERIOD.WEEK) return isoWeekKey(day);
+  return day;
+}
+
+/** The first day of a period. */
+export function periodStart(key, period) {
+  if (period === PERIOD.MONTH) return key + "-01";
+  if (period === PERIOD.WEEK) {
+    const [y, w] = key.split("-W").map(Number);
+    const jan4 = Date.UTC(y, 0, 4);
+    const week1Monday = jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * MS_DAY;
+    return dayOf(week1Monday + (w - 1) * 7 * MS_DAY);
+  }
+  return key;
+}
+
+/** The last day of a period. */
+export function periodEnd(key, period) {
+  if (period === PERIOD.MONTH) {
+    const [y, m] = key.split("-").map(Number);
+    return dayOf(Date.UTC(y, m, 1) - MS_DAY); // the day before the first of next month
+  }
+  if (period === PERIOD.WEEK) return addDays(periodStart(key, period), 6);
+  return key;
+}
+
+/** Every day in a period, in order. */
+export function daysInPeriod(key, period) {
+  if (period === PERIOD.DAY) return [key];
+  const out = [];
+  const last = periodEnd(key, period);
+  for (let d = periodStart(key, period); daysBetween(d, last) >= 0; d = addDays(d, 1)) out.push(d);
+  return out;
+}
+
+/** The distinct periods a range of days touches, in order. */
+export function periodsBetween(fromDay, toDay, period) {
+  const out = [];
+  let previous = null;
+  for (let d = fromDay; daysBetween(d, toDay) >= 0; d = addDays(d, 1)) {
+    const key = periodKey(d, period);
+    if (key !== previous) { out.push(key); previous = key; }
+  }
+  return out;
+}
+
+// ============================================================================
 // Event ordering
 // ============================================================================
 
@@ -131,7 +221,12 @@ export function sortEvents(list) {
 function normalizeHabit(p, createdDay) {
   const h = { ...HABIT_DEFAULTS, ...p, createdDay };
   h.days = Array.isArray(h.days) && h.days.length ? h.days.map(Number) : HABIT_DEFAULTS.days;
-  h.grace = { ...HABIT_DEFAULTS.grace, ...(p.grace || {}) };
+  h.period = Object.values(PERIOD).includes(h.period) ? h.period : PERIOD.DAY;
+  h.weight = Number(h.weight) > 0 ? Number(h.weight) : 1;
+  // Grace defaults to the cadence rather than to a constant: one token per seven clean MONTHS is
+  // unreachable, and one per seven clean days applied to a weekly habit forgives a third of the
+  // year. An explicit setting still wins.
+  h.grace = { ...(GRACE_BY_PERIOD[h.period] || HABIT_DEFAULTS.grace), ...(p.grace || {}) };
   h.target = Number(h.target) || 0;
   h.dayStartHour = Number.isFinite(Number(h.dayStartHour)) ? Number(h.dayStartHour) : 4;
   // Reduce habits opt OUT of crown/clown by default. Being bottom of a quitting metric produces
@@ -305,26 +400,74 @@ function exemptReason(state, habit, memberId, day) {
 }
 
 /**
- * A day's status BEFORE grace tokens are considered. Tokens need the running walk (you can only
- * spend what you had banked by that day), so they are applied in walk() rather than here.
+ * The value for a whole period, or null when nothing was reported in it.
+ *
+ * A daily habit is simply its day. Longer ones combine their days the way a day combines its
+ * sources: `sum` adds them up (three gym sessions across a week), `last` takes the most recent
+ * reading (a savings balance, which is a running total already — adding the weekly reports of it
+ * together would claim you saved four times what you did).
+ */
+export function valueForPeriod(state, habit, memberId, key) {
+  if (habit.period === PERIOD.DAY) return valueOn(state, habit, memberId, key);
+  let total = null;
+  for (const day of daysInPeriod(key, habit.period)) {
+    const value = valueOn(state, habit, memberId, day);
+    if (value === null) continue;
+    total = habit.aggregate === AGGREGATE.SUM ? (total || 0) + value : value;
+  }
+  return total;
+}
+
+/**
+ * A period's status BEFORE grace tokens are considered. Tokens need the running walk (you can only
+ * spend what you had banked by then), so they are applied in walk() rather than here.
  *
  * Order matters: an explicit exemption beats a rest day, a rest day beats any measurement, and a
  * missing measurement means different things depending on who was supposed to take it.
  */
-export function rawDayStatus(state, habit, memberId, day) {
-  if (exemptReason(state, habit, memberId, day)) return EXEMPT;
-  if (!habit.days.includes(isoDayOfWeek(day))) return EXEMPT;
+export function rawPeriodStatus(state, habit, memberId, key) {
+  const days = daysInPeriod(key, habit.period);
+  // A period is exempt only when EVERY day in it is. Three days away does not excuse a whole week
+  // of a weekly goal — you had four other days to do it in.
+  if (days.every((d) => exemptReason(state, habit, memberId, d))) return EXEMPT;
+  // Weekday scheduling is a daily-habit idea. "Mon/Wed/Fri" says nothing about a monthly target.
+  if (habit.period === PERIOD.DAY && !habit.days.includes(isoDayOfWeek(key))) return EXEMPT;
 
-  const value = valueOn(state, habit, memberId, day);
+  const value = valueForPeriod(state, habit, memberId, key);
   if (value === null) {
     // An AUTOMATIC source that said nothing means the pipeline was silent — which is not the same
     // as the user failing, and must not be scored as one. A MANUAL habit with no entry is a real
     // miss: logging it was the whole task.
     return AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId)) ? NO_DATA : MISS;
   }
-  const target = targetOn(habit, day);
+  const target = targetOn(habit, periodEnd(key, habit.period));
   const met = habit.direction === AT_MOST ? value <= target : value >= target;
   return met ? HIT : MISS;
+}
+
+/**
+ * How far through a period someone is, from 0 to 1.
+ *
+ * The board needs this for the period still running. A month-long savings goal would otherwise
+ * contribute nothing to this week's standings until the month closed — which is both useless and
+ * discouraging, since the whole point of showing up on the board is seeing the effort land.
+ */
+export function progressFor(state, habit, memberId, key) {
+  const target = targetOn(habit, periodEnd(key, habit.period));
+  const value = valueForPeriod(state, habit, memberId, key);
+  if (target <= 0) return 1;
+  if (habit.direction === AT_MOST) {
+    // Nothing logged against a ceiling means nothing spent, which is a perfect score so far.
+    if (value === null) return 1;
+    return value <= target ? 1 : Math.max(0, 1 - (value - target) / target);
+  }
+  if (value === null) return 0;
+  return Math.min(1, value / target);
+}
+
+/** Daily convenience wrapper, and what most of the UI actually asks for. */
+export function rawDayStatus(state, habit, memberId, day) {
+  return rawPeriodStatus(state, habit, memberId, periodKey(day, habit.period));
 }
 
 // ============================================================================
@@ -348,21 +491,34 @@ export function walk(state, habitId, memberId, today, through = null) {
   const habit = state.habits.get(habitId);
   if (!habit) return null;
 
-  const end = through || addDays(today, -1);
-  let day = habit.createdDay;
-  if (daysBetween(day, end) > MAX_WALK_DAYS) day = addDays(end, -MAX_WALK_DAYS);
+  const endDay = through || today;
+  let startDay = habit.createdDay;
+  if (daysBetween(startDay, endDay) > MAX_WALK_DAYS) startDay = addDays(endDay, -MAX_WALK_DAYS);
 
+  const currentKey = periodKey(today, habit.period);
   const statuses = new Map();
   const spent = [];
   let tokens = 0, cleanRun = 0, length = 0;
+  let todayStatus = null;
   const { earnEvery, cap } = habit.grace;
 
-  for (; daysBetween(day, end) >= 0; day = addDays(day, 1)) {
-    let status = rawDayStatus(state, habit, memberId, day);
+  for (const key of periodsBetween(startDay, endDay, habit.period)) {
+    const raw = rawPeriodStatus(state, habit, memberId, key);
 
+    // The period still running is never a miss — it has not finished yet. This is the difference
+    // between a streak that survives the morning and one that resets at 00:01, and it matters far
+    // more once periods can be a month long: a savings goal must not read as failed on the 2nd.
+    if (key === currentKey) {
+      todayStatus = raw;
+      statuses.set(key, raw);
+      if (raw === HIT || raw === EXEMPT) length += 1; // counts the moment it is won
+      continue;
+    }
+
+    let status = raw;
     if (status === MISS && tokens > 0) {
       tokens -= 1;
-      spent.push(day);
+      spent.push(key);
       status = EXEMPT;
     }
 
@@ -375,15 +531,10 @@ export function walk(state, habitId, memberId, today, through = null) {
       cleanRun = 0;
       tokens = Math.min(tokens + 1, cap);
     }
-    statuses.set(day, status);
+    statuses.set(key, status);
   }
 
-  // Today counts only once it is already won.
-  const todayStatus = rawDayStatus(state, habit, memberId, today);
-  if (!statuses.has(today)) statuses.set(today, todayStatus);
-  if (daysBetween(end, today) > 0 && (todayStatus === HIT || todayStatus === EXEMPT)) length += 1;
-
-  return { habit, statuses, streak: length, tokens, spent, todayStatus };
+  return { habit, statuses, streak: length, tokens, spent, todayStatus, currentKey };
 }
 
 /** Convenience: just the streak length for a member's habit. */
@@ -399,30 +550,65 @@ export function streak(state, habitId, memberId, today) {
 /**
  * Completion across every SCORED habit, for the window [from, to].
  *
- * Two rules make the crown and the clown fair rather than an accident of hardware:
+ * ---- Why each habit is scored on its own before anything is combined ----
  *
- *   - EXEMPT and NO_DATA days leave the denominator. You are measured on days you were actually
- *     asked to show up, and where we could actually tell.
- *   - The clown is SUPPRESSED for anyone with a NO_DATA day in the window. Otherwise the tag
- *     lands on whoever has the worst sync pipeline rather than the worst week — which, in a group
- *     with mixed watches, is a known person and a fixed outcome.
+ * Pooling every period into one hits-over-eligible ratio quietly makes the shortest habit the only
+ * one that counts. Over a month, a daily step goal produces about thirty results and a monthly
+ * savings target produces one: pooled, the savings target moves the number by three percent and
+ * the steps decide everything. No weighting fixes that — you would need a weight of thirty just to
+ * get back to even, and the arithmetic would still be at the mercy of how many days were in the
+ * window.
+ *
+ * So each habit is reduced to its own completion ratio first, and only then are those combined,
+ * weighted. A month of steps and one savings target count the same by default, and `weight`
+ * becomes a deliberate statement that one of them matters more — rather than a correction for a
+ * broken denominator.
+ *
+ * Two further rules keep the crown and the clown fair rather than an accident of hardware:
+ *
+ *   - EXEMPT and NO_DATA periods leave the denominator entirely. You are measured on the periods
+ *     you were actually asked to show up for, and where we could tell whether you did.
+ *   - The period still RUNNING contributes partial progress rather than a verdict. Without it a
+ *     monthly goal would contribute nothing to this week's board until the month closed, which is
+ *     both useless and discouraging.
  */
 export function leaderboard(state, memberIds, from, to, today = to) {
   const scored = [...state.habits.values()].filter((h) => h.scored);
 
   const rows = memberIds.map((memberId) => {
     let hits = 0, eligible = 0, noData = 0, spentTokens = 0, bestStreak = 0;
+    let weighted = 0, weightSum = 0;
+    const perHabit = [];
 
     for (const habit of scored) {
       const w = walk(state, habit.habitId, memberId, today, to);
       if (!w) continue;
       bestStreak = Math.max(bestStreak, w.streak);
-      spentTokens += w.spent.filter((d) => daysBetween(from, d) >= 0).length;
-      for (let d = from; daysBetween(d, to) >= 0; d = addDays(d, 1)) {
-        const s = w.statuses.get(d);
-        if (s === HIT) { hits += 1; eligible += 1; }
-        else if (s === MISS) { eligible += 1; }
-        else if (s === NO_DATA) { noData += 1; }
+
+      const keys = periodsBetween(from, to, habit.period);
+      spentTokens += w.spent.filter((k) => keys.includes(k)).length;
+
+      let scoreSum = 0, judged = 0;
+      for (const key of keys) {
+        const status = w.statuses.get(key);
+        if (status === undefined || status === EXEMPT) continue; // before it existed, or excused
+        if (status === NO_DATA) { noData += 1; continue; }
+
+        if (key === w.currentKey) {
+          scoreSum += progressFor(state, habit, memberId, key);
+        } else {
+          scoreSum += status === HIT ? 1 : 0;
+          if (status === HIT) hits += 1;
+          eligible += 1;
+        }
+        judged += 1;
+      }
+
+      if (judged > 0) {
+        const ratio = scoreSum / judged;
+        perHabit.push({ habitId: habit.habitId, name: habit.name, ratio, weight: habit.weight });
+        weighted += ratio * habit.weight;
+        weightSum += habit.weight;
       }
     }
 
@@ -430,9 +616,9 @@ export function leaderboard(state, memberIds, from, to, today = to) {
     return {
       memberId,
       name: (member && member.name) || memberId,
-      hits, eligible, noData, spentTokens,
+      hits, eligible, noData, spentTokens, perHabit,
       streak: bestStreak,
-      pct: eligible > 0 ? Math.round((hits / eligible) * 100) : null,
+      pct: weightSum > 0 ? Math.round((weighted / weightSum) * 100) : null,
     };
   });
 

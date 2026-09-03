@@ -43,7 +43,26 @@ function todayKey(state) {
 
 function paint() {
   if (!ctx) return;
-  renderApp(root, { ...ctx, ...ui, now: Date.now(), onTab, onUrge, onStart, onFixSync });
+  if (ui.editing !== undefined) { paintEditor(); return; }
+  renderApp(root, { ...ctx, ...ui, now: Date.now(), onTab, onUrge, onStart, onFixSync, onEditHabit });
+}
+
+/** The editor owns the root while it is open, the same way onboarding does. */
+async function paintEditor() {
+  const { renderEditor } = await import("./ui/editor.js");
+  renderEditor(root, {
+    state: ctx.state,
+    habitId: ui.editing,
+    onDone: async () => {
+      ui.editing = undefined;
+      await refresh(); // a saved habit changes the log, so re-derive rather than repaint
+    },
+  });
+}
+
+function onEditHabit(habitId) {
+  ui.editing = habitId || null; // null means "new"; undefined means "not editing"
+  paintEditor();
 }
 
 function onTab(tab) {

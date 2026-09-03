@@ -374,6 +374,33 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .codebox-note b { color: var(--text); font-weight: 700; }
 .copy { align-self: flex-start; }
 
+/* ---------- editor ---------- */
+
+/* Choices that are few and short read better as a row of chips than a dropdown: you can see the
+   whole set at once, which matters when picking one changes what the fields below mean. */
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 13px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.chip.on { background: var(--teal); border-color: var(--teal); color: #00201B; }
+
+.check { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; color: var(--text); }
+.check input { width: 18px; height: 18px; accent-color: var(--teal); flex: none; margin-top: 1px; }
+
+.form .sec-title { margin: 10px 0 -4px; }
+.link.danger { color: var(--danger); align-self: flex-start; margin-top: 6px; }
+
+.row.tappable { cursor: pointer; }
+.row.tappable:hover { background: var(--surface-hi); }
+.row.tappable:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

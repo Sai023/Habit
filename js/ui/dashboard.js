@@ -6,10 +6,19 @@
 
 import { el, render } from "../dom.js";
 import {
-  valueOn, targetOn, rawDayStatus, walk, leaderboard, sourceFor,
-  addDays, isoDayOfWeek, HIT, MISS, NO_DATA, EXEMPT,
+  valueOn, valueForPeriod, targetOn, rawDayStatus, rawPeriodStatus, walk, leaderboard, sourceFor,
+  periodKey, periodEnd, addDays, daysBetween, isoDayOfWeek,
+  HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
-import { AT_MOST, AGGREGATE, T, VISIBILITY } from "../schema.js";
+import { AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD } from "../schema.js";
+
+/** "this week" / "this month" — and nothing at all for a daily habit, where it would be noise. */
+const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
+const STREAK_UNIT = {
+  [PERIOD.DAY]: ["day", "days"],
+  [PERIOD.WEEK]: ["week", "weeks"],
+  [PERIOD.MONTH]: ["month", "months"],
+};
 import * as fmt from "./format.js";
 
 const TABS = [
@@ -95,9 +104,13 @@ function timeLeft(ctx) {
  * the other, so they must not look alike.
  */
 function habitCard(habit, ctx) {
-  const value = valueOn(ctx.state, habit, ctx.me, ctx.today);
-  const target = targetOn(habit, ctx.today);
-  const status = rawDayStatus(ctx.state, habit, ctx.me, ctx.today);
+  // A weekly habit's card is about the WEEK. Showing today's number for "gym three times a week"
+  // would read as though you had failed on every rest day.
+  const key = periodKey(ctx.today, habit.period);
+  const value = valueForPeriod(ctx.state, habit, ctx.me, key);
+  const target = targetOn(habit, periodEnd(key, habit.period));
+  const status = rawPeriodStatus(ctx.state, habit, ctx.me, key);
+  const cadence = CADENCE[habit.period] || "";
   const src = fmt.source(sourceFor(ctx.state, habit, ctx.me));
   const reduce = habit.direction === AT_MOST;
 
@@ -119,8 +132,9 @@ function habitCard(habit, ctx) {
         ? (value == null ? "—" : Math.max(0, target - value))
         : fmt.value(habit.metric, value)),
       el("div.card-of", reduce
-        ? "left of " + target + " today"
-        : status === NO_DATA ? "waiting for data" : fmt.goal(habit, target)),
+        ? "left of " + target + " " + (cadence || "today")
+        : status === NO_DATA ? "waiting for data"
+        : fmt.goal(habit, target) + (cadence ? " " + cadence : "")),
     ),
     reduce ? budgetDots(value, target) : progressBar(value, target),
     el("div.card-foot",
@@ -151,8 +165,9 @@ function streakLine(habits, ctx) {
     .sort((a, b) => b.streak - a.streak)[0];
   if (!best) return null;
 
+  const [one, many] = STREAK_UNIT[best.habit.period] || STREAK_UNIT[PERIOD.DAY];
   return el("div.streakline",
-    el("span", "🔥 ", el("b", best.streak), best.streak === 1 ? " day" : " days"),
+    el("span", "🔥 ", el("b", best.streak), " ", best.streak === 1 ? one : many),
     el("span", "🛡 ", el("b", best.tokens), best.tokens === 1 ? " grace token" : " grace tokens"),
     // Grace is never spent silently: a streak that survived because a token was burned, without
     // saying so, reads as a bug the first time someone notices the maths.
@@ -221,21 +236,37 @@ function boardRow(row, ctx) {
 
 function habitsTab(ctx) {
   const habits = [...ctx.state.habits.values()];
-  if (!habits.length) return emptyState(ctx);
 
   return el("section.sec",
-    el("div.sec-hd", el("h2.sec-title", "Habits")),
-    el("div.board", habits.map((h) => {
+    el("div.sec-hd",
+      el("h2.sec-title", "Habits"),
+      el("button.link", { onclick: () => ctx.onEditHabit(null) }, "+ New habit"),
+    ),
+    !habits.length
+      ? el("p.sec-note", { style: "padding:0 2px" },
+          "Nothing tracked yet. Add the first one and the group can start showing up for it.")
+      : el("div.board", habits.map((h) => {
       const src = fmt.source(sourceFor(ctx.state, h, ctx.me));
-      const target = targetOn(h, ctx.today);
-      return el("article.row", { style: "grid-template-columns: 26px minmax(0,1fr)" },
+      const target = targetOn(h, periodEnd(periodKey(ctx.today, h.period), h.period));
+      return el("article.row.tappable", {
+        style: "grid-template-columns: 26px minmax(0,1fr)",
+        role: "button",
+        tabindex: "0",
+        onclick: () => ctx.onEditHabit(h.habitId),
+        onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ctx.onEditHabit(h.habitId); } },
+      },
         el("div.row-rank", h.icon || "◆"),
         el("div.row-main",
           el("div.row-name", h.name || "Habit"),
           el("div.row-meta",
             (h.direction === AT_MOST ? "At most " : "At least ") + fmt.value(h.metric, target),
-            h.days.length === 7 ? " · every day" : " · " + h.days.length + " days a week",
+            // Weekday scheduling only means something for a daily habit — "3 days a week" would
+            // be a contradiction printed next to a weekly target.
+            h.period === PERIOD.DAY
+              ? (h.days.length === 7 ? " · every day" : " · " + h.days.length + " days a week")
+              : " · " + CADENCE[h.period],
             h.taper ? " · tapering" : "",
+            h.weight !== 1 ? " · counts " + h.weight + "×" : "",
           ),
           el("div.row-meta",
             src.icon + " " + src.label,
