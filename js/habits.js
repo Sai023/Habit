@@ -248,6 +248,7 @@ export function replay(events) {
   const logs = new Map();     // "habit|member|day" -> [{ source, value, ts, externalId }]
   const exemptions = [];
   const bindings = new Map();  // "member|habit" -> source
+  const goals = new Map();     // "member|habit" -> { target, active }
   let meta = {};
 
   for (const e of sortEvents(events)) {
@@ -306,6 +307,18 @@ export function replay(events) {
         if (p.memberId && p.habitId && p.source) bindings.set(p.memberId + "|" + p.habitId, p.source);
         break;
 
+      case T.GOAL:
+        if (p.memberId && p.habitId) {
+          const previous = goals.get(p.memberId + "|" + p.habitId) || {};
+          goals.set(p.memberId + "|" + p.habitId, {
+            // An edit sends only what changed, so a target left out keeps the old one rather than
+            // silently reverting this person to the group's default.
+            target: p.target != null ? Number(p.target) : previous.target,
+            active: p.active != null ? Boolean(p.active) : (previous.active !== false),
+          });
+        }
+        break;
+
       case T.EXEMPT:
         if (p.memberId && p.from && p.to) {
           exemptions.push({
@@ -322,7 +335,7 @@ export function replay(events) {
     }
   }
 
-  return { meta, habits, members, logs, exemptions, bindings };
+  return { meta, habits, members, logs, exemptions, bindings, goals };
 }
 
 // ============================================================================
@@ -370,13 +383,41 @@ export function valueOn(state, habit, memberId, day) {
 
 /** The target on a given day, after any taper has stepped it. */
 export function targetOn(habit, day) {
-  if (!habit.taper) return habit.target;
+  return taperedTarget(habit, day, habit.target);
+}
+
+function taperedTarget(habit, day, base) {
+  if (!habit.taper) return base;
   const { amount = 1, everyDays = 7, floor = 0 } = habit.taper;
   const elapsed = Math.max(0, daysBetween(habit.createdDay, day));
   const steps = Math.floor(elapsed / Math.max(1, everyDays)) * amount;
-  return habit.direction === AT_MOST
-    ? Math.max(floor, habit.target - steps)
-    : habit.target + steps;
+  return habit.direction === AT_MOST ? Math.max(floor, base - steps) : base + steps;
+}
+
+/**
+ * This member's own target, falling back to the group's.
+ *
+ * The group agrees on WHAT it tracks; each person sets their own number. Ten thousand steps is a
+ * stretch for one of them and a slow morning for another, and scoring both against one figure
+ * measures fitness rather than effort — which is not what anybody joined a habit tracker for.
+ * A taper still applies, to whichever number is theirs.
+ */
+export function targetFor(state, habit, memberId, day) {
+  const goal = state.goals.get(memberId + "|" + habit.habitId);
+  const base = goal && Number.isFinite(goal.target) && goal.target > 0 ? goal.target : habit.target;
+  return taperedTarget(habit, day, base);
+}
+
+/**
+ * Is this member doing this habit at all?
+ *
+ * Opting out is not the same as failing, and has to be sayable: a group can track five things
+ * without everyone signing up for all five. An untracked habit is EXEMPT for that person and
+ * leaves their board score untouched, rather than dragging it to zero.
+ */
+export function isTracking(state, habit, memberId) {
+  const goal = state.goals.get(memberId + "|" + habit.habitId);
+  return !goal || goal.active !== false;
 }
 
 /**
@@ -426,6 +467,9 @@ export function valueForPeriod(state, habit, memberId, key) {
  * missing measurement means different things depending on who was supposed to take it.
  */
 export function rawPeriodStatus(state, habit, memberId, key) {
+  // Not signed up for this one. Different from failing it, and must not cost them anything.
+  if (!isTracking(state, habit, memberId)) return EXEMPT;
+
   const days = daysInPeriod(key, habit.period);
   // A period is exempt only when EVERY day in it is. Three days away does not excuse a whole week
   // of a weekly goal — you had four other days to do it in.
@@ -440,7 +484,7 @@ export function rawPeriodStatus(state, habit, memberId, key) {
     // miss: logging it was the whole task.
     return AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId)) ? NO_DATA : MISS;
   }
-  const target = targetOn(habit, periodEnd(key, habit.period));
+  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period));
   const met = habit.direction === AT_MOST ? value <= target : value >= target;
   return met ? HIT : MISS;
 }
@@ -453,7 +497,7 @@ export function rawPeriodStatus(state, habit, memberId, key) {
  * discouraging, since the whole point of showing up on the board is seeing the effort land.
  */
 export function progressFor(state, habit, memberId, key) {
-  const target = targetOn(habit, periodEnd(key, habit.period));
+  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period));
   const value = valueForPeriod(state, habit, memberId, key);
   if (target <= 0) return 1;
   if (habit.direction === AT_MOST) {

@@ -6,8 +6,8 @@
 
 import { el, render } from "../dom.js";
 import {
-  valueOn, valueForPeriod, targetOn, rawDayStatus, rawPeriodStatus, walk, leaderboard, sourceFor,
-  periodKey, periodEnd, addDays, daysBetween, isoDayOfWeek,
+  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus,
+  walk, leaderboard, sourceFor, periodKey, periodEnd, addDays, daysBetween, isoDayOfWeek,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
 import { AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD } from "../schema.js";
@@ -71,8 +71,18 @@ function header(ctx) {
 // ---------------------------------------------------------------------------
 
 function todayTab(ctx) {
-  const habits = [...ctx.state.habits.values()];
-  if (!habits.length) return emptyState(ctx);
+  const all = [...ctx.state.habits.values()];
+  // Only what this person actually signed up for. A group can track five things without everyone
+  // doing all five, and showing someone a card for a habit they opted out of is just clutter.
+  const habits = all.filter((h) => isTracking(ctx.state, h, ctx.me));
+  if (!all.length) return emptyState(ctx);
+  if (!habits.length) {
+    return el("div.empty",
+      el("h1", "Nothing picked yet"),
+      el("p", "The group is tracking " + all.length + " habit" + (all.length === 1 ? "" : "s") + ". Choose the ones you're in for and set your own targets."),
+      el("button.tap", { onclick: () => ctx.onEditGoals() }, "Pick my habits"),
+    );
+  }
 
   return [
     el("section.sec",
@@ -108,7 +118,7 @@ function habitCard(habit, ctx) {
   // would read as though you had failed on every rest day.
   const key = periodKey(ctx.today, habit.period);
   const value = valueForPeriod(ctx.state, habit, ctx.me, key);
-  const target = targetOn(habit, periodEnd(key, habit.period));
+  const target = targetFor(ctx.state, habit, ctx.me, periodEnd(key, habit.period));
   const status = rawPeriodStatus(ctx.state, habit, ctx.me, key);
   const cadence = CADENCE[habit.period] || "";
   const src = fmt.source(sourceFor(ctx.state, habit, ctx.me));
@@ -240,7 +250,10 @@ function habitsTab(ctx) {
   return el("section.sec",
     el("div.sec-hd",
       el("h2.sec-title", "Habits"),
-      el("button.link", { onclick: () => ctx.onEditHabit(null) }, "+ New habit"),
+      el("span", { style: "display:flex;gap:14px" },
+        el("button.link", { onclick: () => ctx.onEditGoals() }, "My goals"),
+        el("button.link", { onclick: () => ctx.onEditHabit(null) }, "+ New"),
+      ),
     ),
     !habits.length
       ? el("p.sec-note", { style: "padding:0 2px" },

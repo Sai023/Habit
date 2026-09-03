@@ -204,6 +204,19 @@ export async function deleteHabit(habitId) {
   return commit(ev.deleteHabit(habitId));
 }
 
+/**
+ * Set MY goals: which of the group's habits I'm doing, and my own number for each.
+ *
+ * Committed as one batch so a whole setup screen is a single sync, and so the group never sees a
+ * half-configured member with three of their five goals in place.
+ */
+export async function setGoals(entries) {
+  const { memberId } = await identity();
+  const specs = (entries || []).map((e) =>
+    ev.goal(memberId, e.habitId, { target: e.target, active: e.active !== false }));
+  return commitAll(specs);
+}
+
 /** Point one of MY habits at a source. Per member — see schema.T.BINDING. */
 export async function bindSource(habitId, source) {
   const { memberId } = await identity();

@@ -33,6 +33,7 @@ let onboarding = false;
 // A joiner has nothing to bind to until the room's habits actually arrive, so the binding waits
 // for the first successful pull rather than happening at join time.
 let bindOnNextSync = false;
+let pendingGoals = false;
 
 function todayKey(state) {
   const first = [...state.habits.values()][0];
@@ -42,9 +43,36 @@ function todayKey(state) {
 }
 
 function paint() {
-  if (!ctx) return;
+  if (!ctx || onboarding) return;
   if (ui.editing !== undefined) { paintEditor(); return; }
-  renderApp(root, { ...ctx, ...ui, now: Date.now(), onTab, onUrge, onStart, onFixSync, onEditHabit });
+  renderApp(root, {
+    ...ctx, ...ui, now: Date.now(),
+    onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals,
+  });
+}
+
+/**
+ * "Which of these are you in for, and what's your number?"
+ *
+ * Shown once after joining, and on demand afterwards. If the room's habits have not landed yet the
+ * dashboard's own empty state offers the same thing, so a slow first pull is not a dead end.
+ */
+async function showGoals(firstRun = false) {
+  const [{ getState, identity }, { renderGoals }] = await Promise.all([
+    import("./store.js"), import("./ui/goals.js"),
+  ]);
+  const state = await getState();
+  if (!state.habits.size) { onboarding = false; await refresh(); return; }
+  const { memberId } = await identity();
+  onboarding = true; // this flow owns the root, same as onboarding does
+  renderGoals(root, {
+    state, me: memberId, firstRun,
+    onDone: async () => { onboarding = false; await refresh(); },
+  });
+}
+
+function onEditGoals() {
+  showGoals(false);
 }
 
 /** The editor owns the root while it is open, the same way onboarding does. */
@@ -118,11 +146,16 @@ async function showOnboard() {
   onboarding = true;
   renderOnboard(root, {
     onComplete: async (opts = {}) => {
-      if (opts.bindAfterSync) bindOnNextSync = true;
+      if (opts.bindAfterSync) { bindOnNextSync = true; pendingGoals = true; }
       // Sync starts while the share screen is still up, so the group exists on the server by the
       // time anyone acts on the code — but the screen stays put until they say they are done.
       await startSync();
-      if (opts.done) { onboarding = false; await refresh(); }
+      if (!opts.done) return;
+      onboarding = false;
+      // A joiner picks their habits and targets next. By the time they have read the two codes the
+      // first pull has almost always landed, so the list is there to choose from.
+      if (pendingGoals) { pendingGoals = false; await showGoals(true); return; }
+      await refresh();
     },
   });
 }

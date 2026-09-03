@@ -23,7 +23,7 @@
 // A live number for today's card comes from the sensor directly, not from the log. That is the
 // distinction that keeps this cheap.
 
-import { dayKey, daysBetween, valueOn, targetOn, sourceFor } from "./habits.js";
+import { dayKey, daysBetween, valueOn, targetFor, sourceFor, isTracking } from "./habits.js";
 import { ev, METRIC, MAX_BACKFILL_DAYS, AT_MOST, AGGREGATE } from "./schema.js";
 
 /** Backstop for a value that keeps creeping without ever flipping the verdict. */
@@ -41,8 +41,8 @@ export function instantFor(metric, sample) {
   return sample.start != null ? sample.start : sample.end;
 }
 
-function meets(habit, value, day) {
-  const target = targetOn(habit, day);
+function meets(state, habit, memberId, value, day) {
+  const target = targetFor(state, habit, memberId, day);
   return habit.direction === AT_MOST ? value <= target : value >= target;
 }
 
@@ -75,6 +75,8 @@ export function samplesToEvents(state, memberId, batch, opts = {}) {
       // Discrete events (urges, workouts) are appended as they happen by their own path — the
       // "has it changed?" test below is meaningless for something that is always +1.
       if (habit.aggregate === AGGREGATE.SUM) continue;
+      // Nothing to report for a habit this person opted out of.
+      if (!isTracking(state, habit, memberId)) continue;
 
       const instant = instantFor(habit.metric, sample);
       if (instant == null) continue;
@@ -90,7 +92,7 @@ export function samplesToEvents(state, memberId, batch, opts = {}) {
       if (known === value) continue; // the common case: nothing has changed since the last poll
 
       const isFirst = known === null;
-      const flips = !isFirst && meets(habit, known, day) !== meets(habit, value, day);
+      const flips = !isFirst && meets(state, habit, memberId, known, day) !== meets(state, habit, memberId, value, day);
       const isClosedDay = day !== todayKey;
 
       if (!isFirst && !flips && !isClosedDay) {

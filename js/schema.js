@@ -26,6 +26,7 @@ export const T = {
   LOG:          "habit_log",          // ONE observation for one member, habit and day
   EXEMPT:       "habit_exempt",       // travel mode / planned rest — a range of days
   BINDING:      "habit_source",       // which source feeds one habit FOR ONE MEMBER
+  GOAL:         "habit_goal",         // one member's own target, and whether they track it
 };
 
 /**
@@ -158,6 +159,18 @@ export const ev = {
    */
   bind: (memberId, habitId, source) =>
     ({ type: T.BINDING, payload: p({ memberId, habitId, source }) }),
+
+  /**
+   * One member's own goal for a shared habit.
+   *
+   * The group agrees on WHAT it is tracking; each person sets their own number. Ten thousand steps
+   * is a stretch for one of them and a slow morning for another, and scoring both against the same
+   * figure measures fitness rather than effort — which is not what anybody joined for.
+   *
+   * `active: false` means they are not doing this one at all, which is different from failing it.
+   */
+  goal: (memberId, habitId, { target, active = true } = {}) =>
+    ({ type: T.GOAL, payload: p({ memberId, habitId, target, active }) }),
 
   /** Travel mode or a planned rest. `habitId` null exempts every habit. */
   exempt: (memberId, from, to, reason = "travel", habitId = null) =>
