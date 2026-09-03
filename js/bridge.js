@@ -129,6 +129,24 @@ export function requestPermissions(list) {
   return call("requestPermissions", { permissions: list });
 }
 
+/**
+ * Hand the shell what its background job needs to sync without a WebView: the room, who this
+ * device is, where to push, and just enough of each habit to work out which day a reading belongs
+ * to. Deliberately no targets and no streak rules — the shell reports what it saw and never
+ * decides whether a day was a success, so the two sides cannot disagree about it.
+ *
+ * Sending it from here rather than compiling it into the APK means pointing the group at a
+ * different Supabase project never needs a signed release on three phones.
+ */
+export function setSyncConfig({ groupCode, memberId, supabaseUrl, supabaseKey, habits }) {
+  return call("setSyncConfig", {
+    groupCode, memberId, supabaseUrl, supabaseKey,
+    habits: (habits || []).map((h) => ({
+      habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
+    })),
+  });
+}
+
 /** Show a notification now, with optional action buttons ("+1", "Resisted"). */
 export function notify({ title, body, actions = [] }) {
   return call("notify", { title, body, actions });

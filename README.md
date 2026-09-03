@@ -8,7 +8,7 @@ above that line — the dashboard, the leaderboard, the habit settings, and the 
 what a streak is. It loads in a WebView inside Pause, so the UI ships from Vercel in seconds
 instead of through a signed release on three phones.
 
-Status: **Phase 1.** The engine and its test suite are done. No UI yet.
+Status: **Phase 1.** Engine, sync layer and dashboard are in. Group setup is the next screen.
 
 ## Architecture
 
@@ -70,12 +70,22 @@ outage rather than to anything they did.
 ## Develop
 
 ```bash
-npm test
+npm test    # 42 tests, no install step
+npm run dev # http://localhost:5174
 ```
 
 No dependencies and no test runner: the engine is pure, so node built-ins are enough and CI needs
-no install step. The tests in `test/habits.test.mjs` are the specification — each case is a
-decision argued for during design review. If one fails, a rule changed; change it on purpose.
+no install step. The tests are the specification — each case is a decision argued for during
+design review. If one fails, a rule changed; change it on purpose.
+
+`?demo=1` replays a generated three weeks through the real engine, so the states that take weeks
+to occur naturally — a spent grace token, a watch that went quiet — can be looked at now. Nothing
+is faked and nothing is stored: if the leaderboard is wrong there, it is wrong in production.
+
+The UI is hand-written CSS rather than Tailwind, unlike Passport. Passport has dozens of screens
+and earns a utility framework; this has three, and zero dependencies is worth more. The palette is
+Pause's to the hex, because this renders in a WebView inside that app and "close but different"
+reads as a bug.
 
 ## Data sources
 
@@ -105,6 +115,11 @@ js/store.js          command layer + memoised derived state
 js/sync.js           local-first sync engine with a circuit breaker
 js/sync-adapter.js   Supabase RPC transport (no SDK)
 js/bridge.js         the web half of the HabitBridge contract with Pause
+js/dom.js            a 30-line element helper; no framework
+js/app.js            bootstrap: demo state or the device's own log
+js/ui/dashboard.js   Today, Board and Habits
+js/ui/format.js      how a number is spoken (7h 05m, not 425)
+js/ui/demo.js        a believable three weeks, for review without a backend
 test/                the rules, as executable specification
 ```
 

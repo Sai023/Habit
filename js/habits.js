@@ -437,11 +437,19 @@ export function leaderboard(state, memberIds, from, to, today = to) {
   });
 
   // Rank by completion. Someone with no measurable days ranks last but is never crowned or clowned.
+  //
+  // Ties break on days actually completed, then on streak. Percentage alone would hand the crown
+  // to whoever had the fewest days measured — a week where three of five days were rest days or
+  // travel is 100%, and it should not beat a perfect seven out of seven. Name is only ever the
+  // last resort, so that ordering stays deterministic across devices.
   const ranked = rows.slice().sort((a, b) => {
-    if (a.pct === b.pct) return a.name.localeCompare(b.name);
+    if (a.pct === null && b.pct === null) return a.name.localeCompare(b.name);
     if (a.pct === null) return 1;
     if (b.pct === null) return -1;
-    return b.pct - a.pct;
+    if (a.pct !== b.pct) return b.pct - a.pct;
+    if (a.hits !== b.hits) return b.hits - a.hits;
+    if (a.streak !== b.streak) return b.streak - a.streak;
+    return a.name.localeCompare(b.name);
   });
   ranked.forEach((r, i) => { r.rank = i + 1; });
 

@@ -342,6 +342,25 @@ test("EXEMPT and NO_DATA days leave the denominator", () => {
   assert.equal(carol.pct, 100, "she hit both days she was measured on");
 });
 
+test("a tie on percentage breaks on days completed, not on name", () => {
+  // Both perfect, but one of them showed up on more days. Percentage alone would crown whoever
+  // had the fewest days measured — a week that was mostly rest days should not beat a full one.
+  const events = [
+    E(ev.member("m1", "Zoe"), at(D0, 6)),
+    E(ev.member("m2", "Adam"), at(D0, 6)),
+    E(ev.habit("h1", { tz: TZ, dayStartHour: 4, ...manualHabit, scored: true }), at(D0, 6)),
+  ];
+  for (let n = 0; n <= 6; n += 1) events.push(log(n, 1, { member: "m1" })); // Zoe: 7/7
+  for (let n = 0; n <= 2; n += 1) events.push(log(n, 1, { member: "m2" })); // Adam: 3/3, rest exempt
+  events.push(E(ev.exempt("m2", day(3), day(6), "travel"), at(day(2), 9)));
+
+  const rows = leaderboard(replay(events), ["m1", "m2"], day(0), day(6), day(6));
+  assert.equal(rows[0].pct, 100);
+  assert.equal(rows[1].pct, 100);
+  assert.equal(rows[0].name, "Zoe", "seven days beats three, alphabet notwithstanding");
+  assert.equal(rows[0].crown, true);
+});
+
 test("reduce habits stay out of scoring unless deliberately opted in", () => {
   const reduce = group({ habit: { ...manualHabit, direction: AT_MOST, target: 8 } });
   assert.equal(reduce.habits.get("h1").scored, false);
