@@ -172,6 +172,51 @@ test("two sources describing one day take the MAX, never the sum", () => {
   assert.equal(valueOn(s, s.habits.get("h1"), "m1", day(0)), 12000);
 });
 
+test("a number somebody typed in beats the watch, even when it is lower", () => {
+  // Max is right between two sensors and wrong against a person. Correcting a watch that
+  // over-counted would otherwise be discarded for being the smaller number, which makes the
+  // correction button look broken while quietly keeping the wrong figure.
+  const s = group({
+    habit: autoHabit,
+    logs: [
+      log(0, 12000, { source: SOURCE.HEALTH_CONNECT }),
+      log(0, 8000, { source: SOURCE.MANUAL }),
+    ],
+  });
+  assert.equal(valueOn(s, s.habits.get("h1"), "m1", day(0)), 8000);
+  assert.equal(rawDayStatus(s, s.habits.get("h1"), "m1", day(0)), MISS, "and the verdict follows it");
+});
+
+test("a manual entry can also correct a day upwards when the watch was asleep", () => {
+  const s = group({
+    habit: autoHabit,
+    logs: [
+      log(0, 2000, { source: SOURCE.HEALTH_CONNECT }),
+      log(0, 11000, { source: SOURCE.MANUAL }),
+    ],
+  });
+  assert.equal(valueOn(s, s.habits.get("h1"), "m1", day(0)), 11000);
+});
+
+test("correcting twice keeps the later correction", () => {
+  const s = group({
+    habit: autoHabit,
+    logs: [log(0, 8000, { source: SOURCE.MANUAL }), log(0, 9500, { source: SOURCE.MANUAL })],
+  });
+  assert.equal(valueOn(s, s.habits.get("h1"), "m1", day(0)), 9500);
+});
+
+test("sensors still take the max between themselves", () => {
+  const s = group({
+    habit: autoHabit,
+    logs: [
+      log(0, 8000, { source: SOURCE.HEALTH_CONNECT }),
+      log(0, 12000, { source: SOURCE.STRAVA }),
+    ],
+  });
+  assert.equal(valueOn(s, s.habits.get("h1"), "m1", day(0)), 12000);
+});
+
 test("taper steps the ceiling down each week and never past the floor", () => {
   const s = group({
     habit: { ...manualHabit, direction: AT_MOST, target: 20, taper: { amount: 1, everyDays: 7, floor: 0 } },

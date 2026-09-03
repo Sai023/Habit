@@ -47,7 +47,19 @@ function paint() {
   if (ui.editing !== undefined) { paintEditor(); return; }
   renderApp(root, {
     ...ctx, ...ui, now: Date.now(),
-    onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals,
+    onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals, onLog,
+  });
+}
+
+/** Type a number in — the only way half these habits ever get a value. */
+async function onLog(habit) {
+  if (isDemo) return;
+  const { openLogSheet } = await import("./ui/logsheet.js");
+  // Mounted on <body>, not on the app root. A sync landing mid-entry repaints the root, and
+  // anything living inside it would vanish with the number half typed.
+  openLogSheet(document.body, {
+    state: ctx.state, habit, me: ctx.me, today: ctx.today,
+    onSaved: () => refresh(),
   });
 }
 

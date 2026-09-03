@@ -374,6 +374,69 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .codebox-note b { color: var(--text); font-weight: 700; }
 .copy { align-self: flex-start; }
 
+/* ---------- logging a number ---------- */
+
+.logbtn {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--teal);
+}
+.logbtn:active { background: var(--surface-hi); }
+
+.sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(4, 7, 16, 0.72);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface);
+  border-radius: var(--r) var(--r) 0 0;
+  padding: 10px 18px calc(20px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.sheet-grip { width: 38px; height: 4px; border-radius: 999px; background: var(--line); align-self: center; }
+.sheet-head { display: flex; align-items: center; gap: 9px; }
+.sheet-title { font-size: 17px; font-weight: 700; }
+.sheet-now { margin: 0; font-size: 13px; color: var(--dim); }
+.sheet-actions { display: flex; gap: 10px; }
+.sheet-actions .tap { flex: 1; }
+.sheet-actions .ghost { flex: none; }
+
+/* Big targets either side of the field: this gets used one-handed, often at the exact moment
+   somebody would rather not be fiddling with a phone at all. */
+.stepper { display: flex; align-items: stretch; gap: 8px; }
+.stepper input {
+  flex: 1;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.step {
+  width: 52px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-hi);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+.step:active { background: var(--teal); color: #00201B; }
+
 /* ---------- editor ---------- */
 
 /* Choices that are few and short read better as a row of chips than a dropdown: you can see the

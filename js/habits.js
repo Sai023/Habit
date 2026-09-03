@@ -360,8 +360,8 @@ export function valueOn(state, habit, memberId, day) {
     bySource.get(e.source).push(e);
   }
 
-  let best = null;
-  for (const list of bySource.values()) {
+  const perSource = new Map();
+  for (const [source, list] of bySource) {
     let v;
     if (habit.aggregate === "sum") {
       const seen = new Set();
@@ -376,8 +376,20 @@ export function valueOn(state, habit, memberId, day) {
     } else {
       v = list[list.length - 1].value; // entries are already in replay order
     }
-    best = best === null ? v : Math.max(best, v);
+    perSource.set(source, v);
   }
+
+  // A number somebody typed in WINS outright, rather than joining the max.
+  //
+  // Max is the right rule between two sensors describing the same day — neither is lying and the
+  // fuller record is the honest one. It is the wrong rule against a person: correcting a watch
+  // that over-counted would be silently discarded for being smaller, which makes the correction
+  // button look broken. If you have explicitly written a number for a day, you are overruling the
+  // machine, and that is the whole point of being able to.
+  if (perSource.has("manual")) return perSource.get("manual");
+
+  let best = null;
+  for (const v of perSource.values()) best = best === null ? v : Math.max(best, v);
   return best;
 }
 

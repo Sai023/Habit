@@ -10,7 +10,7 @@ import {
   walk, leaderboard, sourceFor, periodKey, periodEnd, addDays, daysBetween, isoDayOfWeek,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
-import { AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD } from "../schema.js";
+import { AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE } from "../schema.js";
 
 /** "this week" / "this month" — and nothing at all for a daily habit, where it would be noise. */
 const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
@@ -121,13 +121,17 @@ function habitCard(habit, ctx) {
   const target = targetFor(ctx.state, habit, ctx.me, periodEnd(key, habit.period));
   const status = rawPeriodStatus(ctx.state, habit, ctx.me, key);
   const cadence = CADENCE[habit.period] || "";
-  const src = fmt.source(sourceFor(ctx.state, habit, ctx.me));
+  const source = sourceFor(ctx.state, habit, ctx.me);
+  const src = fmt.source(source);
   const reduce = habit.direction === AT_MOST;
+  // A watch normally fills this one in, so the button is the override rather than the main way in.
+  const auto = source === SOURCE.HEALTH_CONNECT || source === SOURCE.STRAVA;
+  const intervention = source === SOURCE.PAUSE && reduce;
 
   const classes = ["card"];
-  // The card with an action gets the full row: it is the one you tap, and a half-width button
+  // The card with the big action gets the full row: it is the one you tap, and a half-width button
   // stranded beside dead space reads as a layout accident rather than a choice.
-  if (reduce) classes.push("has-action");
+  if (intervention) classes.push("has-action");
   if (status === HIT) classes.push("is-hit");
   if (status === NO_DATA) classes.push("is-nodata");
   if (reduce && value != null && value > target) classes.push("is-over");
@@ -139,7 +143,9 @@ function habitCard(habit, ctx) {
     ),
     el("div",
       el("div.card-value", reduce
-        ? (value == null ? "—" : Math.max(0, target - value))
+        // Nothing logged against a ceiling means nothing spent — the whole budget is still there.
+        // A dash would read as "unknown" when the honest answer is "all of it".
+        ? Math.max(0, target - (value || 0))
         : fmt.value(habit.metric, value)),
       el("div.card-of", reduce
         ? "left of " + target + " " + (cadence || "today")
@@ -151,7 +157,12 @@ function habitCard(habit, ctx) {
       el("span.src", src.icon, " ", src.label),
       status === HIT ? el("span", "✓") : null,
     ),
-    reduce ? el("button.tap", { onclick: () => ctx.onUrge(habit) }, "I want to vape 💨") : null,
+    // The breathing screen is its own thing: it interrupts an urge rather than recording one, and
+    // the recording is what happens afterwards. Everything else just needs a way in.
+    intervention
+      ? el("button.tap", { onclick: () => ctx.onUrge(habit) }, "I want to vape 💨")
+      : el("button.logbtn", { onclick: () => ctx.onLog(habit) },
+          auto ? "Enter it manually" : "＋ Log"),
   );
 }
 
