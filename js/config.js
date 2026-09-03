@@ -17,7 +17,12 @@
 //
 // Leave both blank to run fully LOCAL_ONLY — every screen still works, nothing syncs.
 
-export const SUPABASE_URL = "";
-export const SUPABASE_ANON_KEY = "";
+// The SAME project Passport uses, deliberately. Habit events ride in its existing events table
+// under a HABIT- room code, so push_events/pull_events, the RLS model and — the part that is easy
+// to forget — the daily keepalive that stops a free-tier project being paused all cover this app
+// for free. A second project would need its own keepalive or it would quietly sleep.
+
+export const SUPABASE_URL = "https://yoydjgkvumxbaxzfbwvp.supabase.co";
+export const SUPABASE_ANON_KEY = "sb_publishable_UZKTY0NhHnkuTSRAo7bcoQ_SGjoTcag";
 
 export const cloudConfigured = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
