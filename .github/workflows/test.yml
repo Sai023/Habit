@@ -1,0 +1,17 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # The habit engine is pure (no storage, no network, no DOM), so the whole
+      # streak/grace/leaderboard model is testable with node built-ins alone.
+      - run: npm test

@@ -1,0 +1,10 @@
+{
+  "name": "habit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Group habit tracking for a close-knit group — the web layer of the Pause app.",
+  "scripts": {
+    "test": "node test/habits.test.mjs"
+  }
+}
