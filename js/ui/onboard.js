@@ -230,33 +230,44 @@ export function renderOnboard(root, { onComplete }) {
     }
   }
 
+  /**
+   * Two codes, and people reach for the wrong one.
+   *
+   * The invite is short and readable; the setup code is a wall of base64. Given both at once, a
+   * hand goes for the one that looks like a code — and it was listed first, with a button of equal
+   * weight, which made that the obvious thing to grab. So they are numbered now, the one that is
+   * actually blocking you comes first, and only it gets the primary button. Sending the invite can
+   * happen any time; nothing works until this phone is connected.
+   */
   function share() {
     return el("div.form",
       el("h1", "You're in"),
-      el("p.lede", "Two codes, and they do different things."),
-
-      el("div.codebox",
-        el("div.codebox-label", "Send this to your friends"),
-        el("div.codebox-value", state.code),
-        el("p.codebox-note", "The invite. Anyone with it can join and see the group."),
-        copyButton(state.code, "Copy invite code"),
-      ),
+      el("p.lede", "Two codes, and they do different jobs."),
 
       el("div.codebox.private",
-        el("div.codebox-label", "Set up Pause on this phone"),
+        el("div.codebox-label", "① Set up Pause on this phone"),
         el("div.codebox-value small", state.setup || "—"),
         el("p.codebox-note",
           el("b", "Keep this one to yourself. "),
           "It carries your identity, so anyone who pastes it would post as you. Open Pause → Habits → paste it in."),
-        copyButton(state.setup, "Copy setup code"),
+        copyButton(state.setup, "Copy setup code", "tap"),
+      ),
+
+      el("div.codebox",
+        el("div.codebox-label", "② Send this to your friends"),
+        el("div.codebox-value", state.code),
+        el("p.codebox-note",
+          "The invite. Anyone with it can join and see the group. ",
+          el("b", "This is not the one Pause wants.")),
+        copyButton(state.code, "Copy invite code", "ghost"),
       ),
 
       el("button.tap", { onclick: () => onComplete({ done: true }) }, "Go to my habits"),
     );
   }
 
-  function copyButton(text, label) {
-    return el("button.ghost.copy", {
+  function copyButton(text, label, kind = "ghost") {
+    return el("button." + kind + ".copy", {
       onclick: async (e) => {
         const button = e.currentTarget;
         try {
