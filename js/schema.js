@@ -25,6 +25,25 @@ export const T = {
   HABIT_DELETE: "habit_def_delete",   // retire a habit; its logs stay for history
   LOG:          "habit_log",          // ONE observation for one member, habit and day
   EXEMPT:       "habit_exempt",       // travel mode / planned rest — a range of days
+  BINDING:      "habit_source",       // which source feeds one habit FOR ONE MEMBER
+};
+
+/**
+ * What a habit measures. The metric is group-wide (everyone's "Steps" means steps); the SOURCE
+ * that supplies it is per member, because the same group has two phones on Health Connect and one
+ * that types it in. See T.BINDING.
+ *
+ * Canonical units, so a target means the same thing whoever reported it:
+ *   steps            a count
+ *   sleep_minutes    minutes (Health Connect reports a duration; the native side converts)
+ *   active_calories  kcal
+ *   urges            a count of discrete events
+ */
+export const METRIC = {
+  STEPS: "steps",
+  SLEEP: "sleep_minutes",
+  ACTIVE_CALORIES: "active_calories",
+  URGES: "urges",
 };
 
 /** Goal direction. `at_least` counts up to a target; `at_most` stays under a ceiling. */
@@ -75,7 +94,8 @@ export const HABIT_DEFAULTS = {
   days: [1, 2, 3, 4, 5, 6, 7],   // ISO weekdays the habit is active (1 = Mon .. 7 = Sun)
   dayStartHour: 4,               // 01:00 counts as yesterday — see dayKey()
   tz: "Africa/Johannesburg",     // PINNED, not read from the device: travel must not move the boundary
-  source: SOURCE.MANUAL,
+  metric: null,                  // null = nothing automatic can feed it; see METRIC
+  source: SOURCE.MANUAL,         // the DEFAULT binding; a member can override it (T.BINDING)
   aggregate: "last",           // see AGGREGATE — urges and workouts want "sum"
   visibility: VISIBILITY.PROGRESS,
   scored: null,                  // null = decide from direction (reduce habits opt OUT by default)
@@ -98,6 +118,16 @@ export const ev = {
    */
   log: (habitId, memberId, day, value, source, externalId = null) =>
     ({ type: T.LOG, payload: p({ habitId, memberId, day, value: Number(value) || 0, source, externalId }) }),
+
+  /**
+   * Bind a member's device to a source for one habit.
+   *
+   * This has to be per member, not per habit: in a group with two Samsung phones and one older
+   * one, the same "Steps" habit is fed by Health Connect for two people and typed in by the
+   * third — and the difference decides whether a silent day reads as NO_DATA or as a real miss.
+   */
+  bind: (memberId, habitId, source) =>
+    ({ type: T.BINDING, payload: p({ memberId, habitId, source }) }),
 
   /** Travel mode or a planned rest. `habitId` null exempts every habit. */
   exempt: (memberId, from, to, reason = "travel", habitId = null) =>

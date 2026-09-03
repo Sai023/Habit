@@ -77,10 +77,37 @@ No dependencies and no test runner: the engine is pure, so node built-ins are en
 no install step. The tests in `test/habits.test.mjs` are the specification — each case is a
 decision argued for during design review. If one fails, a rule changed; change it on purpose.
 
+## Data sources
+
+The metric a habit measures is group-wide; the **source that supplies it is per member**. The same
+"Steps" habit is fed by Health Connect on two phones and typed in on a third, and that difference
+decides whether a silent day reads as `NO_DATA` or as a real miss. See `T.BINDING`.
+
+There is no separate Samsung Health integration and there does not need to be: Samsung Health
+writes into Health Connect on One UI 6+, so reading Health Connect covers it.
+
+`ingest.js` decides what a sensor poll is allowed to write, and it is deliberately stingy. Health
+Connect re-reports the day's running total on every read, so appending each one would put roughly
+300k rows a year into a log that every device replays on open. **The log records the day's
+outcome, not the day's telemetry** — a reading is written only when it is the first of the day,
+flips the verdict, backfills a closed day, or the throttle has expired. Live numbers on today's
+card come from the sensor, not the log.
+
 ## Layout
 
 ```
-js/schema.js    event vocabulary, versioning, defaults
-js/habits.js    the pure engine — day status, streaks, grace, leaderboard
-test/           the rules, as executable specification
+js/schema.js         event vocabulary, versioning, defaults
+js/habits.js         the pure engine — day status, streaks, grace, leaderboard
+js/ingest.js         pure: sensor readings -> the events worth writing
+js/id.js             UUIDs (real ones — the events PK is typed uuid) and group codes
+js/db.js             IndexedDB: events, queue, meta
+js/store.js          command layer + memoised derived state
+js/sync.js           local-first sync engine with a circuit breaker
+js/sync-adapter.js   Supabase RPC transport (no SDK)
+js/bridge.js         the web half of the HabitBridge contract with Pause
+test/                the rules, as executable specification
 ```
+
+`config.js` is blank on purpose — fill in the Supabase URL and **publishable** key to enable sync.
+A group code is not configuration: it is the capability that grants access to one room, so it
+lives on the device and must never be committed.

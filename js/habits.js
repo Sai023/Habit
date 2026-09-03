@@ -152,6 +152,7 @@ export function replay(events) {
   const members = new Map();
   const logs = new Map();     // "habit|member|day" -> [{ source, value, ts, externalId }]
   const exemptions = [];
+  const bindings = new Map();  // "member|habit" -> source
   let meta = {};
 
   for (const e of sortEvents(events)) {
@@ -206,6 +207,10 @@ export function replay(events) {
         break;
       }
 
+      case T.BINDING:
+        if (p.memberId && p.habitId && p.source) bindings.set(p.memberId + "|" + p.habitId, p.source);
+        break;
+
       case T.EXEMPT:
         if (p.memberId && p.from && p.to) {
           exemptions.push({
@@ -222,7 +227,7 @@ export function replay(events) {
     }
   }
 
-  return { meta, habits, members, logs, exemptions };
+  return { meta, habits, members, logs, exemptions, bindings };
 }
 
 // ============================================================================
@@ -279,6 +284,17 @@ export function targetOn(habit, day) {
     : habit.target + steps;
 }
 
+/**
+ * Which source feeds this habit for this member — their own binding, else the habit's default.
+ *
+ * The whole NO_DATA rule hangs off this answer, so it is deliberately a lookup rather than a
+ * habit field: the group shares one "Steps" habit, but only some of them have a watch reporting
+ * into it.
+ */
+export function sourceFor(state, habit, memberId) {
+  return state.bindings.get(memberId + "|" + habit.habitId) || habit.source;
+}
+
 function exemptReason(state, habit, memberId, day) {
   for (const x of state.exemptions) {
     if (x.memberId !== memberId) continue;
@@ -304,7 +320,7 @@ export function rawDayStatus(state, habit, memberId, day) {
     // An AUTOMATIC source that said nothing means the pipeline was silent — which is not the same
     // as the user failing, and must not be scored as one. A MANUAL habit with no entry is a real
     // miss: logging it was the whole task.
-    return AUTOMATIC_SOURCES.has(habit.source) ? NO_DATA : MISS;
+    return AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId)) ? NO_DATA : MISS;
   }
   const target = targetOn(habit, day);
   const met = habit.direction === AT_MOST ? value <= target : value >= target;
