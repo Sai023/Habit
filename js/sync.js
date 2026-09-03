@@ -31,6 +31,79 @@ export const STATES = {
 const POLL_MS = 15_000;          // while the app is open and visible
 const BACKOFF_START = 30_000;
 const BACKOFF_MAX = 10 * 60_000;
+/** pull_events caps a page at 1000 rows; a full page means there is more behind it. */
+const PAGE_SIZE = 1000;
+const MAX_PAGES = 20;            // 20k events in one flush is a catch-up, not a normal sync
+
+// ============================================================================
+// The decisions, extracted so they can be tested
+// ============================================================================
+//
+// The rest of this file is I/O — IndexedDB, fetch, window events — and cannot run under `node`.
+// The two things in it that are actually easy to get wrong are not I/O at all, so they live here
+// as pure functions instead of being locked away behind a database.
+
+/**
+ * What kind of failure was that?
+ *
+ * Three outcomes that look identical to a user and need completely different responses. Getting
+ * this wrong is how a dead sync spends a fortnight looking like a slow one.
+ */
+export function classifySyncError(err, online) {
+  // fetch rejects with a TypeError when the network is simply gone. Nothing is wrong with us.
+  if (!online || (err && err.name === "TypeError")) return { state: STATES.OFFLINE, reason: null };
+  const status = Number(err && err.status) || 0;
+  return {
+    state: STATES.DEGRADED,
+    // 4xx: the server is alive and refusing us — a wrong key, a missing function, a policy change.
+    // 5xx or no answer: on the free tier, most likely a project paused for inactivity. Neither is
+    // fixed by retrying, but the two need different words and different fixes.
+    reason: status >= 400 && status < 500 ? "rejected" : "unreachable",
+    status,
+  };
+}
+
+/**
+ * Work out what a page of pulled rows means for the local log.
+ *
+ * `known` maps uuid to the event we already hold. Three cases:
+ *   new           store it
+ *   ours, unstamped   restamp with the server's arrival time — see below
+ *   already stamped   nothing to do
+ *
+ * The restamp is the subtle one. An event authored here is written with only a local timestamp;
+ * every OTHER device receives it with the server's. Without stamping our own copy, the authoring
+ * device orders it by its own clock while everyone else orders it by the server's, and the same
+ * log derives different streaks on different phones — silently, and only for whoever wrote it.
+ */
+export function planMerge(rows, known) {
+  const toAdd = [];
+  const toRestamp = [];
+  let maxSeq = 0;
+
+  for (const r of rows) {
+    if (typeof r.seq === "number") maxSeq = Math.max(maxSeq, r.seq);
+    const serverTs = Date.parse(r.inserted_at) || 0;
+    const seq = typeof r.seq === "number" ? r.seq : undefined;
+    const existing = known.get(r.uuid);
+
+    if (!existing) {
+      toAdd.push({
+        eventId: r.uuid,
+        type: r.type,
+        author: r.author,
+        ts: Number(r.ts) || serverTs || 0,
+        seq,
+        serverTs: serverTs || undefined,
+        payload: r.payload || {},
+      });
+    } else if (serverTs && !existing.serverTs) {
+      toRestamp.push({ ...existing, seq: seq ?? existing.seq, serverTs });
+    }
+  }
+
+  return { toAdd, toRestamp, maxSeq };
+}
 
 let adapter = null;
 let groupCode = null;
@@ -135,42 +208,35 @@ export async function flush() {
     }
 
     // ---- PULL: everything in the room newer than our cursor ----
+    //
+    // Paged, because pull_events returns at most 1000 rows. A device coming back after a long time
+    // away would otherwise merge a thousand events, report itself SYNCED, and sit there a page
+    // behind until the next poll — repeatedly, for as long as it took to catch up.
     const cursorKey = "cursor:" + groupCode;
-    const since = await db.getMeta(cursorKey, 0);
-    const incoming = await adapter.pull(groupCode, since);
-
-    let maxSeq = since;
+    let since = await db.getMeta(cursorKey, 0);
     let merged = 0;
     let restamped = 0;
 
-    for (const r of incoming) {
-      if (typeof r.seq === "number") maxSeq = Math.max(maxSeq, r.seq);
-      const serverTs = Date.parse(r.inserted_at) || 0;
-      const seq = typeof r.seq === "number" ? r.seq : undefined;
-      const existing = await db.getEvent(r.uuid);
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const incoming = await adapter.pull(groupCode, since);
+      if (!incoming.length) break;
 
-      if (!existing) {
-        await db.addEvent({
-          eventId: r.uuid,
-          type: r.type,
-          author: r.author,
-          ts: Number(r.ts) || serverTs || Date.now(),
-          seq,
-          serverTs: serverTs || undefined,
-          payload: r.payload || {},
-        });
-        merged += 1;
-      } else if (serverTs && !existing.serverTs) {
-        // One of OUR OWN events coming back. Stamping it matters: without it, the device that
-        // authored an event orders it by its own (possibly wrong) clock while every other device
-        // orders it by the server's — and the same log then derives different streaks on
-        // different phones. Cheap, and it happens only once per event.
-        await db.addEvent({ ...existing, seq: seq ?? existing.seq, serverTs });
-        restamped += 1;
+      const known = new Map();
+      for (const r of incoming) {
+        const existing = await db.getEvent(r.uuid);
+        if (existing) known.set(r.uuid, existing);
       }
-    }
 
-    if (maxSeq !== since) await db.setMeta(cursorKey, maxSeq);
+      const plan = planMerge(incoming, known);
+      for (const e of plan.toAdd) { await db.addEvent(e); merged += 1; }
+      for (const e of plan.toRestamp) { await db.addEvent(e); restamped += 1; }
+      if (plan.maxSeq > since) {
+        since = plan.maxSeq;
+        await db.setMeta(cursorKey, since);
+      }
+
+      if (incoming.length < PAGE_SIZE) break; // a short page is the last one
+    }
 
     resetBreaker();
     setState(STATES.SYNCED);
@@ -180,13 +246,14 @@ export async function flush() {
     if (restamped) invalidateDerived();
     if (merged || restamped) onData();
   } catch (err) {
-    if ((typeof navigator !== "undefined" && !navigator.onLine) || err.name === "TypeError") {
+    const online = typeof navigator === "undefined" || navigator.onLine;
+    const verdict = classifySyncError(err, online);
+    if (verdict.state === STATES.OFFLINE) {
       setState(STATES.OFFLINE);
     } else {
-      const code = Number(err && err.status) || 0;
-      const reason = code >= 400 && code < 500 ? "rejected" : "unreachable";
-      console.warn("[sync] cloud " + reason + (code ? " (" + code + ")" : "") + ", degrading gracefully:", err);
-      tripBreaker(reason);
+      console.warn("[sync] cloud " + verdict.reason
+        + (verdict.status ? " (" + verdict.status + ")" : "") + ", degrading gracefully:", err);
+      tripBreaker(verdict.reason);
     }
   } finally {
     flushing = false;

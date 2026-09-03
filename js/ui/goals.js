@@ -10,7 +10,7 @@
 import { el, render } from "../dom.js";
 import { setGoals, bindSource } from "../store.js";
 import { targetFor, isTracking, sourceFor } from "../habits.js";
-import { METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
+import { METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE } from "../schema.js";
 
 const CADENCE = { [PERIOD.DAY]: "a day", [PERIOD.WEEK]: "a week", [PERIOD.MONTH]: "a month" };
 
@@ -112,12 +112,16 @@ export function renderGoals(root, { state, me, firstRun = false, onDone }) {
           target: scale ? scale.fromInput(raw) : Math.round(raw),
         };
       }));
-      // Declare how each one is fed from THIS device, or a quiet day falls back to the habit's
-      // default source rather than to what this person can actually supply.
+      // Declare how each one is fed from THIS device: a browser, which cannot read health data
+      // whatever the habit's default says. Pause re-declares it when it joins on a phone with
+      // permission granted.
+      //
+      // Reading the habit's own source here instead would bind a web joiner to Health Connect and
+      // make every one of their silent days read as a broken watch rather than as a miss — and it
+      // would do it inconsistently, depending on whether the first pull happened to have landed.
       if (firstRun) {
         for (const r of rows) {
-          if (!r.active) continue;
-          await bindSource(r.habit.habitId, sourceFor(state, r.habit, me));
+          if (r.active) await bindSource(r.habit.habitId, SOURCE.MANUAL);
         }
       }
       onDone({ saved: true });

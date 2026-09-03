@@ -51,9 +51,22 @@ function paint() {
   });
 }
 
+/**
+ * In the demo, every write is refused — and says so.
+ *
+ * Not silently: a button that does nothing reads as broken. And it cannot simply fall through to
+ * the real store either, because the demo's state is generated rather than stored, so saving would
+ * write against a group this browser has not joined and then bounce the reader out to onboarding.
+ */
+function demoBlocked() {
+  if (!isDemo) return false;
+  alert("This is example data. Start or join a real group to change anything.");
+  return true;
+}
+
 /** Type a number in — the only way half these habits ever get a value. */
 async function onLog(habit) {
-  if (isDemo) return;
+  if (demoBlocked()) return;
   const { openLogSheet } = await import("./ui/logsheet.js");
   // Mounted on <body>, not on the app root. A sync landing mid-entry repaints the root, and
   // anything living inside it would vanish with the number half typed.
@@ -84,6 +97,7 @@ async function showGoals(firstRun = false) {
 }
 
 function onEditGoals() {
+  if (demoBlocked()) return;
   showGoals(false);
 }
 
@@ -101,6 +115,7 @@ async function paintEditor() {
 }
 
 function onEditHabit(habitId) {
+  if (demoBlocked()) return;
   ui.editing = habitId || null; // null means "new"; undefined means "not editing"
   paintEditor();
 }
