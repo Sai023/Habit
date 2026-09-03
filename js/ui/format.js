@@ -8,9 +8,16 @@ import { METRIC, AT_MOST, SOURCE } from "../schema.js";
 /** A metric's value, in the words a person would use for it. */
 export function value(metric, n) {
   if (n == null) return "—";
-  if (metric === METRIC.SLEEP) {
-    const h = Math.floor(n / 60);
-    const m = Math.round(n % 60);
+  // Both of these are stored in minutes and neither is spoken in them. Sleep has always been
+  // rendered as a duration; screen time is the same kind of number and reading "144" where the
+  // rest of the app says "2h 24m" is how one value starts looking like two.
+  if (metric === METRIC.SLEEP || metric === METRIC.SCREEN_MINUTES) {
+    const total = Math.round(n);
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    // Under an hour, an "0h" prefix is noise — and screen time lives under an hour on a good day,
+    // which is exactly when the number is worth reading cleanly.
+    if (h === 0) return m + "m";
     return h + "h " + String(m).padStart(2, "0") + "m";
   }
   return Math.round(n).toLocaleString();

@@ -11,7 +11,8 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { setGoals, bindSource } from "../store.js";
 import { targetFor, isTracking, sourceFor } from "../habits.js";
-import { METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE } from "../schema.js";
+import { caps } from "../bridge.js";
+import { METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE, sourceForDevice } from "../schema.js";
 
 const CADENCE = { [PERIOD.DAY]: "a day", [PERIOD.WEEK]: "a week", [PERIOD.MONTH]: "a month" };
 
@@ -21,7 +22,8 @@ const SCALE = {
 };
 const unitFor = (habit) => SCALE[habit.metric]?.unit
   || ({ [METRIC.STEPS]: "steps", [METRIC.PUFFS]: "puffs", [METRIC.SESSIONS]: "times",
-        [METRIC.ACTIVE_CALORIES]: "kcal", [METRIC.SCREEN_MINUTES]: "minutes" }[habit.metric] || "");
+        [METRIC.ACTIVE_CALORIES]: "kcal", [METRIC.SCREEN_MINUTES]: "minutes",
+        [METRIC.APP_OPENS]: "opens" }[habit.metric] || "");
 
 export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
   let saved = false;
@@ -67,7 +69,10 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
   function row(r) {
     const { habit } = r;
     const scale = SCALE[habit.metric];
-    const auto = AUTOMATIC_SOURCES.has(sourceFor(state, habit, me));
+    const src = sourceFor(state, habit, me);
+    const fedBy = src === SOURCE.PAUSE ? "Pause fills this one in."
+      : AUTOMATIC_SOURCES.has(src) ? "Your watch fills this one in."
+      : "You log this one yourself.";
     return el("div.starter" + (r.active ? ".on" : ""),
       el("button.starter-head", {
         onclick: () => { r.active = !r.active; paint(); },
@@ -81,7 +86,7 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
         el("p.starter-blurb",
           (habit.direction === AT_MOST ? "Stay under " : "Reach ") + "this "
             + (CADENCE[habit.period] || "a day") + ". "
-            + (auto ? "Your watch fills this one in." : "You log this one yourself."),
+            + fedBy,
         ),
         el("label.inline-field",
           el("input", {
@@ -117,16 +122,23 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           target: scale ? scale.fromInput(raw) : Math.round(raw),
         };
       }));
-      // Declare how each one is fed from THIS device: a browser, which cannot read health data
-      // whatever the habit's default says. Pause re-declares it when it joins on a phone with
-      // permission granted.
+      // Declare how each one is fed from THIS device, asked per metric rather than answered once
+      // for the whole list. Reading the habit's own source instead would bind a web joiner to
+      // Health Connect and make every one of their silent days read as a broken watch rather than
+      // as a miss — inconsistently, too, depending on whether the first pull had landed.
       //
-      // Reading the habit's own source here instead would bind a web joiner to Health Connect and
-      // make every one of their silent days read as a broken watch rather than as a miss — and it
-      // would do it inconsistently, depending on whether the first pull happened to have landed.
+      // A browser still answers "manual" to everything, which is all it could ever honestly say.
+      // A phone running this inside Pause answers "pause" for screen time, because there the shell
+      // genuinely is the sensor, and asking someone to type in a number their own phone is already
+      // counting — more accurately than they can — is how a habit stops being kept.
       if (firstRun) {
+        const c = caps();
         for (const r of rows) {
-          if (r.active) await bindSource(r.habit.habitId, SOURCE.MANUAL);
+          if (!r.active) continue;
+          await bindSource(
+            r.habit.habitId,
+            sourceForDevice(r.habit.metric, { pause: c.embedded, health: c.healthConnect }),
+          );
         }
       }
       saved = true;

@@ -10,8 +10,8 @@
 // a run, not written by hand here.
 
 import assert from "node:assert/strict";
-import { replay, valueOn, rawDayStatus, HIT } from "../js/habits.js";
-import { ev, SOURCE, AT_LEAST, METRIC } from "../js/schema.js";
+import { replay, valueOn, rawDayStatus, HIT, MISS, NO_DATA } from "../js/habits.js";
+import { ev, SOURCE, AT_LEAST, AT_MOST, METRIC, sourceForDevice } from "../js/schema.js";
 
 let passed = 0;
 const failures = [];
@@ -117,6 +117,102 @@ test("the day the shell computed is used as-is, not recomputed from the timestam
   const shifted = { ...KOTLIN_ROW, ts: KOTLIN_ROW.ts + 6 * 3600 * 1000 };
   const state = setup([asPulled(shifted)]);
   assert.equal(valueOn(state, state.habits.get("steps"), "member-1", "2026-03-02"), 8412);
+});
+
+// ---------------------------------------------------------------------------
+// The second sensor: Pause reporting on itself
+// ---------------------------------------------------------------------------
+
+/** Verbatim from PendingEvent.toJson() for a screen-time habit — note the source. */
+const PAUSE_ROW = {
+  payload: {
+    v: 1,
+    externalId: null,
+    habitId: "screen",
+    source: "pause",
+    day: "2026-03-02",
+    value: 46,
+    memberId: "member-1",
+  },
+  author: "member-1",
+  trip_code: "HABIT-7Q2XK9",
+  type: "habit_log",
+  uuid: "0a1c9e52-2f77-4a1a-9a67-9d0b6a1f77c1",
+  ts: 1772474400000,
+};
+
+function setupScreen(extra = []) {
+  return replay([
+    { eventId: "s1", ts: 1772000000000, seq: 0, ...ev.member("member-1", "Sahil") },
+    {
+      eventId: "s2", ts: 1772000000001, seq: 0,
+      ...ev.habit("screen", {
+        name: "Screen time", metric: METRIC.SCREEN_MINUTES, direction: AT_MOST, target: 60,
+        source: SOURCE.PAUSE, tz: TZ, dayStartHour: 4,
+      }),
+    },
+    ...extra,
+  ]);
+}
+
+test("a screen-time row from the shell is understood, and judged the right way round", () => {
+  // 46 minutes against a 60-minute ceiling is a HIT. The same number against a build habit would
+  // be a miss, so this is checking the direction survives the crossing as much as the value.
+  const state = setupScreen([asPulled(PAUSE_ROW)]);
+  const screen = state.habits.get("screen");
+  assert.equal(valueOn(state, screen, "member-1", "2026-03-02"), 46);
+  assert.equal(rawDayStatus(state, screen, "member-1", "2026-03-02"), HIT);
+  assert.equal(rawDayStatus(state, screen, "member-1", "2026-03-03"), NO_DATA);
+});
+
+test("the shell's source string is one the engine treats as automatic", () => {
+  // The consequence of getting this wrong is invisible: "pause" not being in AUTOMATIC_SOURCES
+  // would make every day the phone was off read as a miss rather than as a silent pipeline, and
+  // the app would quietly punish people for a bug.
+  const state = setupScreen();
+  assert.equal(rawDayStatus(state, state.habits.get("screen"), "member-1", "2026-03-02"), NO_DATA);
+});
+
+test("a zero from Pause is a real number, not a silence", () => {
+  // The one place the two sensors genuinely differ. A watch reporting nothing means it was not
+  // listening; Pause reporting nothing means nothing happened, and a flawless day must not be
+  // scored as an outage. The shell sends the zero, and this is the row it sends.
+  const perfect = { ...PAUSE_ROW, payload: { ...PAUSE_ROW.payload, value: 0 } };
+  const state = setupScreen([asPulled(perfect)]);
+  const screen = state.habits.get("screen");
+  assert.equal(valueOn(state, screen, "member-1", "2026-03-02"), 0);
+  assert.equal(rawDayStatus(state, screen, "member-1", "2026-03-02"), HIT);
+});
+
+test("a typed correction still beats the shell's own count", () => {
+  // Same rule the watch metrics have: a person overruling a machine is the whole point of being
+  // able to log by hand, and taking the max would silently discard any downward correction.
+  // The correction has to be DOWNWARD to prove anything: taking the max across sources would
+  // agree with a correction upwards, and the test would pass while the rule was broken.
+  const overCounted = { ...PAUSE_ROW, payload: { ...PAUSE_ROW.payload, value: 95 } };
+  const state = setupScreen([
+    asPulled(overCounted),
+    { eventId: "m1", ts: PAUSE_ROW.ts + 1000, seq: 2,
+      ...ev.log("screen", "member-1", "2026-03-02", 20, SOURCE.MANUAL) },
+  ]);
+  const screen = state.habits.get("screen");
+  assert.equal(valueOn(state, screen, "member-1", "2026-03-02"), 20);
+  // 95 would have been a miss against the 60-minute ceiling; the correction turns the day.
+  assert.equal(rawDayStatus(state, screen, "member-1", "2026-03-02"), HIT);
+  assert.equal(rawDayStatus(setupScreen([asPulled(overCounted)]), screen, "member-1", "2026-03-02"), MISS);
+});
+
+test("sourceForDevice answers exactly what the Kotlin bindingSourceFor answers", () => {
+  // Two implementations of one decision, writing bindings for the same member into the same log.
+  // The Kotlin half of these cases is PauseMetricsTest in the Pause project; if the two ever
+  // disagree, each device would keep correcting the other's binding on every run.
+  assert.equal(sourceForDevice(METRIC.SCREEN_MINUTES, { pause: true }), SOURCE.PAUSE);
+  assert.equal(sourceForDevice(METRIC.APP_OPENS, { pause: true, health: true }), SOURCE.PAUSE);
+  // A browser cannot count screen time however capable it is otherwise.
+  assert.equal(sourceForDevice(METRIC.SCREEN_MINUTES, { health: true }), SOURCE.MANUAL);
+  assert.equal(sourceForDevice(METRIC.STEPS, { health: true }), SOURCE.HEALTH_CONNECT);
+  assert.equal(sourceForDevice(METRIC.STEPS, { pause: true }), SOURCE.MANUAL);
+  assert.equal(sourceForDevice(METRIC.PUFFS, { pause: true, health: true }), SOURCE.MANUAL);
 });
 
 if (failures.length) {

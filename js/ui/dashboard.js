@@ -8,9 +8,11 @@ import { el, render } from "../dom.js";
 import {
   valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus,
   walk, leaderboard, sourceFor, periodKey, periodEnd, addDays, daysBetween, isoDayOfWeek,
-  HIT, MISS, NO_DATA, EXEMPT,
+  compareDays, HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
-import { AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE } from "../schema.js";
+import {
+  AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
+} from "../schema.js";
 
 /** "this week" / "this month" — and nothing at all for a daily habit, where it would be noise. */
 const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
@@ -99,8 +101,75 @@ function todayTab(ctx) {
       el("div.cards", habits.map((h) => habitCard(h, ctx))),
       streakLine(habits, ctx),
     ),
+    correlationSection(habits, ctx),
     activitySection(ctx),
   ];
+}
+
+// ---------------------------------------------------------------------------
+// What the two halves of the app say together
+// ---------------------------------------------------------------------------
+
+const COMPARE_WINDOW_DAYS = 30;
+
+/**
+ * The one thing neither app could say on its own.
+ *
+ * Pause always knew how much you were on your phone and the tracker always knew how much you
+ * moved; they were two apps, so nobody ever put the two numbers in the same sentence. Now that
+ * screen time is a habit in the shared log, this is a pure derivation over events that are
+ * already here — no bridge call, no native computation, nothing that could disagree with the
+ * board about what a good day was.
+ *
+ * It appears on its own terms or not at all. `compareDays` returns null unless both sides clear
+ * the minimum, so a fortnight in there is simply no card, rather than a confident claim built on
+ * three days.
+ */
+function correlationSection(habits, ctx) {
+  const daily = habits.filter((h) => h.period === PERIOD.DAY);
+  // The gate is a screen habit, because that is the half of the story the person controls in the
+  // moment: "the days I stayed off my phone" is an action, where "the days I walked a lot" is
+  // mostly an outcome. Reading it the other way round would be true and useless.
+  const gate = daily.find((h) => PAUSE_METRICS.has(h.metric));
+  if (!gate) return null;
+
+  const from = addDays(ctx.today, -(COMPARE_WINDOW_DAYS - 1));
+  let best = null;
+  for (const subject of daily) {
+    if (subject.habitId === gate.habitId) continue;
+    const r = compareDays(ctx.state, gate.habitId, subject.habitId, ctx.me, from, ctx.today);
+    if (!r) continue;
+    // Most evidence wins, so the card does not flip between habits every time one day lands.
+    const weight = r.met.days + r.missed.days;
+    if (!best || weight > best.weight) best = { subject, r, weight };
+  }
+  if (!best) return null;
+
+  const { subject, r } = best;
+  const better = r.delta > 0;
+  const gap = fmt.value(subject.metric, Math.abs(r.met.average - r.missed.average));
+  const on = fmt.value(subject.metric, r.met.average);
+
+  return el("section.sec",
+    el("div.sec-hd",
+      el("h2.sec-title", "Worth noticing"),
+      el("span.sec-note", "last " + COMPARE_WINDOW_DAYS + " days"),
+    ),
+    el("div.card.insight",
+      el("p.insight-line",
+        el("strong", "On the " + r.met.days + " days you kept " + (gate.name || "screen time") + " under, "),
+        "you averaged " + on + " " + (subject.name || "").toLowerCase() + ".",
+      ),
+      // The comparison, stated as a difference rather than a cause. Three friends over a month is
+      // not evidence that one thing produced the other, and the sentence should not imply it did.
+      el("p.insight-note", better
+        ? "That's " + gap + " " + (subject.direction === AT_MOST ? "fewer" : "more")
+          + " than the " + r.missed.days + " days you didn't."
+        : r.met.average === r.missed.average
+          ? "Which is the same as the " + r.missed.days + " days you didn't — no difference either way."
+          : "The " + r.missed.days + " days you didn't were actually better, by " + gap + "."),
+    ),
+  );
 }
 
 function timeLeft(ctx) {
@@ -130,9 +199,15 @@ function habitCard(habit, ctx) {
   const source = sourceFor(ctx.state, habit, ctx.me);
   const src = fmt.source(source);
   const reduce = habit.direction === AT_MOST;
-  // A watch normally fills this one in, so the button is the override rather than the main way in.
-  const auto = source === SOURCE.HEALTH_CONNECT || source === SOURCE.STRAVA;
-  const intervention = source === SOURCE.PAUSE && reduce;
+  // Pause feeds two completely different kinds of habit and they must not get the same card.
+  //
+  // An URGE is a discrete thing that happens: the breathing screen interrupts it, and the log is
+  // what the screen decided. Screen time is a running total the shell counts on its own, with
+  // nothing to interrupt and nothing to resolve. Keying the action off the source alone gave the
+  // screen-time card an "I want to vape" button, which is how this was found.
+  const intervention = source === SOURCE.PAUSE && reduce && !PAUSE_METRICS.has(habit.metric);
+  // Something fills this in already, so the button is an override rather than the way in.
+  const auto = AUTOMATIC_SOURCES.has(source) && !intervention;
 
   const classes = ["card"];
   // The card with the big action gets the full row: it is the one you tap, and a half-width button
@@ -151,10 +226,10 @@ function habitCard(habit, ctx) {
       el("div.card-value", reduce
         // Nothing logged against a ceiling means nothing spent — the whole budget is still there.
         // A dash would read as "unknown" when the honest answer is "all of it".
-        ? Math.max(0, target - (value || 0))
+        ? fmt.value(habit.metric, Math.max(0, target - (value || 0)))
         : fmt.value(habit.metric, value)),
       el("div.card-of", reduce
-        ? "left of " + target + " " + (cadence || "today")
+        ? "left of " + fmt.value(habit.metric, target) + " " + (cadence || "today")
         : status === NO_DATA ? "waiting for data"
         : fmt.goal(habit, target) + (cadence ? " " + cadence : "")),
     ),
@@ -177,10 +252,22 @@ function progressBar(value, target) {
   return el("div.bar", { role: "presentation" }, el("i", { style: "width:" + pct + "%" }));
 }
 
-/** A reduce habit's budget, draining as it is used. Capped so a very bad day still renders. */
+/**
+ * A reduce habit's budget, draining as it is used. Capped so a very bad day still renders.
+ *
+ * The dots are a PROPORTION, not a tally. That distinction did not exist while every reduce habit
+ * had a target you could count on your fingers — with a target of 8, one dot was one urge. A
+ * ninety-minute screen budget broke it: 46 minutes used to subtract 46 from twelve dots and drain
+ * every one of them, so the best day of the week rendered identically to the worst.
+ */
 function budgetDots(value, target) {
-  const used = Math.min(value || 0, target);
-  const shown = Math.min(target, 12);
+  // Ten, not twelve: at 8px plus a 4px gap, twelve will not fit across a half-width card and
+  // wraps a single orphan dot onto its own line, which reads as a rendering fault rather than
+  // as a budget.
+  const shown = Math.max(1, Math.min(target, 10));
+  const used = target > 0
+    ? Math.min(shown, Math.round(((value || 0) / target) * shown))
+    : shown;
   return el("div.dots", Array.from({ length: shown }, (_, i) =>
     el("i" + (i < shown - used ? "" : ".spent"))));
 }
@@ -298,7 +385,7 @@ function recentActivity(ctx, limit) {
       el("span", src.icon),
       el("span.ev-when", fmt.whenLabel(e.ts, ctx.now)),
       el("span.ev-what",
-        el("b", who), " ", verbFor(habit, shown),
+        el("b", who), " ", verbFor(habit, shown, p.source),
         status === HIT ? " ✓" : "",
       ),
     ));
@@ -313,12 +400,16 @@ function publicNumber(habit, payload, ctx) {
   return null;
 }
 
-function verbFor(habit, value) {
+function verbFor(habit, value, source) {
   if (habit.aggregate === AGGREGATE.SUM) {
     return value === 0 ? "resisted an urge" : "logged " + (habit.name || "a habit").toLowerCase();
   }
-  if (value == null) return "updated " + (habit.name || "a habit").toLowerCase();
-  return "logged " + fmt.value(habit.metric, value) + " " + (habit.name || "").toLowerCase();
+  const name = (habit.name || "").toLowerCase();
+  if (value == null) return "updated " + (name || "a habit");
+  // Nobody logged their screen time; the phone counted it while they were not thinking about it,
+  // and saying "logged" credits them with an act of discipline they did not perform.
+  const verb = source === SOURCE.PAUSE ? "spent" : "logged";
+  return verb + " " + fmt.value(habit.metric, value) + " " + name;
 }
 
 // ---------------------------------------------------------------------------

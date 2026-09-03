@@ -93,6 +93,28 @@ export const SOURCE = {
 };
 export const AUTOMATIC_SOURCES = new Set([SOURCE.HEALTH_CONNECT, SOURCE.STRAVA, SOURCE.PAUSE]);
 
+/** What a watch can answer for, and what only the Pause shell can. */
+export const HEALTH_METRICS = new Set([METRIC.STEPS, METRIC.SLEEP, METRIC.ACTIVE_CALORIES]);
+export const PAUSE_METRICS = new Set([METRIC.APP_OPENS, METRIC.SCREEN_MINUTES]);
+
+/**
+ * Which source THIS device can honestly claim to feed a metric from.
+ *
+ * A binding is a promise about where a number will come from, and the engine keeps it: an
+ * automatic source that goes quiet is NO_DATA — a pipeline that broke rather than a person who
+ * failed — while a manual one going quiet is a plain miss. Bind a browser to a watch it does not
+ * have and every honest miss it ever records gets excused as an outage.
+ *
+ * The mirror of `bindingSourceFor` in the Kotlin shell, and it has to stay one: both sides write
+ * bindings for the same member into the same log, so disagreeing about what this phone is would
+ * have them overwriting each other every time either ran.
+ */
+export function sourceForDevice(metric, { pause = false, health = false } = {}) {
+  if (PAUSE_METRICS.has(metric)) return pause ? SOURCE.PAUSE : SOURCE.MANUAL;
+  if (HEALTH_METRICS.has(metric)) return health ? SOURCE.HEALTH_CONNECT : SOURCE.MANUAL;
+  return SOURCE.MANUAL;
+}
+
 /** How much of a habit the rest of the group can see. */
 export const VISIBILITY = { FULL: "full", PROGRESS: "progress", PRIVATE: "private" };
 

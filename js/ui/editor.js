@@ -9,8 +9,10 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { saveHabit, deleteHabit, bindSource } from "../store.js";
 import { uuid } from "../id.js";
+import { caps } from "../bridge.js";
 import {
-  METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD, AUTOMATIC_SOURCES,
+  METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD, PAUSE_METRICS,
+  sourceForDevice,
 } from "../schema.js";
 
 /**
@@ -40,8 +42,15 @@ const TYPES = [
     direction: AT_MOST, aggregate: AGGREGATE.SUM, unit: "puffs", step: 1,
   },
   {
+    // Fed by Pause itself. Not a watch metric and not really a manual one either — the phone
+    // running the intervention screen is the only thing that can answer it, which is most of the
+    // reason the two apps became one.
     key: "screen", label: "Screen time", icon: "📱", metric: METRIC.SCREEN_MINUTES,
     direction: AT_MOST, aggregate: AGGREGATE.LAST, unit: "minutes", step: 15,
+  },
+  {
+    key: "opens", label: "App opens", icon: "🔓", metric: METRIC.APP_OPENS,
+    direction: AT_MOST, aggregate: AGGREGATE.LAST, unit: "times", step: 5,
   },
   {
     key: "sessions", label: "Workouts", icon: "🏋", metric: METRIC.SESSIONS,
@@ -94,6 +103,26 @@ export function openEditorSheet(host, { state, habitId, onDone }) {
     busy: false,
   };
 
+  /** Where this metric's numbers would actually come from, on the device reading this. */
+  function deviceSource(type) {
+    const c = caps();
+    return sourceForDevice(type.metric, { pause: c.embedded, health: c.healthConnect });
+  }
+
+  function sourceNote(type) {
+    const src = deviceSource(type);
+    if (src === SOURCE.HEALTH_CONNECT) return "A watch can fill this in on its own.";
+    if (src === SOURCE.PAUSE) return "Pause counts this one for you.";
+    // The distinction that stops a promise being made twice and kept once. In a browser the app
+    // cannot see your screen time whatever the group agreed, and saying so now is better than a
+    // week of blank days nobody can explain.
+    if (PAUSE_METRICS.has(type.metric)) {
+      return "Pause counts this on your phone. Here in a browser, you'll log it yourself.";
+    }
+    if (type.auto) return "A watch could fill this in, but not on this device — you'll log it here.";
+    return "You'll log this one yourself.";
+  }
+
   function paint() {
     const t = form.type;
     const reduce = form.direction === AT_MOST;
@@ -121,8 +150,7 @@ export function openEditorSheet(host, { state, habitId, onDone }) {
             paint();
           },
         }, x.icon + " " + x.label))),
-        t.auto ? el("p.note-inline", "A watch can fill this in on its own.")
-          : el("p.note-inline", "You'll log this one yourself."),
+        el("p.note-inline", sourceNote(t)),
 
         el("h2.sec-title", "Goal"),
         el("div.chips",
@@ -218,13 +246,14 @@ export function openEditorSheet(host, { state, habitId, onDone }) {
           ? { amount: 1, everyDays: 7, floor: 0 } : null,
         tz: form.tz,
         dayStartHour: form.dayStartHour,
-        source: t.auto ? SOURCE.HEALTH_CONNECT : SOURCE.MANUAL,
+        // The habit's own default is the BEST source the metric could ever have, because it is
+        // the group's answer rather than this device's — somebody joining later on a phone that
+        // can read it should not inherit whatever this browser happened to be able to do.
+        source: sourceForDevice(t.metric, { pause: true, health: true }),
       });
-      // A new habit needs a source declared for ME, or every quiet period falls back to the
-      // habit's default rather than to what this device can actually supply.
-      if (form.isNew) {
-        await bindSource(form.habitId, t.auto ? SOURCE.HEALTH_CONNECT : SOURCE.MANUAL);
-      }
+      // The binding is the opposite: strictly what THIS device can supply. Without it every quiet
+      // period falls back to the habit's default and a browser starts claiming to be a watch.
+      if (form.isNew) await bindSource(form.habitId, deviceSource(t));
       saved = true;
       sheet.close();
     } catch (err) {

@@ -55,11 +55,21 @@ export function demoState(now = Date.now()) {
       taper: { amount: 1, everyDays: 7, floor: 0 },
     }), t0),
 
+    E(ev.habit("screen", {
+      name: "Screen time", icon: "📱", metric: METRIC.SCREEN_MINUTES, direction: AT_MOST,
+      target: 90, tz: TZ, dayStartHour: DAY_START, source: SOURCE.PAUSE,
+      visibility: VISIBILITY.FULL,
+    }), t0),
+
     // Two phones report automatically; the third types it in. This is the whole reason bindings
     // are per member rather than per habit.
     E(ev.bind(DEMO_ME, "steps", SOURCE.HEALTH_CONNECT), t0),
     E(ev.bind(DEMO_ME, "sleep", SOURCE.HEALTH_CONNECT), t0),
     E(ev.bind(DEMO_ME, "urges", SOURCE.PAUSE), t0),
+    // Fed by the shell counting its own interventions, which is the binding that only exists
+    // because the two apps became one.
+    E(ev.bind(DEMO_ME, "screen", SOURCE.PAUSE), t0),
+    E(ev.bind("thabo", "screen", SOURCE.PAUSE), t0),
     E(ev.bind("thabo", "steps", SOURCE.HEALTH_CONNECT), t0),
     E(ev.bind("thabo", "sleep", SOURCE.HEALTH_CONNECT), t0),
     E(ev.bind("lerato", "steps", SOURCE.HEALTH_CONNECT), t0),
@@ -76,6 +86,15 @@ export function demoState(now = Date.now()) {
   const yourSleepMisses = new Set([-2, -11, -17]);
   const spread = (n, span) => Math.abs(n * 89) % span;
 
+  // The days the phone won. Chosen rather than generated, because the point of the fixture is to
+  // make the correlation card appear with a real split behind it — seven heavy days against
+  // fourteen light ones, which is above the minimum on both sides and so gets an answer.
+  //
+  // Two of them are also step misses, which matters: the card must not read as "phone use causes
+  // fewer steps" on a fixture where the overlap was arranged. It says what the days did, and the
+  // overlap here is deliberately partial so the sentence stays a comparison.
+  const heavyPhone = new Set([-19, -16, -13, -9, -6, -3, -1]);
+
   for (let n = -20; n <= 0; n += 1) {
     const d = day(n);
 
@@ -91,6 +110,13 @@ export function demoState(now = Date.now()) {
     // Lerato: patchier — and for the last two days a watch that has simply stopped reporting.
     // Nothing arrived, so nothing can be scored, and the clown has nowhere fair to land.
     if (n < -1) log("steps", "lerato", d, n % 2 === 0 ? 10600 + spread(n, 1800) : 8300, SOURCE.HEALTH_CONNECT);
+
+    // Screen time, counted by Pause itself. Two days missing near the start: the shell was not
+    // reporting yet, and those days have to read as NO_DATA rather than as perfect ones.
+    if (n > -19) {
+      log("screen", DEMO_ME, d, heavyPhone.has(n) ? 140 + spread(n, 70) : 44 + spread(n, 38), SOURCE.PAUSE);
+      log("screen", "thabo", d, 52 + spread(n, 30), SOURCE.PAUSE);
+    }
 
     // Urges: the intervention screen resolving. 0 = resisted, 1 = gave in.
     const gaveIn = spread(n, 4);

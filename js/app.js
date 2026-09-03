@@ -12,7 +12,8 @@ import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
 import { dayKey } from "./habits.js";
 import { HABIT_DEFAULTS } from "./schema.js";
-import { installBridge, caps } from "./bridge.js";
+import { installBridge, caps, isNative, setSyncConfig } from "./bridge.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 const root = document.getElementById("app");
 const params = new URLSearchParams(location.search);
@@ -183,6 +184,34 @@ async function refresh() {
   const state = await getState();
   ctx = { state, events: await db.allEvents(), me: memberId, today: todayKey(state), demo: false };
   paint();
+  tellShell(state, memberId, code);
+}
+
+let lastShellConfig = "";
+
+/**
+ * Keep the shell's copy of the habit list current.
+ *
+ * The shell reports screen time on a thirty-minute schedule with no WebView open, which means it
+ * needs to know a screen-time habit exists WITHOUT anybody visiting a settings screen to tell it.
+ * Until this, it learned the list only when its own settings sheet was opened: you could add the
+ * habit here, watch it appear on the board, and it would never once be reported.
+ *
+ * Sent on every refresh rather than on save, because habits also arrive by sync — somebody else
+ * adding one on their phone has to reach this phone's worker too, and there is no save on this
+ * device for that. It is a cheap local write, and the signature check keeps it to genuine changes.
+ */
+function tellShell(state, memberId, code) {
+  if (!isNative()) return;
+  const habits = [...state.habits.values()].map((h) => ({
+    habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
+  }));
+  const signature = code + "|" + memberId + "|" + JSON.stringify(habits);
+  if (signature === lastShellConfig) return;
+  lastShellConfig = signature;
+  setSyncConfig({
+    groupCode: code, memberId, supabaseUrl: SUPABASE_URL, supabaseKey: SUPABASE_ANON_KEY, habits,
+  });
 }
 
 async function showOnboard() {

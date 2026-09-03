@@ -719,6 +719,77 @@ export function leaderboard(state, memberIds, from, to, today = to) {
   return ranked;
 }
 
+// ============================================================================
+// Two habits, side by side
+// ============================================================================
+
+/**
+ * Days needed on BOTH sides before a comparison is worth showing.
+ *
+ * The number exists because the interesting version of this feature is also the dishonest one. Two
+ * days against one will happily produce "you walk 40% more when you stay off your phone", and it
+ * will be noise, and somebody will believe it. Four is not statistical significance either — this
+ * is three friends over a month, not a study — but it is enough that the claim survives one unusual
+ * Saturday, and the card says "on the days you did" rather than anything causal.
+ */
+export const MIN_COMPARE_DAYS = 4;
+
+/**
+ * How one habit's numbers actually looked on days another was met, versus days it was not.
+ *
+ * The whole reason screen time became a synced habit rather than a private Pause statistic: once
+ * both sides are in the same log, the question "do I move more on the days I stay off my phone"
+ * is a pure replay away, with nothing crossing the bridge to ask it. If this had to reach into
+ * Kotlin for one half, it would be a second engine deciding what a good day was.
+ *
+ * What is deliberately excluded, and why each one matters:
+ *
+ *   - Non-daily habits. Pairing a weekly total with a single day is a category error; asked of a
+ *     weekly habit this returns null rather than a number that looks fine.
+ *   - NO_DATA and EXEMPT days on the gate. A day the pipeline was silent is not a day you failed,
+ *     and counting it as one is exactly the mistake the four-state model exists to prevent.
+ *   - Days the value habit reported nothing. Treating that silence as a zero would drag the
+ *     average of whichever side the outage happened to land on, and outages are not random —
+ *     a phone that is off all day reports neither steps nor screen time.
+ *
+ * Returns null when the comparison cannot honestly be made, so a caller cannot render half of one.
+ */
+export function compareDays(state, gateHabitId, valueHabitId, memberId, fromDay, toDay) {
+  const gate = state.habits.get(gateHabitId);
+  const subject = state.habits.get(valueHabitId);
+  if (!gate || !subject || gate === subject) return null;
+  if (gate.period !== "day" || subject.period !== "day") return null;
+
+  const met = { days: 0, total: 0, average: null };
+  const missed = { days: 0, total: 0, average: null };
+
+  for (let day = fromDay; day <= toDay; day = addDays(day, 1)) {
+    const status = rawDayStatus(state, gate, memberId, day);
+    if (status !== HIT && status !== MISS) continue;
+    const value = valueOn(state, subject, memberId, day);
+    if (value === null) continue;
+    const side = status === HIT ? met : missed;
+    side.days += 1;
+    side.total += value;
+  }
+
+  if (met.days < MIN_COMPARE_DAYS || missed.days < MIN_COMPARE_DAYS) return null;
+  met.average = met.total / met.days;
+  missed.average = missed.total / missed.days;
+
+  // Signed against the SUBJECT's own direction rather than against the arithmetic, so a positive
+  // delta always means "better on the days you held the line". For a reduce habit fewer is better,
+  // and reporting a drop as a negative would invert the only sentence the card ever says.
+  const raw = met.average - missed.average;
+  return {
+    met, missed,
+    delta: subject.direction === AT_MOST ? -raw : raw,
+    // Meaningless when nothing happened on the days it did not go well, and a division by zero
+    // besides. Null is honest; Infinity renders.
+    ratio: missed.average === 0 ? null : met.average / missed.average,
+  };
+}
+
 /** What the group may see of a member's number, per the habit's visibility setting. */
 export function publicValue(habit, value) {
   if (habit.visibility === VISIBILITY.PRIVATE) return null;

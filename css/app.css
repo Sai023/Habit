@@ -147,6 +147,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   min-width: 0;
 }
 .card.has-action { grid-column: 1 / -1; }
+
+/* The correlation card. Deliberately quieter than a habit card: it is something to read once,
+   not a control, and giving it the teal accent would have it competing with today's numbers for
+   the same glance. */
+.card.insight { gap: 6px; border-left: 2px solid var(--teal-dim); }
+.insight-line { margin: 0; font-size: 14px; line-height: 1.45; }
+.insight-line strong { font-weight: 700; }
+.insight-note { margin: 0; font-size: 12.5px; color: var(--dim); line-height: 1.45; }
 .card-top { display: flex; align-items: center; gap: 7px; }
 .card-icon { font-size: 15px; line-height: 1; }
 .card-name {
