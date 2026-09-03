@@ -12,7 +12,7 @@ import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
 import { dayKey } from "./habits.js";
 import { HABIT_DEFAULTS } from "./schema.js";
-import { installBridge, caps, isNative, setSyncConfig } from "./bridge.js";
+import { installBridge, caps, isNative, setSyncConfig, openSettings } from "./bridge.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 const root = document.getElementById("app");
@@ -170,8 +170,29 @@ async function onStart() {
   await showOnboard();
 }
 
+/**
+ * The bridge between the symptom and the diagnosis.
+ *
+ * The symptom is seen here — a row on the board with nothing in it — and the cause is always on
+ * somebody's phone. When that phone is THIS one and Pause is hosting us, the shell now has a real
+ * answer to the question, worked out from whether Android has actually been running the sync
+ * rather than guessed at. Sending someone to it beats repeating a list of things it might be.
+ *
+ * For anybody else's row there is nothing to open, so the advice stays advice. It no longer says
+ * "watch", which was a guess that a screen-time habit makes plainly wrong.
+ */
 function onFixSync(row) {
-  alert(`${row.name}'s watch hasn't reported this week.\n\nOn their phone: open Health Connect, check Pause has permission, and make sure battery optimisation isn't sleeping it.`);
+  if (row.memberId === ctx?.me && caps().embedded) {
+    openSettings();
+    return;
+  }
+  const who = row.memberId === ctx?.me ? "Your" : (row.name || "Their") + "'s";
+  alert(
+    who + " phone hasn't reported this week.\n\n"
+    + "On that phone, in Pause: open the group settings and read what the delivery card says. "
+    + "It is usually battery optimisation putting the app to sleep \u2014 on Samsung, check "
+    + "Settings \u2192 Battery \u2192 Background usage limits and make sure Pause is not sleeping.",
+  );
 }
 
 async function refresh() {

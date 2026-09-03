@@ -337,8 +337,13 @@ function boardRow(row, ctx) {
     // wonder why their numbers look bad.
     row.clownSuppressed
       ? el("div.note",
-          el("div", el("b", "No data from their watch"), " — nothing to score, so nobody is the clown this week."),
-          el("button", { onclick: () => ctx.onFixSync(row) }, "Check sync setup →"),
+          el("div",
+            el("b", row.memberId === ctx.me ? "Nothing came through from your phone"
+              : "Nothing came through from " + (row.name || "them")),
+            " — nothing to score, so nobody is the clown this week.",
+          ),
+          el("button", { onclick: () => ctx.onFixSync(row) },
+            row.memberId === ctx.me ? "Why? →" : "What they should check →"),
         )
       : null,
   );
