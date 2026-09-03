@@ -8,11 +8,12 @@
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { saveHabit, deleteHabit, bindSource } from "../store.js";
+import { sourceFor } from "../habits.js";
 import { uuid } from "../id.js";
 import { caps } from "../bridge.js";
 import {
   METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD, PAUSE_METRICS,
-  sourceForDevice,
+  HEALTH_METRICS, AUTOMATIC_SOURCES, sourceForDevice,
 } from "../schema.js";
 
 /**
@@ -26,20 +27,24 @@ import {
 const TYPES = [
   {
     key: "steps", label: "Steps", icon: "👟", metric: METRIC.STEPS,
-    direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "steps", auto: true, step: 500,
+    direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "steps", step: 500,
+    start: 10000, period: PERIOD.DAY,
   },
   {
     key: "sleep", label: "Sleep", icon: "😴", metric: METRIC.SLEEP,
-    direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "hours", auto: true, step: 0.25,
+    direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "hours", step: 0.25,
+    start: 420, period: PERIOD.DAY,
     toInput: (v) => Math.round((v / 60) * 100) / 100, fromInput: (v) => Math.round(v * 60),
   },
   {
     key: "calories", label: "Active calories", icon: "🔥", metric: METRIC.ACTIVE_CALORIES,
-    direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "kcal", auto: true, step: 50,
+    direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "kcal", step: 50,
+    start: 400, period: PERIOD.DAY,
   },
   {
     key: "puffs", label: "Vape puffs", icon: "💨", metric: METRIC.PUFFS,
     direction: AT_MOST, aggregate: AGGREGATE.SUM, unit: "puffs", step: 1,
+    start: 20, period: PERIOD.DAY,
   },
   {
     // Fed by Pause itself. Not a watch metric and not really a manual one either — the phone
@@ -47,22 +52,30 @@ const TYPES = [
     // reason the two apps became one.
     key: "screen", label: "Screen time", icon: "📱", metric: METRIC.SCREEN_MINUTES,
     direction: AT_MOST, aggregate: AGGREGATE.LAST, unit: "minutes", step: 15,
+    start: 120, period: PERIOD.DAY,
   },
   {
     key: "opens", label: "App opens", icon: "🔓", metric: METRIC.APP_OPENS,
     direction: AT_MOST, aggregate: AGGREGATE.LAST, unit: "times", step: 5,
+    start: 40, period: PERIOD.DAY,
   },
   {
+    // Weekly, because that is how anybody actually says it. "Exercise three times a week" is not
+    // "exercise 0.43 times a day", and a daily version marks every rest day a failure.
     key: "sessions", label: "Workouts", icon: "🏋", metric: METRIC.SESSIONS,
     direction: AT_LEAST, aggregate: AGGREGATE.SUM, unit: "times", step: 1,
+    start: 3, period: PERIOD.WEEK,
   },
   {
+    // A savings target is one question asked at the end of the month, not a daily interrogation.
     key: "amount", label: "Money saved", icon: "💰", metric: METRIC.AMOUNT,
     direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "", step: 100,
+    start: 1000, period: PERIOD.MONTH,
   },
   {
     key: "custom", label: "Something else", icon: "◆", metric: null,
     direction: AT_LEAST, aggregate: AGGREGATE.SUM, unit: "times", step: 1,
+    start: 1, period: PERIOD.DAY,
   },
 ];
 
@@ -75,10 +88,13 @@ const CADENCES = [
 const typeOf = (habit) =>
   TYPES.find((t) => t.metric && t.metric === habit?.metric) || TYPES[TYPES.length - 1];
 
+/** Could anything ever read this metric, on any device? */
+const couldBeAutomatic = (metric) => HEALTH_METRICS.has(metric) || PAUSE_METRICS.has(metric);
+
 const toInput = (type, v) => (type.toInput ? type.toInput(v) : v);
 const fromInput = (type, v) => (type.fromInput ? type.fromInput(v) : Math.round(v));
 
-export function openEditorSheet(host, { state, habitId, onDone }) {
+export function openEditorSheet(host, { state, habitId, me, onDone }) {
   let saved = false;
   const sheet = openSheet(host, { onClose: () => onDone({ saved }) });
 
@@ -91,10 +107,25 @@ export function openEditorSheet(host, { state, habitId, onDone }) {
     name: existing?.name || "",
     type: type0,
     direction: existing?.direction || type0.direction,
-    target: toInput(type0, existing?.target ?? 1),
-    period: existing?.period || PERIOD.DAY,
+    // The preset's own starting point. Every type used to share one, and it was 1 — so opening
+    // the editor and pressing Add gave you a goal of one step a day, and picking "Screen time"
+    // gave you a one-minute daily ceiling you would fail every day for the rest of your life.
+    target: toInput(type0, existing?.target ?? type0.start),
+    period: existing?.period || type0.period,
     weight: existing?.weight ?? 1,
-    scored: existing?.scored ?? true,
+    // Reduce habits opt OUT of the board by default, which is what the schema has always said and
+    // what the warning below this checkbox says. The form used to tick it regardless.
+    scored: existing?.scored ?? (type0.direction === AT_LEAST),
+    // Whether the person has overruled that. Until they do, it follows the direction they pick.
+    scoredTouched: existing != null,
+    // Whether this habit is fed by a sensor or typed in. A CHOICE, not an inference: it decides
+    // how every quiet day this member ever has is judged, and the leaderboard is built on that.
+    //
+    // Starts from what this device can do, narrowed by what was already recorded for this member.
+    // Never true when the device cannot actually deliver it, whatever the group's default says —
+    // otherwise a browser would open showing "My watch" selected and greyed out at once.
+    tracked: canTrackAutomatically(type0)
+      && (existing ? AUTOMATIC_SOURCES.has(sourceFor(state, existing, me)) : true),
     visibility: existing?.visibility || VISIBILITY.FULL,
     taper: !!existing?.taper,
     tz: existing?.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -109,18 +140,63 @@ export function openEditorSheet(host, { state, habitId, onDone }) {
     return sourceForDevice(type.metric, { pause: c.embedded, health: c.healthConnect });
   }
 
-  function sourceNote(type) {
-    const src = deviceSource(type);
-    if (src === SOURCE.HEALTH_CONNECT) return "A watch can fill this in on its own.";
-    if (src === SOURCE.PAUSE) return "Pause counts this one for you.";
-    // The distinction that stops a promise being made twice and kept once. In a browser the app
-    // cannot see your screen time whatever the group agreed, and saying so now is better than a
-    // week of blank days nobody can explain.
-    if (PAUSE_METRICS.has(type.metric)) {
-      return "Pause counts this on your phone. Here in a browser, you'll log it yourself.";
+  /** What this device is even capable of, which is not the same as what you have chosen. */
+  function canTrackAutomatically(type) {
+    return deviceSource(type) !== SOURCE.MANUAL;
+  }
+
+  /** What the metric is, before anyone chooses how to feed it. */
+  function metricNote(type) {
+    if (type.metric === null) return "Anything you want to count. You'll set the units by name.";
+    if (PAUSE_METRICS.has(type.metric)) return "Pause counts this on the phone it's installed on.";
+    if (HEALTH_METRICS.has(type.metric)) return "A watch or phone can read this through Health Connect.";
+    return "No sensor can read this one — it's yours to log.";
+  }
+
+  /**
+   * The choice, rather than the guess.
+   *
+   * This used to be inferred from the metric and stated back as a sentence, which read as
+   * information and was actually a decision being taken on somebody's behalf. It is the decision
+   * that says how every quiet day this person ever has is judged, and the whole board rests on
+   * that, so they get to make it.
+   *
+   * "Automatically" only appears when THIS device can genuinely supply the metric. Offering it in
+   * a browser, or on a phone with no Health Connect, would let someone promise a pipeline that
+   * does not exist — and every miss they went on to have would be quietly excused as an outage.
+   */
+  function trackingChoice(type) {
+    if (!couldBeAutomatic(type.metric)) {
+      return el("div.chips", el("button.chip.on", { disabled: true }, "You log it"));
     }
-    if (type.auto) return "A watch could fill this in, but not on this device — you'll log it here.";
-    return "You'll log this one yourself.";
+    const can = canTrackAutomatically(type);
+    return el("div.chips",
+      el("button.chip" + (form.tracked ? ".on" : ""), {
+        disabled: !can,
+        onclick: () => { if (can) { form.tracked = true; paint(); } },
+      }, PAUSE_METRICS.has(type.metric) ? "Pause counts it" : "My watch"),
+      el("button.chip" + (!form.tracked ? ".on" : ""), {
+        onclick: () => { form.tracked = false; paint(); },
+      }, "I log it myself"),
+    );
+  }
+
+  /** Why the choice matters, said in terms of the consequence rather than the mechanism. */
+  function trackingNote(type) {
+    if (couldBeAutomatic(type.metric) && !canTrackAutomatically(type)) {
+      return PAUSE_METRICS.has(type.metric)
+        ? "Only Pause on your phone can count this, and you're not in it right now — so this one "
+          + "is yours to log here."
+        : "This device can't read health data, so this one is yours to log here. On a phone with "
+          + "Health Connect you can switch it over.";
+    }
+    if (form.tracked) {
+      return "Days it reports nothing count as \"no data\" rather than a miss, so a watch that "
+        + "stops doesn't cost you the board.";
+    }
+    return form.direction === AT_MOST
+      ? "Only the days you log are scored. Log a zero for a clean day so it counts for you."
+      : "A day you don't log counts as a miss.";
   }
 
   function paint() {
@@ -142,23 +218,40 @@ export function openEditorSheet(host, { state, habitId, onDone }) {
         el("h2.sec-title", "What are you tracking?"),
         el("div.chips", TYPES.map((x) => el("button.chip" + (x.key === t.key ? ".on" : ""), {
           onclick: () => {
+            if (x.key === t.key) return; // re-tapping the current one would wipe what you typed
             // Adopt the preset's shape wholesale. Keeping the old direction against a new metric
-            // is how you end up with "at least 20 puffs a day".
+            // is how you end up with "at least 20 puffs a day", and keeping a daily cadence
+            // against a savings target is how you get asked about it every morning.
             form.type = x;
             form.direction = x.direction;
-            form.target = toInput(x, x.key === "sleep" ? 420 : x.key === "steps" ? 10000 : 1);
+            form.target = toInput(x, x.start);
+            form.period = x.period;
+            form.tracked = canTrackAutomatically(x);
+            if (!form.scoredTouched) form.scored = x.direction === AT_LEAST;
             paint();
           },
         }, x.icon + " " + x.label))),
-        el("p.note-inline", sourceNote(t)),
+        el("p.note-inline", metricNote(t)),
+
+        el("h2.sec-title", "How is it tracked?"),
+        trackingChoice(t),
+        el("p.note-inline", trackingNote(t)),
 
         el("h2.sec-title", "Goal"),
         el("div.chips",
           el("button.chip" + (!reduce ? ".on" : ""), {
-            onclick: () => { form.direction = AT_LEAST; paint(); },
+            onclick: () => {
+              form.direction = AT_LEAST;
+              if (!form.scoredTouched) form.scored = true;
+              paint();
+            },
           }, "Build — at least"),
           el("button.chip" + (reduce ? ".on" : ""), {
-            onclick: () => { form.direction = AT_MOST; paint(); },
+            onclick: () => {
+              form.direction = AT_MOST;
+              if (!form.scoredTouched) form.scored = false;
+              paint();
+            },
           }, "Reduce — at most"),
         ),
         el("label.inline-field",
@@ -187,7 +280,7 @@ export function openEditorSheet(host, { state, habitId, onDone }) {
         el("label.check",
           el("input", {
             type: "checkbox", checked: form.scored,
-            onchange: (e) => { form.scored = e.target.checked; paint(); },
+            onchange: (e) => { form.scored = e.target.checked; form.scoredTouched = true; paint(); },
           }),
           el("span", "Count this towards the crown"),
         ),
@@ -251,9 +344,10 @@ export function openEditorSheet(host, { state, habitId, onDone }) {
         // can read it should not inherit whatever this browser happened to be able to do.
         source: sourceForDevice(t.metric, { pause: true, health: true }),
       });
-      // The binding is the opposite: strictly what THIS device can supply. Without it every quiet
-      // period falls back to the habit's default and a browser starts claiming to be a watch.
-      if (form.isNew) await bindSource(form.habitId, deviceSource(t));
+      // The binding is this member's own answer, and now it is the one they actually gave. It is
+      // written on every save rather than only on the first, because changing your mind about how
+      // a habit is fed is exactly the kind of thing people do in an edit screen.
+      await bindSource(form.habitId, form.tracked ? deviceSource(t) : SOURCE.MANUAL);
       saved = true;
       sheet.close();
     } catch (err) {

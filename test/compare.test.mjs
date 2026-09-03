@@ -137,29 +137,42 @@ test("a silent automatic gate is not a bad day", () => {
   assert.equal(run(w), null);
 });
 
-test("a silent MANUAL gate is a bad day, because that is what silence means there", () => {
-  // Same pattern, one difference: this member logs screen time by hand. Nothing recorded is a miss
-  // rather than an outage, so the comparison can be made — and the two cases must not agree.
+test("a silent MANUAL FLOOR is a bad day, because that is what silence means there", () => {
+  // The mirror of the case above, and the reason the gate here is a floor rather than a ceiling.
+  // "Read for twenty minutes" is a thing you DO: a day with nothing recorded is a day it did not
+  // happen, so those days are judged, and the comparison can be made. A ceiling gets the opposite
+  // answer, which the next test pins.
   const events = [
-    habitDef("screen", {
-      metric: METRIC.SCREEN_MINUTES, direction: AT_MOST, target: 60, source: SOURCE.MANUAL,
+    habitDef("reading", {
+      metric: null, direction: AT_LEAST, target: 20, source: SOURCE.MANUAL,
     }),
     habitDef("steps"),
-    bind("screen", SOURCE.MANUAL),
+    bind("reading", SOURCE.MANUAL),
     bind("steps", SOURCE.HEALTH_CONNECT),
   ];
   let day = "2026-03-01";
-  for (const [screen, steps] of [
+  for (const [read, steps] of [
     [30, 12000], [30, 12000], [30, 12000], [30, 12000],
     [null, 4000], [null, 4000], [null, 4000], [null, 4000],
   ]) {
-    if (screen !== null) events.push(log("screen", day, screen, SOURCE.MANUAL));
+    if (read !== null) events.push(log("reading", day, read, SOURCE.MANUAL));
     events.push(log("steps", day, steps));
     day = addDays(day, 1);
   }
-  const r = compareDays(replay(events), "screen", "steps", "m1", "2026-03-01", addDays(day, -1));
+  const r = compareDays(replay(events), "reading", "steps", "m1", "2026-03-01", addDays(day, -1));
   assert.equal(r.missed.days, 4);
   assert.equal(r.missed.average, 4000);
+});
+
+test("a silent MANUAL CEILING is not a bad day, so it cannot gate anything", () => {
+  // Nothing recorded against a limit says nothing at all — you may have had none, or forgotten to
+  // say so. Judging it either way would build the comparison on an invented fact, and the days it
+  // invented would all land on the same side.
+  const w = world([
+    [30, 12000], [30, 12000], [30, 12000], [30, 12000],
+    [null, 4000], [null, 4000], [null, 4000], [null, 4000],
+  ], { screen: { source: SOURCE.MANUAL } });
+  assert.equal(run(w), null);
 });
 
 test("days the subject reported nothing are dropped, not counted as zero", () => {

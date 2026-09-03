@@ -12,6 +12,7 @@ import {
 } from "../habits.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
+  isInterventionHabit,
 } from "../schema.js";
 
 /** "this week" / "this month" — and nothing at all for a daily habit, where it would be noise. */
@@ -199,13 +200,14 @@ function habitCard(habit, ctx) {
   const source = sourceFor(ctx.state, habit, ctx.me);
   const src = fmt.source(source);
   const reduce = habit.direction === AT_MOST;
-  // Pause feeds two completely different kinds of habit and they must not get the same card.
+  // An urge is a discrete thing that happens and can be talked out of; screen time is a running
+  // total nobody interrupts. Only the first kind gets the intervention button.
   //
-  // An URGE is a discrete thing that happens: the breathing screen interrupts it, and the log is
-  // what the screen decided. Screen time is a running total the shell counts on its own, with
-  // nothing to interrupt and nothing to resolve. Keying the action off the source alone gave the
-  // screen-time card an "I want to vape" button, which is how this was found.
-  const intervention = source === SOURCE.PAUSE && reduce && !PAUSE_METRICS.has(habit.metric);
+  // Keyed off what the habit IS, not off who feeds it. It used to require a Pause-sourced habit,
+  // and nothing can read vape puffs, so every habit created through the editor bound to manual and
+  // the intervention was unreachable for all of them — the flow only worked in the demo, where the
+  // binding was written by hand.
+  const intervention = isInterventionHabit(habit);
   // Something fills this in already, so the button is an override rather than the way in.
   const auto = AUTOMATIC_SOURCES.has(source) && !intervention;
 

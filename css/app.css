@@ -148,6 +148,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 }
 .card.has-action { grid-column: 1 / -1; }
 
+/* A choice the device cannot honour is shown rather than hidden, so the reason can be read
+   underneath it. Hiding it would leave someone hunting for an option that is simply not
+   available on the thing in their hand. */
+.chip:disabled { opacity: 0.4; cursor: default; }
+.chip.on:disabled { opacity: 0.75; }
+.chips-tight { margin-top: 2px; }
+
 /* The correlation card. Deliberately quieter than a habit card: it is something to read once,
    not a control, and giving it the teal accent would have it competing with today's numbers for
    the same glance. */

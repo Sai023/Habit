@@ -12,7 +12,17 @@ import { openSheet } from "./sheet.js";
 import { setGoals, bindSource } from "../store.js";
 import { targetFor, isTracking, sourceFor } from "../habits.js";
 import { caps } from "../bridge.js";
-import { METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE, sourceForDevice } from "../schema.js";
+import {
+  METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE, HEALTH_METRICS, PAUSE_METRICS,
+  sourceForDevice,
+} from "../schema.js";
+
+/** Could anything ever read this metric, and can THIS device? Two different questions. */
+const couldBeAutomatic = (metric) => HEALTH_METRICS.has(metric) || PAUSE_METRICS.has(metric);
+const deviceSourceFor = (metric) => {
+  const c = caps();
+  return sourceForDevice(metric, { pause: c.embedded, health: c.healthConnect });
+};
 
 const CADENCE = { [PERIOD.DAY]: "a day", [PERIOD.WEEK]: "a week", [PERIOD.MONTH]: "a month" };
 
@@ -36,9 +46,13 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
   const rows = habits.map((habit) => {
     const scale = SCALE[habit.metric];
     const current = targetFor(state, habit, me, habit.createdDay);
+    const canAuto = deviceSourceFor(habit.metric) !== SOURCE.MANUAL;
     return {
       habit,
       active: isTracking(state, habit, me),
+      // The group agreed WHAT is tracked; how it reaches the log is each person's own answer, and
+      // on a phone with a watch it is a different answer from the same person's browser.
+      tracked: canAuto && (firstRun || AUTOMATIC_SOURCES.has(sourceFor(state, habit, me))),
       target: scale ? scale.toInput(current) : current,
     };
   });
@@ -69,24 +83,20 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
   function row(r) {
     const { habit } = r;
     const scale = SCALE[habit.metric];
-    const src = sourceFor(state, habit, me);
-    const fedBy = src === SOURCE.PAUSE ? "Pause fills this one in."
-      : AUTOMATIC_SOURCES.has(src) ? "Your watch fills this one in."
-      : "You log this one yourself.";
+    const canAuto = deviceSourceFor(habit.metric) !== SOURCE.MANUAL;
     return el("div.starter" + (r.active ? ".on" : ""),
       el("button.starter-head", {
         onclick: () => { r.active = !r.active; paint(); },
         "aria-pressed": r.active ? "true" : "false",
       },
-        el("span.card-icon", habit.icon || "◆"),
+        el("span.card-icon", habit.icon || "\u25c6"),
         el("span.starter-name", habit.name || "Habit"),
-        el("span.starter-check", r.active ? "✓" : ""),
+        el("span.starter-check", r.active ? "\u2713" : ""),
       ),
       r.active ? el("div.starter-body",
         el("p.starter-blurb",
           (habit.direction === AT_MOST ? "Stay under " : "Reach ") + "this "
-            + (CADENCE[habit.period] || "a day") + ". "
-            + fedBy,
+            + (CADENCE[habit.period] || "a day") + ".",
         ),
         el("label.inline-field",
           el("input", {
@@ -97,8 +107,35 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           }),
           el("span", unitFor(habit) + " " + (CADENCE[habit.period] || "a day")),
         ),
+        // Asked, not assumed. It is the answer that decides whether a quiet day of theirs reads as
+        // a broken pipeline or as a miss, and the board is built on the difference — so the person
+        // it will be applied to is the one who gets to say it.
+        couldBeAutomatic(habit.metric) ? el("div.chips.chips-tight",
+          el("button.chip" + (r.tracked ? ".on" : ""), {
+            disabled: !canAuto,
+            onclick: () => { if (canAuto) { r.tracked = true; paint(); } },
+          }, PAUSE_METRICS.has(habit.metric) ? "Pause counts it" : "My watch"),
+          el("button.chip" + (!r.tracked ? ".on" : ""), {
+            onclick: () => { r.tracked = false; paint(); },
+          }, "I log it"),
+        ) : null,
+        el("p.starter-blurb", trackingNote(habit, r, canAuto)),
       ) : null,
     );
+  }
+
+  /** The consequence, in the words of somebody about to live with it. */
+  function trackingNote(habit, r, canAuto) {
+    if (!couldBeAutomatic(habit.metric)) return "You log this one yourself.";
+    if (!canAuto) {
+      return PAUSE_METRICS.has(habit.metric)
+        ? "Only Pause on your phone can count this \u2014 here, you log it."
+        : "This device can't read health data, so you log it here.";
+    }
+    if (r.tracked) return "Quiet days show as no data rather than a miss.";
+    return habit.direction === AT_MOST
+      ? "Only the days you log are scored \u2014 log a zero for a clean day."
+      : "A day you don't log counts as a miss.";
   }
 
   async function submit() {
@@ -122,24 +159,19 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           target: scale ? scale.fromInput(raw) : Math.round(raw),
         };
       }));
-      // Declare how each one is fed from THIS device, asked per metric rather than answered once
-      // for the whole list. Reading the habit's own source instead would bind a web joiner to
-      // Health Connect and make every one of their silent days read as a broken watch rather than
-      // as a miss — inconsistently, too, depending on whether the first pull had landed.
+      // Record how each one is fed from THIS device, from what they just said rather than from
+      // what could be inferred. Written every time rather than only on the first run, because
+      // changing your mind — a new watch, or giving up on one — is the reason to come back here.
       //
-      // A browser still answers "manual" to everything, which is all it could ever honestly say.
-      // A phone running this inside Pause answers "pause" for screen time, because there the shell
-      // genuinely is the sensor, and asking someone to type in a number their own phone is already
-      // counting — more accurately than they can — is how a habit stops being kept.
-      if (firstRun) {
-        const c = caps();
-        for (const r of rows) {
-          if (!r.active) continue;
-          await bindSource(
-            r.habit.habitId,
-            sourceForDevice(r.habit.metric, { pause: c.embedded, health: c.healthConnect }),
-          );
-        }
+      // Reading the habit's own source instead would bind a web joiner to Health Connect and make
+      // every one of their silent days read as a broken watch rather than as a miss — and it would
+      // do it inconsistently, depending on whether the first pull had landed.
+      for (const r of rows) {
+        if (!r.active) continue;
+        await bindSource(
+          r.habit.habitId,
+          r.tracked ? deviceSourceFor(r.habit.metric) : SOURCE.MANUAL,
+        );
       }
       saved = true;
       sheet.close();

@@ -109,6 +109,19 @@ export const PAUSE_METRICS = new Set([METRIC.APP_OPENS, METRIC.SCREEN_MINUTES]);
  * bindings for the same member into the same log, so disagreeing about what this phone is would
  * have them overwriting each other every time either ran.
  */
+/**
+ * Is this a habit the breathing screen can interrupt?
+ *
+ * A rule about the habit's SHAPE, not about who feeds it. An urge is a discrete thing that happens
+ * and can be talked out of; screen time is a running total nobody interrupts, and steps are not a
+ * temptation. Keying this off the source instead meant it only ever fired for habits whose binding
+ * had been written by hand, which no habit created in the app ever has.
+ */
+export function isInterventionHabit(habit) {
+  if (!habit || habit.direction !== AT_MOST) return false;
+  return habit.metric === METRIC.PUFFS || habit.metric === METRIC.URGES;
+}
+
 export function sourceForDevice(metric, { pause = false, health = false } = {}) {
   if (PAUSE_METRICS.has(metric)) return pause ? SOURCE.PAUSE : SOURCE.MANUAL;
   if (HEALTH_METRICS.has(metric)) return health ? SOURCE.HEALTH_CONNECT : SOURCE.MANUAL;
