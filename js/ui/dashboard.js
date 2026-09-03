@@ -62,6 +62,12 @@ function header(ctx) {
     ),
     el("div.hdr-actions",
       el("span.pill." + cls, el("i.dot"), queued ? text + " · " + queued : text),
+      // Embedded, this is the only route back to Health Connect, reminders and leaving the group,
+      // because settings stopped being a tab. In a browser there is no shell to open, so it is
+      // not drawn at all rather than drawn dead.
+      ctx.embedded
+        ? el("button.icon-btn", { onclick: () => ctx.onOpenSettings(), "aria-label": "Settings" }, "⚙")
+        : null,
     ),
   );
 }
@@ -384,6 +390,9 @@ function emptyState(ctx) {
 // ---------------------------------------------------------------------------
 
 function nav(ctx) {
+  // Embedded, Today and Board are native destinations and the shell is already drawing a bar.
+  // Drawing a second one under it is the nested-navigation trap this merge exists to remove.
+  if (ctx.embedded) return null;
   return el("nav.nav", { "aria-label": "Sections" },
     TABS.map((t) => el("button.nav-btn", {
       "aria-current": ctx.tab === t.id ? "page" : null,

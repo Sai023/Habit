@@ -19,8 +19,15 @@ import { todayFor } from "./ingest.js";
 
 export const BRIDGE_VERSION = 1;
 
-let capabilities = { version: 0, healthConnect: false, alarms: false, tile: false, native: false };
+let capabilities = {
+  version: 0, healthConnect: false, alarms: false, tile: false, native: false,
+  // Hosted as a native tab rather than opened in a browser. Drives one thing only: the app stops
+  // drawing its own bottom bar, because the shell is already drawing one.
+  embedded: false,
+};
 let onChange = () => {};
+let onReady = () => {};
+let onNavigate = () => {};
 
 /** What the shell can actually do. Screens use this to hide controls that would do nothing. */
 export function caps() {
@@ -42,12 +49,23 @@ function nativeObj() {
  * primitives, and a string that we parse here is both simpler and easier to version than a
  * hand-marshalled object.
  */
-export function installBridge({ onData } = {}) {
+export function installBridge({ onData, onReady: ready, onNavigate: navigate } = {}) {
   if (typeof window === "undefined") return;
   onChange = onData || (() => {});
+  onReady = ready || (() => {});
+  onNavigate = navigate || (() => {});
 
   window.HabitBridge = {
-    /** Sent once, as soon as the WebView is live. Tells us what this build of Pause supports. */
+    /**
+     * Sent once, as soon as the WebView is live. Tells us what this build of Pause supports — and,
+     * when the shell has already been set up, hands over the identity it is using.
+     *
+     * That handover is the important part. A WebView is a brand-new browsing context with its own
+     * empty database, so without it, opening this inside Pause for the first time would run the
+     * device through onboarding again and mint a SECOND member id for a person the shell has
+     * already been posting as. That is the two-of-you-on-the-leaderboard bug the setup code was
+     * built to prevent, arrived at from the opposite direction.
+     */
     onBridgeReady(json) {
       const info = safeParse(json) || {};
       capabilities = {
@@ -55,9 +73,20 @@ export function installBridge({ onData } = {}) {
         healthConnect: !!info.healthConnect,
         alarms: !!info.alarms,
         tile: !!info.tile,
+        embedded: !!info.embedded,
         native: true,
       };
+      onReady(info.setup || null);
       onChange();
+    },
+
+    /**
+     * The shell's tab bar was tapped. Embedded, Today and Board are native destinations, so
+     * navigation arrives from outside rather than from a bar this app drew.
+     */
+    onNavigate(json) {
+      const to = safeParse(json) || {};
+      if (to.tab) onNavigate(to.tab);
     },
 
     /** A batch of readings: { source, samples: [{ metric, start, end, value, externalId }] }. */
@@ -145,6 +174,16 @@ export function setSyncConfig({ groupCode, memberId, supabaseUrl, supabaseKey, h
       habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
     })),
   });
+}
+
+/**
+ * Ask the shell to open its habit settings.
+ *
+ * Only meaningful embedded, where settings is a sheet rather than a tab. In a browser there is
+ * nobody to ask and this reports false, which is why the control is only drawn when embedded.
+ */
+export function openSettings() {
+  return call("openSettings", {});
 }
 
 /** Show a notification now, with optional action buttons ("+1", "Resisted"). */

@@ -46,8 +46,8 @@ function paint() {
   if (!ctx || onboarding) return;
   if (ui.editing !== undefined) { paintEditor(); return; }
   renderApp(root, {
-    ...ctx, ...ui, now: Date.now(),
-    onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals, onLog,
+    ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
+    onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals, onLog, onOpenSettings,
   });
 }
 
@@ -62,6 +62,12 @@ function demoBlocked() {
   if (!isDemo) return false;
   alert("This is example data. Start or join a real group to change anything.");
   return true;
+}
+
+/** Hand off to the shell's settings sheet. Only drawn when embedded, so only reachable there. */
+async function onOpenSettings() {
+  const { openSettings } = await import("./bridge.js");
+  openSettings();
 }
 
 /** Type a number in — the only way half these habits ever get a value. */
@@ -211,14 +217,36 @@ async function startSync() {
   sync.configureCloud(makeSupabaseAdapter(), await store.currentCode());
 }
 
+/** Embedded, the shell draws the tab bar, so this app must stop drawing its own. */
+function applyEmbedded() {
+  if (caps().embedded) document.body.classList.add("embedded");
+}
+
 async function boot() {
-  installBridge({ onData: () => { if (!isDemo) refresh(); } });
+  let handover = null;
+  let announce;
+  const announced = new Promise((resolve) => { announce = resolve; });
+
+  installBridge({
+    onData: () => { if (!isDemo) refresh(); },
+    onReady: (setup) => { handover = setup; applyEmbedded(); announce(); },
+    onNavigate: (tab) => { ui.tab = tab; paint(); },
+  });
 
   if (isDemo) {
     ctx = { ...demoState(), demo: true };
     ui.sync = { state: "LOCAL_ONLY", queued: 0 };
     paint();
     return;
+  }
+
+  // Give the shell a moment to announce itself before deciding whether this device needs
+  // onboarding — it may be about to hand over an identity that makes that question moot. In a
+  // plain browser nothing ever answers, so the wait is capped rather than open-ended.
+  await Promise.race([announced, new Promise((resolve) => setTimeout(resolve, 400))]);
+  if (handover) {
+    const { adoptIdentity } = await import("./store.js");
+    await adoptIdentity(handover);
   }
 
   await refresh();

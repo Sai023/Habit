@@ -136,6 +136,31 @@ export async function setupCode() {
 }
 
 /**
+ * Take on an identity the shell has already established.
+ *
+ * Pause has been posting to the room under a member id of its own since setup. This browsing
+ * context has never seen it: a WebView starts with an empty database, so left alone it would walk
+ * the user through onboarding a second time and mint a second id for the same person — half their
+ * data on one leaderboard row, half on another, and nothing anywhere saying why.
+ *
+ * Deliberately refuses to overwrite. If this context has already joined something — someone
+ * testing standalone, or a build from before this existed — that stays authoritative, because
+ * silently repointing a device at a different room is far worse than showing onboarding once.
+ */
+export async function adoptIdentity({ code, memberId, name } = {}) {
+  if (!code || !memberId) return false;
+  if (await db.getMeta("groupCode", null)) return false;
+
+  await db.setMeta("groupCode", code);
+  await db.setMeta("memberId", memberId);
+  await db.setMeta("name", name || "Me");
+  invalidateDerived();
+  // No member event is committed here. The shell already pushed one under this id when it joined,
+  // so this device is adopting an identity the room has heard of, not announcing a new one.
+  return true;
+}
+
+/**
  * Join an existing group. Creates nothing but the local pointer; the next pull brings the habits,
  * the members and the whole history down and the app materialises from that.
  */
