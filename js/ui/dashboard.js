@@ -21,19 +21,18 @@ const STREAK_UNIT = {
 };
 import * as fmt from "./format.js";
 
+// Two destinations. Habits used to be a third, showing a list people consult while setting
+// something up and then leave alone for weeks — a permanent slot for an occasional errand. It
+// opens from the header now, as a sheet.
 const TABS = [
   { id: "today", label: "Today", glyph: "◉" },
   { id: "board", label: "Board", glyph: "♛" },
-  { id: "habits", label: "Habits", glyph: "☰" },
 ];
 
 export function renderApp(root, ctx) {
   render(root,
     header(ctx),
-    el("main.main",
-      ctx.tab === "board" ? boardTab(ctx)
-        : ctx.tab === "habits" ? habitsTab(ctx)
-        : todayTab(ctx)),
+    el("main.main", ctx.tab === "board" ? boardTab(ctx) : todayTab(ctx)),
     nav(ctx),
   );
 }
@@ -62,6 +61,7 @@ function header(ctx) {
     ),
     el("div.hdr-actions",
       el("span.pill." + cls, el("i.dot"), queued ? text + " · " + queued : text),
+      el("button.icon-btn", { onclick: () => ctx.onOpenHabits(), "aria-label": "Habits" }, "☰"),
       // Embedded, this is the only route back to Health Connect, reminders and leaving the group,
       // because settings stopped being a tab. In a browser there is no shell to open, so it is
       // not drawn at all rather than drawn dead.
@@ -260,55 +260,6 @@ function boardRow(row, ctx) {
 // ---------------------------------------------------------------------------
 // Habits
 // ---------------------------------------------------------------------------
-
-function habitsTab(ctx) {
-  const habits = [...ctx.state.habits.values()];
-
-  return el("section.sec",
-    el("div.sec-hd",
-      el("h2.sec-title", "Habits"),
-      el("span", { style: "display:flex;gap:14px" },
-        el("button.link", { onclick: () => ctx.onEditGoals() }, "My goals"),
-        el("button.link", { onclick: () => ctx.onEditHabit(null) }, "+ New"),
-      ),
-    ),
-    !habits.length
-      ? el("p.sec-note", { style: "padding:0 2px" },
-          "Nothing tracked yet. Add the first one and the group can start showing up for it.")
-      : el("div.board", habits.map((h) => {
-      const src = fmt.source(sourceFor(ctx.state, h, ctx.me));
-      const target = targetOn(h, periodEnd(periodKey(ctx.today, h.period), h.period));
-      return el("article.row.tappable", {
-        style: "grid-template-columns: 26px minmax(0,1fr)",
-        role: "button",
-        tabindex: "0",
-        onclick: () => ctx.onEditHabit(h.habitId),
-        onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ctx.onEditHabit(h.habitId); } },
-      },
-        el("div.row-rank", h.icon || "◆"),
-        el("div.row-main",
-          el("div.row-name", h.name || "Habit"),
-          el("div.row-meta",
-            (h.direction === AT_MOST ? "At most " : "At least ") + fmt.value(h.metric, target),
-            // Weekday scheduling only means something for a daily habit — "3 days a week" would
-            // be a contradiction printed next to a weekly target.
-            h.period === PERIOD.DAY
-              ? (h.days.length === 7 ? " · every day" : " · " + h.days.length + " days a week")
-              : " · " + CADENCE[h.period],
-            h.taper ? " · tapering" : "",
-            h.weight !== 1 ? " · counts " + h.weight + "×" : "",
-          ),
-          el("div.row-meta",
-            src.icon + " " + src.label,
-            h.visibility === VISIBILITY.PROGRESS ? " · 🔒 count hidden" : "",
-            h.visibility === VISIBILITY.PRIVATE ? " · 🔒 private" : "",
-            h.scored ? "" : " · not scored",
-          ),
-        ),
-      );
-    })),
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Activity

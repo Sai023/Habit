@@ -7,7 +7,8 @@
 // sets their own target for it — ten thousand steps is a stretch for one of them and a slow
 // morning for another, and scoring both against one number measures fitness rather than effort.
 
-import { el, render } from "../dom.js";
+import { el } from "../dom.js";
+import { openSheet } from "./sheet.js";
 import { setGoals, bindSource } from "../store.js";
 import { targetFor, isTracking, sourceFor } from "../habits.js";
 import { METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE } from "../schema.js";
@@ -22,7 +23,12 @@ const unitFor = (habit) => SCALE[habit.metric]?.unit
   || ({ [METRIC.STEPS]: "steps", [METRIC.PUFFS]: "puffs", [METRIC.SESSIONS]: "times",
         [METRIC.ACTIVE_CALORIES]: "kcal", [METRIC.SCREEN_MINUTES]: "minutes" }[habit.metric] || "");
 
-export function renderGoals(root, { state, me, firstRun = false, onDone }) {
+export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
+  let saved = false;
+  // onDone fires once however this went away — saved or dismissed — so the caller can refresh on
+  // the way out without having to work out which happened.
+  const sheet = openSheet(host, { onClose: () => onDone({ saved }) });
+
   const habits = [...state.habits.values()];
 
   const rows = habits.map((habit) => {
@@ -39,9 +45,8 @@ export function renderGoals(root, { state, me, firstRun = false, onDone }) {
   let error = "";
 
   function paint() {
-    render(root, el("main.main",
+    sheet.paint(
       el("div.form",
-        !firstRun ? el("button.link.back", { onclick: () => onDone() }, "← Back") : null,
         el("h1", firstRun ? "What are you in for?" : "Your goals"),
         el("p.lede", firstRun
           ? "Your friends are tracking these. Pick the ones you're doing and set your own targets."
@@ -56,7 +61,7 @@ export function renderGoals(root, { state, me, firstRun = false, onDone }) {
         el("button.tap", { onclick: submit, disabled: busy },
           busy ? "Saving…" : firstRun ? "Start tracking" : "Save my goals"),
       ),
-    ));
+    );
   }
 
   function row(r) {
@@ -124,7 +129,8 @@ export function renderGoals(root, { state, me, firstRun = false, onDone }) {
           if (r.active) await bindSource(r.habit.habitId, SOURCE.MANUAL);
         }
       }
-      onDone({ saved: true });
+      saved = true;
+      sheet.close();
     } catch (err) {
       error = "Couldn't save: " + (err && err.message ? err.message : err);
       busy = false;

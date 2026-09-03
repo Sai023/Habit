@@ -44,10 +44,10 @@ function todayKey(state) {
 
 function paint() {
   if (!ctx || onboarding) return;
-  if (ui.editing !== undefined) { paintEditor(); return; }
   renderApp(root, {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
-    onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals, onLog, onOpenSettings,
+    onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog,
+    onOpenSettings,
   });
 }
 
@@ -83,22 +83,28 @@ async function onLog(habit) {
 }
 
 /**
- * "Which of these are you in for, and what's your number?"
+ * Everything that is not Today or Board is a sheet now.
  *
- * Shown once after joining, and on demand afterwards. If the room's habits have not landed yet the
- * dashboard's own empty state offers the same thing, so a slow first pull is not a dead end.
+ * These were full-screen takeovers that owned the root and hid the tab bar, which is workable in a
+ * browser and wrong inside a native shell: the shell's bar stays on screen regardless, so a web
+ * screen that assumed it had the whole window left the app looking like two apps arguing over one
+ * viewport.
+ *
+ * They mount on <body> rather than the app root, because a sync landing mid-edit repaints the root
+ * and would take the form with it — the bug already found and fixed once in the log sheet.
  */
 async function showGoals(firstRun = false) {
-  const [{ getState, identity }, { renderGoals }] = await Promise.all([
+  const [{ getState, identity }, { openGoalsSheet }] = await Promise.all([
     import("./store.js"), import("./ui/goals.js"),
   ]);
   const state = await getState();
-  if (!state.habits.size) { onboarding = false; await refresh(); return; }
+  // Nothing to set targets for yet. The dashboard's own empty state offers the same thing, so a
+  // slow first pull is not a dead end.
+  if (!state.habits.size) return refresh();
   const { memberId } = await identity();
-  onboarding = true; // this flow owns the root, same as onboarding does
-  renderGoals(root, {
+  openGoalsSheet(document.body, {
     state, me: memberId, firstRun,
-    onDone: async () => { onboarding = false; await refresh(); },
+    onDone: () => refresh(),
   });
 }
 
@@ -107,23 +113,28 @@ function onEditGoals() {
   showGoals(false);
 }
 
-/** The editor owns the root while it is open, the same way onboarding does. */
-async function paintEditor() {
-  const { renderEditor } = await import("./ui/editor.js");
-  renderEditor(root, {
+async function onEditHabit(habitId) {
+  if (demoBlocked()) return;
+  const { openEditorSheet } = await import("./ui/editor.js");
+  openEditorSheet(document.body, {
     state: ctx.state,
-    habitId: ui.editing,
-    onDone: async () => {
-      ui.editing = undefined;
-      await refresh(); // a saved habit changes the log, so re-derive rather than repaint
-    },
+    habitId: habitId || null, // null means new
+    onDone: () => refresh(),
   });
 }
 
-function onEditHabit(habitId) {
+/** The habit list, which used to be a whole tab for an errand people run once a month. */
+async function onOpenHabits() {
   if (demoBlocked()) return;
-  ui.editing = habitId || null; // null means "new"; undefined means "not editing"
-  paintEditor();
+  const { openHabitsSheet } = await import("./ui/habitsheet.js");
+  openHabitsSheet(document.body, {
+    state: ctx.state,
+    me: ctx.me,
+    today: ctx.today,
+    onEditHabit,
+    onEditGoals,
+    onClosed: () => refresh(),
+  });
 }
 
 function onTab(tab) {
@@ -187,8 +198,9 @@ async function showOnboard() {
       onboarding = false;
       // A joiner picks their habits and targets next. By the time they have read the two codes the
       // first pull has almost always landed, so the list is there to choose from.
-      if (pendingGoals) { pendingGoals = false; await showGoals(true); return; }
       await refresh();
+      // Dashboard first, then the sheet over it — a sheet floating over nothing reads as an error.
+      if (pendingGoals) { pendingGoals = false; await showGoals(true); }
     },
   });
 }

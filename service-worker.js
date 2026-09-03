@@ -41,8 +41,10 @@ const SHELL = [
   "./js/ui/editor.js",
   "./js/ui/format.js",
   "./js/ui/goals.js",
+  "./js/ui/habitsheet.js",
   "./js/ui/logsheet.js",
   "./js/ui/onboard.js",
+  "./js/ui/sheet.js",
   // GEN:SHELL-END
 ];
 

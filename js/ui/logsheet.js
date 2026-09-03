@@ -13,7 +13,8 @@
 //   last  "what is it NOW" — a savings balance is already a running total, and adding to it every
 //         time you check would have you saving four times what you did.
 
-import { el, render } from "../dom.js";
+import { el } from "../dom.js";
+import { openSheet } from "./sheet.js";
 import { logValue } from "../store.js";
 import { valueForPeriod, targetFor, periodKey, periodEnd } from "../habits.js";
 import { AGGREGATE, AT_MOST, METRIC, PERIOD } from "../schema.js";
@@ -43,11 +44,8 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   let busy = false;
   let error = "";
 
-  const layer = el("div.sheet-layer", { onclick: (e) => { if (e.target === layer) close(); } });
-  host.append(layer);
+  const sheet = openSheet(host);
   paint();
-
-  function close() { layer.remove(); }
 
   function bump(by) {
     const n = Number(amount) || 0;
@@ -57,8 +55,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   }
 
   function paint() {
-    render(layer, el("div.sheet",
-      el("div.sheet-grip"),
+    sheet.paint(
       el("div.sheet-head",
         el("span.card-icon", habit.icon || "◆"),
         el("span.sheet-title", habit.name || "Habit"),
@@ -91,25 +88,25 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
       error ? el("p.err", error) : null,
 
       el("div.sheet-actions",
-        el("button.ghost", { onclick: close }, "Cancel"),
+        el("button.ghost", { onclick: () => sheet.close() }, "Cancel"),
         el("button.tap", { onclick: save, disabled: busy },
           busy ? "Saving…" : isSum ? "Add it" : "Save"),
       ),
-    ));
+    );
   }
 
   async function save() {
     if (busy) return;
     const n = Number(amount);
     if (!Number.isFinite(n) || n < 0) { error = "Give it a number."; return paint(); }
-    if (isSum && n === 0) { close(); return; } // adding nothing is just cancelling
+    if (isSum && n === 0) { sheet.close(); return; } // adding nothing is just cancelling
 
     busy = true; error = ""; paint();
     try {
       // Always against TODAY. For a weekly or monthly habit the period is derived from the day, so
       // this lands in the right week or month without the sheet having to know which.
       await logValue(habit.habitId, today, scale ? scale.from(n) : Math.round(n), "manual");
-      close();
+      sheet.close();
       onSaved();
     } catch (err) {
       error = "Couldn't save: " + (err && err.message ? err.message : err);

@@ -5,7 +5,8 @@
 // ceiling, and the cadence decides what a miss even means. Asking for the target first — the
 // obvious opening question — would mean asking "how many?" before "how many of what, how often?".
 
-import { el, render } from "../dom.js";
+import { el } from "../dom.js";
+import { openSheet } from "./sheet.js";
 import { saveHabit, deleteHabit, bindSource } from "../store.js";
 import { uuid } from "../id.js";
 import {
@@ -68,7 +69,10 @@ const typeOf = (habit) =>
 const toInput = (type, v) => (type.toInput ? type.toInput(v) : v);
 const fromInput = (type, v) => (type.fromInput ? type.fromInput(v) : Math.round(v));
 
-export function renderEditor(root, { state, habitId, onDone }) {
+export function openEditorSheet(host, { state, habitId, onDone }) {
+  let saved = false;
+  const sheet = openSheet(host, { onClose: () => onDone({ saved }) });
+
   const existing = habitId ? state.habits.get(habitId) : null;
   const type0 = existing ? typeOf(existing) : TYPES[0];
 
@@ -94,9 +98,8 @@ export function renderEditor(root, { state, habitId, onDone }) {
     const t = form.type;
     const reduce = form.direction === AT_MOST;
 
-    render(root, el("main.main",
+    sheet.paint(
       el("div.form",
-        el("button.link.back", { onclick: () => onDone() }, "← Back"),
         el("h1", form.isNew ? "New habit" : "Edit habit"),
 
         el("label.field",
@@ -187,7 +190,7 @@ export function renderEditor(root, { state, habitId, onDone }) {
           form.busy ? "Saving…" : form.isNew ? "Add habit" : "Save changes"),
         !form.isNew ? el("button.link.danger", { onclick: remove }, "Delete this habit") : null,
       ),
-    ));
+    );
   }
 
   async function submit() {
@@ -222,7 +225,8 @@ export function renderEditor(root, { state, habitId, onDone }) {
       if (form.isNew) {
         await bindSource(form.habitId, t.auto ? SOURCE.HEALTH_CONNECT : SOURCE.MANUAL);
       }
-      onDone({ saved: true });
+      saved = true;
+      sheet.close();
     } catch (err) {
       form.error = "Couldn't save: " + (err && err.message ? err.message : err);
       form.busy = false;
@@ -235,7 +239,8 @@ export function renderEditor(root, { state, habitId, onDone }) {
     // in the log, so bringing it back does not start anyone from zero.
     if (!confirm("Delete this habit for the whole group? Past entries are kept.")) return;
     await deleteHabit(form.habitId);
-    onDone({ saved: true });
+    saved = true;
+    sheet.close();
   }
 
   paint();
