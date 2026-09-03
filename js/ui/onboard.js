@@ -7,7 +7,7 @@
 
 import { el, render } from "../dom.js";
 import { createGroup, joinGroup, setupCode, ensureBindings } from "../store.js";
-import { isGroupCode } from "../id.js";
+import { normalizeGroupCode } from "../id.js";
 import { METRIC, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY } from "../schema.js";
 
 /**
@@ -198,8 +198,22 @@ export function renderOnboard(root, { onComplete }) {
 
   async function submitJoin() {
     if (state.busy) return;
-    const code = state.joinCode.trim().toUpperCase();
-    if (!isGroupCode(code)) { state.error = "That doesn't look like a group code. They look like HABIT-7Q2XK9."; return paint(); }
+    const raw = state.joinCode.trim();
+
+    // Somebody will eventually forward the wrong one of the two codes. Say which is which rather
+    // than reporting a shape error about a string that is perfectly valid for something else.
+    if (raw.toUpperCase().startsWith("HS1.")) {
+      state.error = "That's a setup code — it connects Pause to a phone. The invite is the short one starting with HABIT-.";
+      return paint();
+    }
+
+    // Normalised, not just checked: a code typed from another screen arrives with stray spaces or
+    // an autocorrected dash, and all of those are unmistakably the same code.
+    const code = normalizeGroupCode(raw);
+    if (!code) {
+      state.error = "That doesn't look like a group code. It's six characters after HABIT- , like HABIT-7Q2XK9.";
+      return paint();
+    }
     if (!state.myName.trim()) { state.error = "Add your name so the group knows who you are."; return paint(); }
 
     state.busy = true; state.error = ""; paint();

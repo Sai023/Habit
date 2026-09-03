@@ -50,7 +50,28 @@ export function groupCode() {
   return "HABIT-" + rand;
 }
 
+/**
+ * Coerce whatever someone typed into a canonical group code, or "" if it cannot be one.
+ *
+ * A code gets read off one screen and typed into another phone, and it arrives mangled: a keyboard
+ * that puts spaces around a hyphen ("HABIT - 7KMDWS"), an autocorrected en-dash, lower case, a
+ * trailing space from a paste, or just the six characters without the prefix. Every one of those
+ * is unmistakably the same code, so rejecting them was the app being pedantic at the exact moment
+ * someone is trying to join their friends.
+ *
+ * So: throw away everything that is not a letter or digit, drop the prefix if it is there, and
+ * rebuild. What is left has to be six characters from the alphabet — that part stays strict,
+ * because past this point a wrong code is an empty room rather than an error.
+ */
+export function normalizeGroupCode(input) {
+  const stripped = String(input || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const body = stripped.startsWith("HABIT") ? stripped.slice(5) : stripped;
+  if (body.length !== 6) return "";
+  for (const ch of body) if (!ALPHABET.includes(ch)) return "";
+  return "HABIT-" + body;
+}
+
 /** Is this a plausibly-shaped group code? Cheap guard before we go near the network. */
 export function isGroupCode(code) {
-  return /^HABIT-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(String(code || "").trim().toUpperCase());
+  return normalizeGroupCode(code) !== "";
 }

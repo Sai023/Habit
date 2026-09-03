@@ -9,7 +9,7 @@
 import { db } from "./db.js";
 import { replay } from "./habits.js";
 import { ev, T, SOURCE } from "./schema.js";
-import { uuid, groupCode as newGroupCode, isGroupCode } from "./id.js";
+import { uuid, groupCode as newGroupCode, normalizeGroupCode } from "./id.js";
 import { samplesToEvents, discreteEvent } from "./ingest.js";
 import { encodeSetup } from "./setup-code.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
@@ -137,13 +137,15 @@ export async function setupCode() {
  * the members and the whole history down and the app materialises from that.
  */
 export async function joinGroup(code, myName) {
-  const upper = String(code || "").trim().toUpperCase();
-  if (!isGroupCode(upper)) throw new Error("That doesn't look like a group code.");
-  await db.setMeta("groupCode", upper);
+  // Normalise rather than merely validate: what arrives has been read off one screen and typed
+  // into another phone, so it turns up with stray spaces, an autocorrected dash, or no prefix.
+  const normalized = normalizeGroupCode(code);
+  if (!normalized) throw new Error("That doesn't look like a group code.");
+  await db.setMeta("groupCode", normalized);
   await db.setMeta("name", myName || "Me");
   const { memberId } = await identity();
   await commit(ev.member(memberId, myName || "Me"));
-  return upper;
+  return normalized;
 }
 
 export async function rename(myName) {
