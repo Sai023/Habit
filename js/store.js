@@ -8,9 +8,11 @@
 
 import { db } from "./db.js";
 import { replay } from "./habits.js";
-import { ev, T } from "./schema.js";
+import { ev, T, SOURCE } from "./schema.js";
 import { uuid, groupCode as newGroupCode, isGroupCode } from "./id.js";
 import { samplesToEvents, discreteEvent } from "./ingest.js";
+import { encodeSetup } from "./setup-code.js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 export { uuid };
 
@@ -70,15 +72,64 @@ export async function currentCode() {
   return db.getMeta("groupCode", null);
 }
 
-/** Start a new group. Returns the code to share with the others. */
-export async function createGroup(name, myName) {
+/**
+ * Start a new group. Returns the code to share with the others.
+ *
+ * Habits are created here rather than left for later because a group with none is a dead end:
+ * there is nothing for anyone to show up for, and nothing for a phone's background sync to read.
+ * They are ordinary habits once made — editable, deletable — not a fixed set.
+ */
+export async function createGroup(name, myName, starters = []) {
   const code = newGroupCode();
   await db.setMeta("groupCode", code);
   await db.setMeta("name", myName || "Me");
-  await commit(ev.meta({ name: name || "Our group", createdAt: Date.now() }));
   const { memberId } = await identity();
-  await commit(ev.member(memberId, myName || "Me"));
+
+  const specs = [
+    ev.meta({ name: name || "Our group", createdAt: Date.now() }),
+    ev.member(memberId, myName || "Me"),
+  ];
+  for (const starter of starters) {
+    const { habitId = uuid(), ...fields } = starter;
+    specs.push(ev.habit(habitId, fields));
+    // A browser cannot read health data, so "manual" is the honest binding until Pause joins on a
+    // phone and re-declares it. Claiming otherwise would have missed days read as a broken watch.
+    specs.push(ev.bind(memberId, habitId, SOURCE.MANUAL));
+  }
+  await commitAll(specs);
   return code;
+}
+
+/**
+ * Make sure every habit has a source declared for me.
+ *
+ * Called after a join, once the room's habits have actually arrived — you cannot bind to a habit
+ * you have not heard of yet. Without this a joiner has no binding at all, and every quiet day
+ * falls back to the habit's default source rather than to what their device can really supply.
+ */
+export async function ensureBindings(source = SOURCE.MANUAL) {
+  const state = await getState();
+  const { memberId } = await identity();
+  const specs = [];
+  for (const habit of state.habits.values()) {
+    if (!state.bindings.has(memberId + "|" + habit.habitId)) {
+      specs.push(ev.bind(memberId, habit.habitId, source));
+    }
+  }
+  if (specs.length) await commitAll(specs);
+  return specs.length;
+}
+
+/**
+ * The string to paste into Pause on this phone.
+ *
+ * Carries the member id, so the shell posts as the same person this browser does rather than
+ * appearing as a second member with half the data. Not for sharing — see setup-code.js.
+ */
+export async function setupCode() {
+  const { memberId, name, code } = await identity();
+  if (!code) return "";
+  return encodeSetup({ url: SUPABASE_URL, key: SUPABASE_ANON_KEY, code, memberId, name });
 }
 
 /**
@@ -129,8 +180,11 @@ export async function commitAll(specs) {
   if (!specs || !specs.length) return [];
   const { memberId } = await identity();
   const now = Date.now();
-  const events = specs.map((s) => ({
-    eventId: uuid(), type: s.type, author: memberId, ts: now, payload: s.payload,
+  // A millisecond apart, deliberately. Identical timestamps make replay fall back to comparing
+  // event ids, which are random — so a batch of habits created together would come out in a
+  // different order on every device, and the dashboard would shuffle its own cards.
+  const events = specs.map((s, i) => ({
+    eventId: uuid(), type: s.type, author: memberId, ts: now + i, payload: s.payload,
   }));
   for (const e of events) await db.addEvent(e);
   invalidateDerived();

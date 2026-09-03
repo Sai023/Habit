@@ -15,8 +15,13 @@ export function el(spec, attrs, ...children) {
   const node = document.createElement(tag || "div");
   if (classes.length) node.className = classes.join(" ");
 
-  if (attrs && (typeof attrs !== "object" || attrs.nodeType || Array.isArray(attrs))) {
-    children.unshift(attrs);
+  // Anything that is not a plain object is a CHILD, not an attributes bag — and the test has to be
+  // on the type rather than on truthiness. `el("b", 0)` is a perfectly ordinary way to render a
+  // zero, and treating a falsy value as "no attributes given" silently swallowed it: a streak of
+  // 0 rendered as an empty element, so the line read "🔥 days" with the number simply gone.
+  const isAttrs = attrs != null && typeof attrs === "object" && !attrs.nodeType && !Array.isArray(attrs);
+  if (!isAttrs) {
+    if (attrs !== undefined) children.unshift(attrs);
     attrs = null;
   }
   for (const [k, v] of Object.entries(attrs || {})) {

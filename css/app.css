@@ -298,6 +298,82 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .nav-btn .g { font-size: 17px; line-height: 1; }
 .nav-btn[aria-current="page"] { color: var(--teal); }
 
+/* ---------- onboarding ---------- */
+
+.onboard { justify-content: center; }
+
+.form { display: flex; flex-direction: column; gap: 16px; padding: 28px 0 8px; }
+.form h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+.lede { margin: -8px 0 4px; color: var(--dim); font-size: 14px; }
+.stack-btn { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 280px; }
+
+.link { color: var(--teal); font-size: 13.5px; font-weight: 600; padding: 4px 0; text-align: left; }
+.back { align-self: flex-start; color: var(--dim); }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-size: 12.5px; font-weight: 600; color: var(--dim); }
+.field input,
+.inline-field input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 11px 12px;
+  width: 100%;
+}
+.field input:focus, .inline-field input:focus { outline: none; border-color: var(--teal); }
+.field input::placeholder { color: #5B688C; }
+
+/* A habit is on or off, and its target only matters when it is on — so the target appears with
+   it rather than sitting greyed out, which reads as broken rather than as inactive. */
+.starters { display: flex; flex-direction: column; gap: 8px; }
+.starter { background: var(--surface); border-radius: var(--r); border: 1px solid transparent; overflow: hidden; }
+.starter.on { border-color: var(--teal-dim); }
+.starter-head {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 13px 14px; text-align: left;
+  font-size: 14.5px;
+}
+.starter-name { flex: 1; font-weight: 700; }
+.starter-check { color: var(--teal); font-weight: 800; }
+.starter-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.starter-blurb { margin: 0; font-size: 12.5px; color: var(--dim); }
+.inline-field { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim); }
+.inline-field input { width: 88px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.note-inline { margin: 0; font-size: 12.5px; color: var(--dim); line-height: 1.5; }
+.note-inline b { color: var(--text); font-weight: 600; }
+.err { margin: 0; font-size: 13px; color: var(--danger); }
+
+.tap:disabled { opacity: 0.55; }
+
+/* The invite and the setup code look different because mixing them up is the one costly mistake
+   on this screen: handing a friend your setup code makes them post as you. */
+.codebox {
+  background: var(--surface);
+  border-radius: var(--r);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.codebox.private { border: 1px solid var(--amber); background: rgba(240, 180, 41, 0.06); }
+.codebox-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--dim);
+}
+.codebox.private .codebox-label { color: var(--amber); }
+.codebox-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 20px; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--teal);
+  word-break: break-all;
+  user-select: all;
+}
+.codebox-value.small { font-size: 11.5px; letter-spacing: 0; color: var(--text); line-height: 1.45; }
+.codebox-note { margin: 0; font-size: 12.5px; color: var(--dim); line-height: 1.5; }
+.codebox-note b { color: var(--text); font-weight: 700; }
+.copy { align-self: flex-start; }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

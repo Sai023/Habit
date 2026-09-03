@@ -1,11 +1,12 @@
-// app.js — bootstrap. Decides what state the dashboard is looking at, and keeps it fresh.
+// app.js — bootstrap. Decides what the screen is looking at, and keeps it fresh.
 //
-// Two modes, and only two:
-//   ?demo=1  a generated three weeks, replayed through the real engine. Nothing is stored.
-//   default  the device's own log, from IndexedDB, mirrored to the group's room when configured.
+// Three states, and only three:
+//   ?demo=1     a generated three weeks, replayed through the real engine. Nothing is stored.
+//   no group    onboarding: start a group, or join one.
+//   otherwise   the device's own log, mirrored to the group's room.
 //
 // The demo path deliberately never touches IndexedDB. Looking at example data should not leave
-// anything behind on the device, and a review session should not be able to corrupt real history.
+// anything behind, and a review session should not be able to corrupt real history.
 
 import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
@@ -23,6 +24,15 @@ const ui = {
 };
 
 let ctx = null;
+let syncStarted = false;
+// While onboarding is on screen it OWNS the root. Creating a group pushes events, the first pull
+// merges them straight back, and the resulting "new data" callback would otherwise re-render the
+// dashboard over the top of the share screen — losing the group code and setup code the user was
+// meant to copy, in the second between them appearing and being read.
+let onboarding = false;
+// A joiner has nothing to bind to until the room's habits actually arrive, so the binding waits
+// for the first successful pull rather than happening at join time.
+let bindOnNextSync = false;
 
 function todayKey(state) {
   const first = [...state.habits.values()][0];
@@ -40,7 +50,7 @@ function onTab(tab) {
   ui.tab = tab;
   const url = new URL(location.href);
   url.searchParams.set("tab", tab);
-  history.replaceState(null, "", url); // survives a reload without adding history entries
+  history.replaceState(null, "", url); // survives a reload without stacking history entries
   paint();
 }
 
@@ -64,9 +74,8 @@ async function onUrge(habit) {
 }
 
 async function onStart() {
-  // The join/create flow is the next screen to build; until then say so plainly rather than
-  // wiring a button to nothing.
-  alert("Group setup is the next screen. For now, add ?demo=1 to look at the dashboard.");
+  ctx = null;
+  await showOnboard();
 }
 
 function onFixSync(row) {
@@ -76,37 +85,65 @@ function onFixSync(row) {
 async function refresh() {
   const { getState, identity } = await import("./store.js");
   const { db } = await import("./db.js");
+  const { memberId, code } = await identity();
+  if (!code) { await showOnboard(); return; }
+  if (onboarding) return; // the share screen is still being read; do not paint over it
+
   const state = await getState();
-  const { memberId } = await identity();
   ctx = { state, events: await db.allEvents(), me: memberId, today: todayKey(state), demo: false };
   paint();
+}
+
+async function showOnboard() {
+  const { renderOnboard } = await import("./ui/onboard.js");
+  onboarding = true;
+  renderOnboard(root, {
+    onComplete: async (opts = {}) => {
+      if (opts.bindAfterSync) bindOnNextSync = true;
+      // Sync starts while the share screen is still up, so the group exists on the server by the
+      // time anyone acts on the code — but the screen stays put until they say they are done.
+      await startSync();
+      if (opts.done) { onboarding = false; await refresh(); }
+    },
+  });
+}
+
+/** Wire up the cloud once. Safe to call again — re-pointing at a room is all that repeats. */
+async function startSync() {
+  const { cloudConfigured } = await import("./config.js");
+  if (!cloudConfigured()) return;
+
+  const [{ makeSupabaseAdapter }, sync, store] = await Promise.all([
+    import("./sync-adapter.js"), import("./sync.js"), import("./store.js"),
+  ]);
+
+  if (!syncStarted) {
+    sync.onStatus((s) => { ui.sync = s; paint(); });
+    sync.setOnData(async () => {
+      if (bindOnNextSync) {
+        bindOnNextSync = false;
+        await store.ensureBindings(); // now the room's habits are here, declare how I feed them
+      }
+      await refresh();
+    });
+    sync.startSyncTriggers();
+    syncStarted = true;
+  }
+  sync.configureCloud(makeSupabaseAdapter(), await store.currentCode());
 }
 
 async function boot() {
   installBridge({ onData: () => { if (!isDemo) refresh(); } });
 
   if (isDemo) {
-    const demo = demoState();
-    ctx = { ...demo, demo: true };
+    ctx = { ...demoState(), demo: true };
     ui.sync = { state: "LOCAL_ONLY", queued: 0 };
     paint();
     return;
   }
 
   await refresh();
-
-  // Sync is opt-in configuration: with config.js left blank the app is fully usable and simply
-  // never talks to anything.
-  const { cloudConfigured } = await import("./config.js");
-  if (!cloudConfigured()) return;
-
-  const [{ makeSupabaseAdapter }, sync, { currentCode }] = await Promise.all([
-    import("./sync-adapter.js"), import("./sync.js"), import("./store.js"),
-  ]);
-  sync.onStatus((s) => { ui.sync = s; paint(); });
-  sync.setOnData(refresh);
-  sync.configureCloud(makeSupabaseAdapter(), await currentCode());
-  sync.startSyncTriggers();
+  await startSync();
 }
 
 boot().catch((err) => {
