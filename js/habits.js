@@ -666,6 +666,21 @@ function holdsBeforeWeek(state, habit, memberId, week) {
   return taperPlan(state, habit, memberId, week - 1).holdsBefore[week] || 0;
 }
 
+/**
+ * The first day of the taper week [day] falls in, or null for a habit that does not taper.
+ *
+ * Exported for the weekly nudge, which has to fire on the day the allowance actually changes —
+ * and that day is personal, since the schedule runs from each member's own baseline rather than
+ * from a shared Monday.
+ */
+export function taperWeekStart(state, habit, memberId, day) {
+  if (!habit.taper || habit.period !== PERIOD.DAY) return null;
+  const everyDays = Math.max(1, habit.taper.everyDays || 7);
+  const start = taperStartDay(state, habit, memberId);
+  if (day < start) return null;
+  return addDays(start, taperWeekOf(state, habit, memberId, day) * everyDays);
+}
+
 /** Which taper week a day falls in, counting from this member's baseline. */
 function taperWeekOf(state, habit, memberId, day) {
   const everyDays = Math.max(1, habit.taper.everyDays || 7);

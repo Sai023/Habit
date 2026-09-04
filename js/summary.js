@@ -20,6 +20,7 @@ import {
 } from "./habits.js";
 import { leaderboard, dayScore, CATEGORY_LABEL, CATEGORY_ICON } from "./score.js";
 import { seasonTally, categoryBreakdown } from "./season.js";
+import { noticesFor } from "./notices.js";
 import { AT_MOST, PERIOD } from "./schema.js";
 import * as fmt from "./ui/format.js";
 
@@ -93,6 +94,7 @@ export function buildSummary(state, me, today, memberIds = null) {
   // Today, split the way the board splits it. The shell can then say what carried the day and what
   // sank it without knowing that a day is worth a hundred or how the four shares divide.
   const scored = dayScore(state, me, today, today);
+  const streak = onGoalStreak(state, me, today);
   const season = members.length ? seasonTally(state, members, today) : { weeks: 0, rows: [] };
   const mySeason = season.rows.find((r) => r.memberId === me) || null;
 
@@ -138,7 +140,11 @@ export function buildSummary(state, me, today, memberIds = null) {
     })),
     // Consecutive days everything due was met, across every habit. Pause draws its hero from this
     // now instead of from screen time alone.
-    onGoalStreak: onGoalStreak(state, me, today),
+    onGoalStreak: streak,
+    // Already-worded things the shell should consider posting, each with a stable id it dedupes
+    // on. The shell never learns why any of them is here — deciding that means knowing what a
+    // streak is, and that answer exists once, in the engine.
+    notices: noticesFor(state, me, today, streak),
     // The long game. Weeks won, and a points total that only ever goes up.
     season: mySeason
       ? {
