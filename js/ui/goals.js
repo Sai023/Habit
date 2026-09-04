@@ -134,7 +134,7 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
     }
     if (r.tracked) return "Quiet days show as no data rather than a miss.";
     return habit.direction === AT_MOST
-      ? "Only the days you log are scored \u2014 log a zero for a clean day."
+      ? "A day you don't log counts as a miss \u2014 log a zero for a clean day."
       : "A day you don't log counts as a miss.";
   }
 

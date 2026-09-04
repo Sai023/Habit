@@ -155,6 +155,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .chip.on:disabled { opacity: 0.75; }
 .chips-tight { margin-top: 2px; }
 
+/* Visible, not alarming: an unreported day is a fact about the record, not a verdict. */
+.row-quiet { color: var(--dim); }
+
 /* The correlation card. Deliberately quieter than a habit card: it is something to read once,
    not a control, and giving it the teal accent would have it competing with today's numbers for
    the same glance. */

@@ -54,12 +54,14 @@ function world(pattern, over = {}) {
       ...(over.screen || {}),
     }),
     habitDef("steps", over.steps || {}),
-    bind("screen", SOURCE.PAUSE),
+    // The BINDING is what the engine judges silence against, so an override of the habit's source
+    // has to move it too — otherwise the fixture says "manual" and the engine still reads "pause".
+    bind("screen", over.screen?.source || SOURCE.PAUSE),
     bind("steps", SOURCE.HEALTH_CONNECT),
   ];
   let day = "2026-03-01";
   for (const [screen, steps] of pattern) {
-    if (screen !== null) events.push(log("screen", day, screen, SOURCE.PAUSE));
+    if (screen !== null) events.push(log("screen", day, screen, over.screen?.source || SOURCE.PAUSE));
     if (steps !== null) events.push(log("steps", day, steps));
     day = addDays(day, 1);
   }
@@ -164,15 +166,16 @@ test("a silent MANUAL FLOOR is a bad day, because that is what silence means the
   assert.equal(r.missed.average, 4000);
 });
 
-test("a silent MANUAL CEILING is not a bad day, so it cannot gate anything", () => {
-  // Nothing recorded against a limit says nothing at all — you may have had none, or forgotten to
-  // say so. Judging it either way would build the comparison on an invented fact, and the days it
-  // invented would all land on the same side.
+test("a silent MANUAL ceiling is a bad day too, and can gate", () => {
+  // Ceilings are not the exception they briefly looked like. Where somebody undertook to enter the
+  // number themselves, a blank day is a day they did not, in either direction.
   const w = world([
     [30, 12000], [30, 12000], [30, 12000], [30, 12000],
     [null, 4000], [null, 4000], [null, 4000], [null, 4000],
   ], { screen: { source: SOURCE.MANUAL } });
-  assert.equal(run(w), null);
+  const r = run(w);
+  assert.equal(r.missed.days, 4);
+  assert.equal(r.missed.average, 4000);
 });
 
 test("days the subject reported nothing are dropped, not counted as zero", () => {

@@ -493,25 +493,17 @@ export function rawPeriodStatus(state, habit, memberId, key) {
   if (value === null) {
     // An AUTOMATIC source that said nothing means the pipeline was silent — which is not the same
     // as the user failing, and must not be scored as one.
-    if (AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId))) return NO_DATA;
-
-    // A CEILING cannot be failed by silence either, and treating it as a miss was punishing
-    // exactly the people the habit is for.
     //
-    // The asymmetry is real rather than a convenience. A floor — "read for twenty minutes" — is a
-    // thing you DO, so a day with nothing recorded is a day it did not happen, and logging it was
-    // the whole task. A ceiling is a thing you DON'T do, and no observation of a quiet day can
-    // distinguish "I had none" from "I forgot to say so". Guessing either way is wrong, which is
-    // what NO_DATA is for.
+    // A MANUAL habit with no entry is a real miss, in both directions, and the ceilings are not the
+    // exception they briefly looked like. The argument for excusing them was that no observation of
+    // a quiet day separates "I had none" from "I forgot to say so" — which is true of a ceiling
+    // nobody counts, and false of every ceiling this app actually has. The vape keeps the puff
+    // count; the number exists whether or not it is entered. So silence is not an unknowable day,
+    // it is an unreported one, and reporting is part of what was agreed to.
     //
-    // Before this, two people with an identical flawless week off the vape scored 100% and 0%
-    // apart on the board, because one of them had tapped a button seven times to record zeros —
-    // while their own card said "8 left of 8 today". The board was measuring diligence at
-    // logging, not the habit. Recording a zero still says "I had none" and still scores, so
-    // nothing is lost by refusing to invent the answer.
-    if (habit.direction === AT_MOST) return NO_DATA;
-
-    return MISS;
+    // The cost of the other reading was worse than it looked: a habit you can score full marks on
+    // by never opening the app is not a habit. This is also why the daily reminder exists.
+    return AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId)) ? NO_DATA : MISS;
   }
   const target = targetFor(state, habit, memberId, periodEnd(key, habit.period));
   const met = habit.direction === AT_MOST ? value <= target : value >= target;

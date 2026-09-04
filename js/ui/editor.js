@@ -195,7 +195,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         + "stops doesn't cost you the board.";
     }
     return form.direction === AT_MOST
-      ? "Only the days you log are scored. Log a zero for a clean day so it counts for you."
+      ? "A day you don't log counts as a miss \u2014 log a zero for a clean day."
       : "A day you don't log counts as a miss.";
   }
 

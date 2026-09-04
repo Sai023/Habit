@@ -331,6 +331,11 @@ function boardRow(row, ctx) {
         row.eligible ? row.hits + "/" + row.eligible + " days" : "nothing scored yet",
         row.streak ? " · 🔥 " + row.streak : "",
         row.spentTokens ? " · 🛡 spent " + row.spentTokens : "",
+        // Days nothing was reported. They cost nothing on purpose — a watch that stopped is not a
+        // failure — but nothing was the same as saying so, which made silence the cheapest way to
+        // avoid a bad week. Shown rather than scored: the group can see it, and the number is the
+        // person's own to explain.
+        row.noData ? el("span.row-quiet", " · " + row.noData + " not reported") : null,
       ),
     ),
     el("div.row-pct", row.pct == null ? "—" : row.pct + "%"),

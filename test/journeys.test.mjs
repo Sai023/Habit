@@ -223,16 +223,17 @@ test("puffs: separate events add up, and the limit is what they are judged again
   assert.equal(statusOn(over, day(0)), MISS);
 });
 
-test("puffs: a day with nothing logged is unknown, not a failure", () => {
-  // The bug that mattered most. Two people with an identical flawless week off the vape scored
-  // 100% and 0% apart, because one had tapped a button seven times to record zeros — while their
-  // own card said "20 left of 20 today". The board was measuring diligence at logging.
+test("puffs: no entry is a failure, because the number existed and was not given", () => {
+  // The vape keeps the count, so there is no such thing as a day the user could not report. The
+  // commitment is to read it off and enter it; a blank day is a day that was not reported, and a
+  // habit you can score full marks on by never opening the app is not a habit.
   const quiet = build(add("puffs", { over: { scored: true } }));
-  assert.equal(statusOn(quiet, day(0)), NO_DATA);
+  assert.equal(statusOn(quiet, day(0)), MISS);
 
-  // Saying "I had none" is still a statement, and still scores.
-  const said = build(add("puffs", { over: { scored: true } }), [[day(0), 0]]);
-  assert.equal(statusOn(said, day(0)), HIT);
+  // Under the goal is a success, and a clean day is entered as a zero like any other number.
+  assert.equal(statusOn(build(add("puffs", { over: { scored: true } }), [[day(0), 0]]), day(0)), HIT);
+  assert.equal(statusOn(build(add("puffs", { over: { scored: true } }), [[day(0), 15]]), day(0)), HIT);
+  assert.equal(statusOn(build(add("puffs", { over: { scored: true } }), [[day(0), 25]]), day(0)), MISS);
 });
 
 test("screen time: Pause reports it, and a perfect day is a real zero", () => {
@@ -326,11 +327,18 @@ test("a weekly habit's streak counts weeks, not days", () => {
 });
 
 test("a reduce habit's streak is built from the days you actually reported", () => {
-  // Silence neither builds nor breaks it, which is the only honest reading of a day nobody
-  // measured. Reporting clean days is what makes the streak mean something.
+  // Entering the number is part of it, so a run of reported days builds a streak and a run of
+  // blank ones does not.
   const said = [0, 1, 2, 3, 4].map((n) => [day(n), 2]);
   assert.equal(walk(build(add("puffs", { over: { scored: true } }), said), "h", "m1", day(5)).streak, 5);
   assert.equal(walk(build(add("puffs", { over: { scored: true } })), "h", "m1", day(5)).streak, 0);
+});
+
+test("a silent automatic ceiling is still an outage, not a failure", () => {
+  // The distinction survives: Pause going quiet is a broken pipeline and must not be scored as a
+  // flawless day OR as a bad one. Only habits somebody promised to type in are failed by silence.
+  assert.equal(statusOn(build(add("screen")), day(0)), NO_DATA);
+  assert.equal(statusOn(build(add("screen", { tracked: false })), day(0)), MISS);
 });
 
 // ===========================================================================
