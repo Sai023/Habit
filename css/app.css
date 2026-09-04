@@ -171,6 +171,16 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   font-size: 13px; line-height: 1.4; font-weight: 600;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
+/* The rescue layout. If a sheet measured itself off-screen, it stops being a bottom sheet and
+   becomes the whole layer — a position that cannot be pushed anywhere the viewport is not. */
+.sheet-layer.sheet-stuck { align-items: stretch; }
+.sheet-layer.sheet-stuck .sheet {
+  max-height: none;
+  height: 100%;
+  border-radius: 0;
+  padding-top: calc(14px + env(safe-area-inset-top));
+}
+
 .problem button {
   margin-left: auto; background: none; border: 0; color: inherit;
   font-size: 15px; font-weight: 700; cursor: pointer; padding: 0 2px;

@@ -12,6 +12,7 @@
 // Escape is new here — free on a desktop browser, and the app is still used in one.
 
 import { el, render } from "../dom.js";
+import { showProblem } from "./problem.js";
 
 /**
  * Open a sheet. Returns a handle: `paint` replaces its contents, `close` dismisses it.
@@ -40,6 +41,41 @@ export function openSheet(host = document.body, { onClose } = {}) {
 
   function paint(...children) {
     render(layer, el("div.sheet", el("div.sheet-grip"), ...children));
+    verify();
+  }
+
+  /**
+   * Did the sheet actually land somewhere a person can see?
+   *
+   * Because a backdrop with nothing visible on it is the worst failure this component has: the
+   * screen dims, the app looks broken, and there is no error anywhere because nothing threw. That
+   * is exactly what the menu did on a phone while rendering perfectly in a browser at the same
+   * size — the DOM was right, the CSS was right, and it still could not be seen.
+   *
+   * So it measures itself. If the sheet has no height, or sits entirely below the fold, the layer
+   * switches to a full-height layout that cannot be positioned off-screen, and says so with the
+   * numbers in it. A fallback nobody is told about is a second bug hiding the first.
+   */
+  function verify() {
+    // A timer rather than requestAnimationFrame. rAF does not fire while a page is hidden or
+    // throttled, and a WebView the shell has moved off-screen is exactly that — so the one check
+    // meant to catch an invisible sheet would itself have been skipped in the case it was written
+    // for. A short timeout runs either way and layout has settled by then.
+    setTimeout(() => {
+      if (closed) return;
+      const sheet = layer.querySelector(".sheet");
+      if (!sheet) return;
+      const r = sheet.getBoundingClientRect();
+      const vh = window.innerHeight || 0;
+      const offScreen = r.height < 24 || r.top >= vh - 8 || r.bottom <= 8;
+      if (!offScreen) return;
+      layer.classList.add("sheet-stuck");
+      showProblem(
+        "A panel opened where it can't be seen, so it's been moved. " +
+        "Please send this: " + Math.round(r.width) + "×" + Math.round(r.height) +
+        " at " + Math.round(r.top) + ", viewport " + vh + ".",
+      );
+    }, 60);
   }
 
   return { paint, close, layer };

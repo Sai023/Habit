@@ -13,6 +13,7 @@ import { demoState } from "./ui/demo.js";
 import { dayKey } from "./habits.js";
 import { HABIT_DEFAULTS } from "./schema.js";
 import { installBridge, caps, isNative, setSyncConfig, openSettings } from "./bridge.js";
+import { showProblem } from "./ui/problem.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 const root = document.getElementById("app");
@@ -87,22 +88,6 @@ function guard(what, fn) {
       return undefined;
     }
   };
-}
-
-/** A dismissible banner. Deliberately ugly: it is meant to be reported, not lived with. */
-function showProblem(message) {
-  const existing = document.querySelector(".problem");
-  if (existing) existing.remove();
-  const bar = document.createElement("div");
-  bar.className = "problem";
-  bar.setAttribute("role", "alert");
-  bar.textContent = message;
-  const close = document.createElement("button");
-  close.textContent = "✕";
-  close.setAttribute("aria-label", "Dismiss");
-  close.onclick = () => bar.remove();
-  bar.append(close);
-  document.body.append(bar);
 }
 
 // The same net, under everything that never went through guard(). A phone has no console, so an
