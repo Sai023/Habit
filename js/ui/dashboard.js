@@ -8,7 +8,10 @@ import { el, render } from "../dom.js";
 import {
   valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
-import { leaderboard } from "../score.js";
+import {
+  leaderboard, categoryOver, dayScore, expectedBy, categoryFor as categoryOf,
+  CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
+} from "../score.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -232,7 +235,16 @@ function habitCard(habit, ctx) {
         // A dash would read as "unknown" when the honest answer is "all of it".
         ? fmt.value(habit.metric, Math.max(0, target - (value || 0)))
         : fmt.value(habit.metric, value)),
-      el("div.card-of", reduce
+      // A paced habit says where the line is TONIGHT, not just where the week ends. "1 of 3" is a
+      // number you can answer; "you are 0.43 behind" is not, and a pace nobody can picture is a
+      // pace nobody runs.
+      habit.period !== PERIOD.DAY && !reduce
+        ? el("div.card-of",
+            (value || 0) + " of " + fmt.value(habit.metric, target) + " " + cadence
+            + " · " + expectedBy(habit, ctx.today) + " by tonight")
+        : null,
+      // The paced line above already said the target and the cadence, so this one would repeat it.
+      habit.period !== PERIOD.DAY && !reduce ? null : el("div.card-of", reduce
         ? "left of " + fmt.value(habit.metric, target) + " " + (cadence || "today")
         : status === NO_DATA ? "waiting for data"
         : fmt.goal(habit, target) + (cadence ? " " + cadence : "")),
@@ -308,13 +320,37 @@ function boardTab(ctx) {
 
   const from = addDays(ctx.today, -(isoDayOfWeek(ctx.today) - 1)); // Monday of this week
   const rows = leaderboard(ctx.state, members, from, ctx.today, ctx.today);
+  const filter = ctx.boardCategory || null;
+
+  // Only the categories somebody in the group is actually running. A filter for a category nobody
+  // tracks is a tab that leads to an empty screen and a question about whether it is broken.
+  const live = CATEGORY_ORDER.filter((c) => [...ctx.state.habits.values()].some(
+    (h) => h.scored && categoryOf(h) === c,
+  ));
+
+  const ranked = filter
+    ? rows
+        .map((r) => ({ ...r, pct: categoryOver(ctx.state, r.memberId, from, ctx.today, filter, addDays).pct }))
+        .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1))
+        .map((r, i) => ({ ...r, rank: i + 1, crown: false, clown: false }))
+    : rows;
 
   return el("section.sec",
     el("div.sec-hd",
       el("h2.sec-title", "The board"),
       el("span.sec-note", "This week"),
     ),
-    el("div.board", rows.map((r) => boardRow(r, ctx))),
+    live.length > 1 ? el("div.chips.chips-tight",
+      el("button.chip" + (!filter ? ".on" : ""), {
+        onclick: () => ctx.onBoardCategory(null),
+      }, "Overall"),
+      live.map((c) => el("button.chip" + (filter === c ? ".on" : ""), {
+        onclick: () => ctx.onBoardCategory(c),
+      }, CATEGORY_ICON[c] + " " + CATEGORY_LABEL[c])),
+    ) : null,
+    filter ? el("p.sec-note", { style: "padding:0 2px" },
+      CATEGORY_LABEL[filter] + " only — scored on its own terms, not as a share of the day.") : null,
+    el("div.board", ranked.map((r) => boardRow(r, ctx))),
     el("p.sec-note", { style: "padding:0 2px" },
       "Rest days and days with no data are left out of the score — you're measured on the days you were actually asked to show up."),
   );

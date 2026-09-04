@@ -7,7 +7,7 @@
 // It builds a real event log and runs it through the real engine. Nothing here fakes a derived
 // number, so if the leaderboard is wrong on this screen it is wrong in production too.
 
-import { ev, METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY } from "../schema.js";
+import { ev, METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD } from "../schema.js";
 import { replay, dayKey, addDays } from "../habits.js";
 
 const TZ = "Africa/Johannesburg";
@@ -61,11 +61,21 @@ export function demoState(now = Date.now()) {
       visibility: VISIBILITY.FULL,
     }), t0),
 
+    // A weekly one, so the pace line has something to say: three a week, judged against the
+    // whole number expected by tonight rather than against a fraction of a workout.
+    E(ev.habit("gym", {
+      name: "Workouts", icon: "🏋", metric: METRIC.SESSIONS, direction: AT_LEAST,
+      target: 3, period: PERIOD.WEEK, aggregate: AGGREGATE.SUM, tz: TZ, dayStartHour: DAY_START,
+      source: SOURCE.HEALTH_CONNECT, visibility: VISIBILITY.FULL,
+    }), t0),
+
     // Two phones report automatically; the third types it in. This is the whole reason bindings
     // are per member rather than per habit.
     E(ev.bind(DEMO_ME, "steps", SOURCE.HEALTH_CONNECT), t0),
     E(ev.bind(DEMO_ME, "sleep", SOURCE.HEALTH_CONNECT), t0),
     E(ev.bind(DEMO_ME, "urges", SOURCE.PAUSE), t0),
+    E(ev.bind(DEMO_ME, "gym", SOURCE.HEALTH_CONNECT), t0),
+    E(ev.bind("thabo", "gym", SOURCE.HEALTH_CONNECT), t0),
     // Fed by the shell counting its own interventions, which is the binding that only exists
     // because the two apps became one.
     E(ev.bind(DEMO_ME, "screen", SOURCE.PAUSE), t0),
@@ -123,6 +133,14 @@ export function demoState(now = Date.now()) {
     for (let i = 0; i < 6; i += 1) {
       events.push(E(ev.log("urges", DEMO_ME, d, i < gaveIn ? 1 : 0, SOURCE.PAUSE, "u" + n + "-" + i), evening(d, 9 + i * 2)));
     }
+  }
+
+  // Sessions carry the source's own id, so re-reporting one is harmless and two on a day are two.
+  for (const n of [-6, -4, -1]) {
+    events.push(E(ev.log("gym", DEMO_ME, day(n), 1, SOURCE.HEALTH_CONNECT, "w" + n), evening(day(n), 18)));
+  }
+  for (const n of [-5, -2]) {
+    events.push(E(ev.log("gym", "thabo", day(n), 1, SOURCE.HEALTH_CONNECT, "t" + n), evening(day(n), 7)));
   }
 
   // A goal change, so the feed has one. It is the one thing somebody can do that moves their own

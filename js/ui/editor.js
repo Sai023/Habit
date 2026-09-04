@@ -11,6 +11,7 @@ import { saveHabit, deleteHabit, bindSource } from "../store.js";
 import { sourceFor } from "../habits.js";
 import { uuid } from "../id.js";
 import { caps } from "../bridge.js";
+import { categoryFor, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER } from "../score.js";
 import {
   METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD, PAUSE_METRICS,
   HEALTH_METRICS, AUTOMATIC_SOURCES, sourceForDevice,
@@ -136,7 +137,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
     // gave you a one-minute daily ceiling you would fail every day for the rest of your life.
     target: toInput(type0, existing?.target ?? type0.start),
     period: existing?.period || type0.period,
-    weight: existing?.weight ?? 1,
+    category: existing ? categoryFor(existing) : null,
     // Reduce habits opt OUT of the board by default, which is what the schema has always said and
     // what the warning below this checkbox says. The form used to tick it regardless.
     scored: existing?.scored ?? (type0.direction === AT_LEAST),
@@ -347,6 +348,18 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
           ? "Nothing will nudge you about this one."
           : "Pause raises this on your phone, so it arrives whether or not the app is open."),
 
+        el("h2.sec-title", "Where it counts"),
+        el("div.chips", CATEGORY_ORDER.map((c) => el("button.chip" + (
+          (form.category || categoryFor({ metric: t.metric })) === c ? ".on" : ""
+        ), {
+          onclick: () => { form.category = c; paint(); },
+        }, CATEGORY_ICON[c] + " " + CATEGORY_LABEL[c]))),
+        // The four shares are the group's and live in code. What a habit is FOR is still a
+        // judgement — reading is rest, not fitness — so that part is asked, and only that part.
+        el("p.note-inline",
+          "Each day is worth 100, split 40 / 30 / 15 / 15 across the four. The split is the "
+          + "group's and is the same for everyone; only which one this belongs to is yours."),
+
         el("h2.sec-title", "On the board"),
         el("label.check",
           el("input", {
@@ -360,14 +373,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
               "⚠ Reduce habits are usually left off. Being bottom of a quitting metric tends to " +
               "produce hidden logs rather than quitting.")
           : null,
-        form.scored ? el("label.inline-field",
-          el("input", {
-            type: "number", step: "0.5", min: "0.5", max: "10", inputmode: "decimal",
-            value: form.weight,
-            oninput: (e) => { form.weight = e.target.value; },
-          }),
-          el("span", "× how much it counts, next to your other habits"),
-        ) : null,
+
 
         el("h2.sec-title", "What the group sees"),
         el("div.chips",
@@ -403,7 +409,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         direction: form.direction,
         target: fromInput(t, raw),
         period: form.period,
-        weight: Number(form.weight) > 0 ? Number(form.weight) : 1,
+        category: form.category || categoryFor({ metric: t.metric }),
         scored: form.scored,
         visibility: form.visibility,
         taper: form.direction === AT_MOST && form.taper

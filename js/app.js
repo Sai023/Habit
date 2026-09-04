@@ -49,7 +49,7 @@ function paint() {
   renderApp(root, {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
     onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog,
-    onOpenSettings,
+    onOpenSettings, onBoardCategory,
   });
 }
 
@@ -214,6 +214,12 @@ const onOpenHabits = guard("menu", async () => {
     onClosed: () => refresh(),
   });
 });
+
+/** Which slice of the board is showing. Kept in `ui` so it survives a sync repaint. */
+function onBoardCategory(category) {
+  ui.boardCategory = category;
+  paint();
+}
 
 function onTab(tab) {
   ui.tab = tab;

@@ -230,6 +230,9 @@ function normalizeHabit(p, createdDay) {
   h.grace = { ...(GRACE_BY_PERIOD[h.period] || HABIT_DEFAULTS.grace), ...(p.grace || {}) };
   h.target = Number(h.target) || 0;
   h.dayStartHour = Number.isFinite(Number(h.dayStartHour)) ? Number(h.dayStartHour) : 4;
+  // Which of the four shares this counts towards. A plain string, kept as given: score.js decides
+  // what an unrecognised one means, so replay does not need a table of them.
+  h.category = typeof p.category === "string" && p.category ? p.category : (h.category ?? null);
   h.remindAt = Number.isFinite(Number(p.remindAt)) && Number(p.remindAt) >= 0
     ? Math.min(1439, Math.round(Number(p.remindAt)))
     : (p.remindAt === null ? null : (h.remindAt ?? null));

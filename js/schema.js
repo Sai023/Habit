@@ -177,6 +177,10 @@ export const HABIT_DEFAULTS = {
   // settings screen, so the days it nudges you are by construction the days it scores — a reminder
   // kept somewhere else drifts away from the commitment the moment either one is edited.
   remindAt: null,
+  // Which of the four category shares it counts towards. Null means "work it out from the metric",
+  // which is right for everything except the ones that are a judgement — reading is rest, not
+  // fitness, and no metric can say so.
+  category: null,
 };
 
 /** Build a payload with the version stamp every event needs. */
