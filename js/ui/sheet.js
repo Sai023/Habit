@@ -13,7 +13,6 @@
 
 import { el, render } from "../dom.js";
 import { showProblem } from "./problem.js";
-import { shellViewportHeight } from "../bridge.js";
 
 /**
  * How tall the window really is, as opposed to how tall it says it is.
@@ -28,9 +27,25 @@ import { shellViewportHeight } from "../bridge.js";
  * The screen is the check, because the layout viewport cannot be larger than the display and still
  * be honest. When it is, the excess is the part being clipped away.
  */
+/**
+ * What the shell measured, when there is a shell.
+ *
+ * Read off the window rather than imported from bridge.js, deliberately. This module is loaded by
+ * dynamic import, and a dynamic import can be served from a DIFFERENT service-worker generation
+ * than the page that asked for it — so a static import of a newly added symbol is not a missing
+ * feature, it is a hard module error that takes the whole screen down. It did exactly that: a page
+ * running yesterday's bridge, asked for today's sheet, and every sheet in the app died on
+ * "does not provide an export named 'shellViewportHeight'".
+ *
+ * A global is simply absent on an old build, which is what degrading gracefully looks like.
+ */
+function toldHeight() {
+  const h = typeof window !== "undefined" ? Number(window.__shellViewport) : 0;
+  return Number.isFinite(h) && h > 0 ? h : 0;
+}
+
 export function visibleHeight() {
-  // What the shell measured, when there is a shell. Exact, and it costs nothing to prefer it.
-  const told = shellViewportHeight();
+  const told = toldHeight();
   if (told > 0) return told;
 
   // Otherwise: a layout viewport cannot be taller than the display and still be honest. This is a
@@ -69,7 +84,7 @@ export function openSheet(host = document.body, { onClose } = {}) {
     // Anchored from the top when the numbers disagree and nothing has told us the true height.
     // A bottom-anchored sheet is only as right as the height it is measured against; the top of
     // the viewport is where the view begins whatever it was sized to.
-    if (shellViewportHeight() <= 0) layer.classList.add("sheet-stuck");
+    if (toldHeight() <= 0) layer.classList.add("sheet-stuck");
   }
 
   const onKey = (e) => { if (e.key === "Escape") close(); };

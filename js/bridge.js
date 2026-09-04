@@ -138,6 +138,12 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
     const h = Number(height) || 0;
     if (h <= 0) return;
     shellViewport = h;
+    // Published on the window as well as held here, and that is not belt-and-braces — it is what
+    // lets a lazily-loaded module read it WITHOUT importing this one. A dynamic import can be
+    // served from a different service-worker generation than the page that requests it, so a
+    // static import across that boundary is a hard module error rather than a missing feature.
+    // A global is absent on an old build; an export that does not exist takes the screen down.
+    window.__shellViewport = h;
     document.documentElement.style.setProperty("--shell-vh", h + "px");
   };
 

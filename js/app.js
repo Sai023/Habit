@@ -84,10 +84,41 @@ function guard(what, fn) {
       return await fn(...args);
     } catch (err) {
       console.error("[" + what + "]", err);
+      if (recoverFromStaleModules(err)) return undefined;
       showProblem("Something went wrong opening " + what + ". " + (err && err.message ? err.message : err));
       return undefined;
     }
   };
+}
+
+/**
+ * Half of the app is newer than the other half. Reload once and stop being.
+ *
+ * The service worker updates whenever any asset changes, and it claims open pages immediately so a
+ * fix does not wait for every tab to close. The cost is that a page which has already evaluated
+ * yesterday's modules can dynamically import today's — and where today's statically imports
+ * something yesterday's does not export, that is a hard module error, not a graceful shortfall.
+ *
+ * The individual case is avoidable by not importing across that boundary, and the code no longer
+ * does. This is for the next one, because the boundary is invisible at the point you write the
+ * import and the failure only ever appears on a device that happened to be mid-update.
+ *
+ * Guarded by a one-shot flag: a reload loop is far worse than the error it is trying to clear.
+ */
+function recoverFromStaleModules(err) {
+  const message = String((err && err.message) || err || "");
+  const isModuleSkew = /does not provide an export|dynamically imported module|Importing a module script failed/i
+    .test(message);
+  if (!isModuleSkew) return false;
+  try {
+    if (sessionStorage.getItem("reloaded-for-skew")) return false;
+    sessionStorage.setItem("reloaded-for-skew", String(Date.now()));
+  } catch {
+    return false; // no session storage means no way to stop a loop, so do not start one
+  }
+  showProblem("Finishing an update…");
+  location.reload();
+  return true;
 }
 
 // The same net, under everything that never went through guard(). A phone has no console, so an
@@ -95,6 +126,7 @@ function guard(what, fn) {
 if (typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (e) => {
     console.error("[unhandled]", e.reason);
+    if (recoverFromStaleModules(e.reason)) return;
     showProblem("Something went wrong: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
   });
 }
