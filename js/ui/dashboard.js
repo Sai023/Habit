@@ -331,7 +331,21 @@ function boardTab(ctx) {
 
   const ranked = filter
     ? rows
-        .map((r) => ({ ...r, pct: categoryOver(ctx.state, r.memberId, from, ctx.today, filter, addDays).pct }))
+        .map((r) => {
+          // The days count has to be the CATEGORY's, not the day's. Showing "0/1 days" from the
+          // overall board beside a Core Fitness percentage is two different weeks in one sentence,
+          // and the reader has no way to know which number belongs to which.
+          const only = categoryOver(ctx.state, r.memberId, from, ctx.today, filter, addDays);
+          return {
+            ...r,
+            pct: only.pct,
+            eligible: only.days,
+            hits: null,
+            noData: null,
+            spentTokens: 0,
+            filtered: true,
+          };
+        })
         .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1))
         .map((r, i) => ({ ...r, rank: i + 1, crown: false, clown: false }))
     : rows;
@@ -418,7 +432,12 @@ function boardRow(row, ctx) {
       ),
       el("div.row-bar", el("i", { style: "width:" + (row.pct == null ? 0 : row.pct) + "%" })),
       el("div.row-meta",
-        row.eligible ? row.hits + "/" + row.eligible + " days" : "nothing scored yet",
+        // Filtered, the only honest count is how many days this category was asked about — hits
+        // belong to the whole day and would be answering a question nobody asked here.
+        row.filtered
+          ? (row.eligible ? row.eligible + (row.eligible === 1 ? " day scored" : " days scored")
+            : "nothing scored yet")
+          : row.eligible ? row.hits + "/" + row.eligible + " days" : "nothing scored yet",
         row.streak ? " · 🔥 " + row.streak : "",
         row.spentTokens ? " · 🛡 spent " + row.spentTokens : "",
         // Days nothing was reported. They cost nothing on purpose — a watch that stopped is not a
@@ -432,7 +451,10 @@ function boardRow(row, ctx) {
 
     // Which category carried the week and which sank it. The percentage says where somebody came;
     // this says what to do about it on Monday, which is the only part anybody can act on.
-    row.pct != null ? el("div.row-parts", categoryBreakdown(
+    //
+    // Not while filtered: the row already IS one category, and repeating it underneath its own
+    // percentage says the same thing twice and looks like a second, disagreeing number.
+    row.pct != null && !row.filtered ? el("div.row-parts", categoryBreakdown(
       ctx.state, row.memberId, addDays(ctx.today, -(isoDayOfWeek(ctx.today) - 1)), ctx.today,
     ).map((part) => el("span.part" + (part.pct >= 100 ? ".is-full" : part.pct < 50 ? ".is-low" : ""),
       CATEGORY_ICON[part.category] + " " + part.pct + "%"))) : null,

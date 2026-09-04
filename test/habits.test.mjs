@@ -416,11 +416,21 @@ test("a tie on percentage breaks on days completed, not on name", () => {
   assert.equal(rows[0].crown, true);
 });
 
-test("reduce habits stay out of scoring unless deliberately opted in", () => {
+test("everything counts unless somebody switches it off", () => {
+  // Reduce habits used to opt OUT by default, on the reasoning that being bottom of a quitting
+  // metric produces hidden logs rather than quitting. That held when the board was one pooled
+  // ratio and the only thing a habit could do was drag you down it.
+  //
+  // Categories changed the shape of the argument: Discipline is thirty per cent of the day and it
+  // is MADE of reduce habits, so defaulting them off did not protect anybody — it deleted the
+  // category, and a phone tracking steps, sleep and a vape was scored on two of the three without
+  // being told which.
   const reduce = group({ habit: { ...manualHabit, direction: AT_MOST, target: 8 } });
-  assert.equal(reduce.habits.get("h1").scored, false);
-  const optedIn = group({ habit: { ...manualHabit, direction: AT_MOST, target: 8, scored: true } });
-  assert.equal(optedIn.habits.get("h1").scored, true);
+  assert.equal(reduce.habits.get("h1").scored, true);
+
+  // And the switch is still there for a habit somebody genuinely wants kept off the board.
+  const optedOut = group({ habit: { ...manualHabit, direction: AT_MOST, target: 8, scored: false } });
+  assert.equal(optedOut.habits.get("h1").scored, false);
 });
 
 // ===========================================================================

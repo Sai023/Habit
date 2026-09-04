@@ -138,9 +138,9 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
     target: toInput(type0, existing?.target ?? type0.start),
     period: existing?.period || type0.period,
     category: existing ? categoryFor(existing) : null,
-    // Reduce habits opt OUT of the board by default, which is what the schema has always said and
-    // what the warning below this checkbox says. The form used to tick it regardless.
-    scored: existing?.scored ?? (type0.direction === AT_LEAST),
+    // Everything counts unless it is deliberately switched off — Discipline is thirty per cent of
+    // the day and it is made entirely of reduce habits, so defaulting them off emptied it.
+    scored: existing?.scored ?? true,
     // Whether the person has overruled that. Until they do, it follows the direction they pick.
     scoredTouched: existing != null,
     // Whether this habit is fed by a sensor or typed in. A CHOICE, not an inference: it decides
@@ -267,18 +267,10 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         el("h2.sec-title", "Goal"),
         el("div.chips",
           el("button.chip" + (!reduce ? ".on" : ""), {
-            onclick: () => {
-              form.direction = AT_LEAST;
-              if (!form.scoredTouched) form.scored = true;
-              paint();
-            },
+            onclick: () => { form.direction = AT_LEAST; paint(); },
           }, "Build — at least"),
           el("button.chip" + (reduce ? ".on" : ""), {
-            onclick: () => {
-              form.direction = AT_MOST;
-              if (!form.scoredTouched) form.scored = false;
-              paint();
-            },
+            onclick: () => { form.direction = AT_MOST; paint(); },
           }, "Reduce — at most"),
         ),
         el("label.inline-field",
@@ -368,10 +360,10 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
           }),
           el("span", "Count this towards the crown"),
         ),
-        reduce && form.scored
+        !form.scored
           ? el("p.note-inline",
-              "⚠ Reduce habits are usually left off. Being bottom of a quitting metric tends to " +
-              "produce hidden logs rather than quitting.")
+              "Off the board entirely. It still shows on Today and still keeps its streak — it "
+              + "just does not count towards anyone's score.")
           : null,
 
 

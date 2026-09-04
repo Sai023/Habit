@@ -236,9 +236,21 @@ function normalizeHabit(p, createdDay) {
   h.remindAt = Number.isFinite(Number(p.remindAt)) && Number(p.remindAt) >= 0
     ? Math.min(1439, Math.round(Number(p.remindAt)))
     : (p.remindAt === null ? null : (h.remindAt ?? null));
-  // Reduce habits opt OUT of crown/clown by default. Being bottom of a quitting metric produces
-  // hidden and falsified logs, not quitting — so scoring one takes a deliberate opt-in.
-  h.scored = p.scored == null ? h.direction === AT_LEAST : Boolean(p.scored);
+  // Everything counts unless somebody says otherwise.
+  //
+  // Reduce habits used to opt OUT by default, on the reasoning that being bottom of a quitting
+  // metric produces hidden logs rather than quitting. That was right when the board was one pooled
+  // ratio and the only thing a habit could do was drag you down it.
+  //
+  // Categories changed the shape of the argument. Discipline is thirty per cent of the day and it
+  // is MADE of reduce habits — screen time and the vape are the only two things in it — so
+  // defaulting them off did not protect anybody, it deleted the category. A phone tracking steps,
+  // sleep and a vape was being scored on two of the three and never told which.
+  //
+  // The protection it was reaching for still exists and lives where it belongs: the clown is
+  // suppressed on a silent pipeline, a ceiling cannot be failed by a sensor going quiet, and the
+  // checkbox is still there for a habit somebody genuinely wants kept off the board.
+  h.scored = p.scored == null ? true : Boolean(p.scored);
   return h;
 }
 

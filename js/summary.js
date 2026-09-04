@@ -126,6 +126,9 @@ export function buildSummary(state, me, today, memberIds = null) {
       pct: c.pct,
       days: c.days,
     })),
+    // Consecutive days everything due was met, across every habit. Pause draws its hero from this
+    // now instead of from screen time alone.
+    onGoalStreak: onGoalStreak(state, me, today),
     // The long game. Weeks won, and a points total that only ever goes up.
     season: mySeason
       ? {
@@ -156,6 +159,46 @@ export function buildSummary(state, me, today, memberIds = null) {
   };
 }
 
+/**
+ * Consecutive days you did everything that was asked of you — across every habit, not one of them.
+ *
+ * Pause has always shown an on-goal streak and it has always meant "days where the apps you slowed
+ * stayed under their limit", because screen time is the only thing Pause measures itself. On a
+ * phone that is also tracking steps, sleep and a vape, a streak counting one of the four is a
+ * number that looks like the whole picture and is not.
+ *
+ * A day is on goal when every habit that was DUE was met. Days where nothing was due do not count
+ * and do not break it — that is a rest day or a silent sensor, and neither is a failure. Today is
+ * only counted once it is already won, the same rule the per-habit streak uses: a hit cannot later
+ * become a miss, so counting it early is safe and lets the number tick up the moment it is earned.
+ */
+function onGoalStreak(state, me, today) {
+  let streak = 0;
+  let day = today;
+
+  // Today counts only if it is already complete; otherwise start from yesterday, so a streak does
+  // not appear to reset every morning.
+  const todayScore = dayScore(state, me, today, today);
+  const todayDone = todayScore.categories.some((c) => c.eligible)
+    && todayScore.categories.every((c) => !c.eligible || c.score >= 1);
+  if (!todayDone) day = shiftDay(today, -1);
+
+  // A year is further back than anybody will look, and stops a corrupt log spinning forever.
+  for (let i = 0; i < 366; i += 1) {
+    const score = dayScore(state, me, day, today);
+    const live = score.categories.filter((c) => c.eligible);
+    if (!live.length) {
+      // Nothing was asked. Neither a win nor a loss — step over it.
+      day = shiftDay(day, -1);
+      continue;
+    }
+    if (!live.every((c) => c.score >= 1)) break;
+    streak += 1;
+    day = shiftDay(day, -1);
+  }
+  return streak;
+}
+
 /** Local day arithmetic, kept here so this module does not need the engine's date helpers. */
 function shiftDay(day, n) {
   const [y, m, d] = day.split("-").map(Number);
@@ -173,6 +216,7 @@ export function summarySignature(summary) {
     waiting: summary.waiting,
     board: summary.board,
     today_pct: summary.today_pct,
+    onGoalStreak: summary.onGoalStreak,
     categories: summary.categories,
     season: summary.season,
     habits: summary.habits.map((h) => [h.id, h.status, h.headline, h.caption, h.streak, h.progress]),

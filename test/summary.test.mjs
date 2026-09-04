@@ -158,6 +158,48 @@ test("the season rides along, or is null before a week has finished", () => {
   assert.ok(s.season === null || typeof s.season.weeks === "number");
 });
 
+test("the on-goal streak spans every habit, not just the one Pause can see", () => {
+  // Pause's hero has always counted "days the slowed apps stayed under their limit", because
+  // screen time is the only thing Pause measures itself. On a phone tracking four things that is a
+  // number which looks like the whole picture and is not.
+  const logs = [];
+  for (let n = 0; n < 4; n += 1) {
+    logs.push(E(ev.log("steps", "m1", day(n), 11000, SOURCE.HEALTH_CONNECT), at(n)));
+    logs.push(E(ev.log("sleep", "m1", day(n), 430, SOURCE.HEALTH_CONNECT), at(n)));
+    logs.push(E(ev.log("puffs", "m1", day(n), 100, SOURCE.MANUAL), at(n)));
+  }
+  const s = buildSummary(world(logs), "m1", day(3), ["m1"]);
+  assert.equal(s.onGoalStreak, 4);
+});
+
+test("one habit short breaks it, which is the point of counting all of them", () => {
+  const logs = [];
+  for (let n = 0; n < 4; n += 1) {
+    logs.push(E(ev.log("steps", "m1", day(n), 11000, SOURCE.HEALTH_CONNECT), at(n)));
+    logs.push(E(ev.log("sleep", "m1", day(n), 430, SOURCE.HEALTH_CONNECT), at(n)));
+    // The vape is only reported on the last two days; before that it is an unlogged miss.
+    if (n >= 2) logs.push(E(ev.log("puffs", "m1", day(n), 100, SOURCE.MANUAL), at(n)));
+  }
+  const s = buildSummary(world(logs), "m1", day(3), ["m1"]);
+  assert.equal(s.onGoalStreak, 2);
+});
+
+test("a day nothing was asked about neither breaks the streak nor extends it", () => {
+  // A rest day, or a week away. Stepping over it is the only reading that is neither a punishment
+  // nor a gift.
+  const logs = [];
+  for (const n of [0, 1, 3]) {
+    logs.push(E(ev.log("steps", "m1", day(n), 11000, SOURCE.HEALTH_CONNECT), at(n)));
+    logs.push(E(ev.log("sleep", "m1", day(n), 430, SOURCE.HEALTH_CONNECT), at(n)));
+    logs.push(E(ev.log("puffs", "m1", day(n), 100, SOURCE.MANUAL), at(n)));
+  }
+  const s = buildSummary(
+    world([...logs, E(ev.exempt("m1", day(2), day(2), "travel"), at(0))]),
+    "m1", day(3), ["m1"],
+  );
+  assert.equal(s.onGoalStreak, 3, "three scored days with a rest stepped over in the middle");
+});
+
 test("it survives a round trip through JSON unchanged", () => {
   // It crosses to Kotlin as a string and comes back out of SharedPreferences days later. A Map, a
   // Date or an undefined in here is a field that silently vanishes on somebody else's phone.
