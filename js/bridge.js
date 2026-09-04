@@ -126,15 +126,36 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
 // Each of these is a no-op without a shell. They return false so a caller can tell the difference
 // between "done" and "there was nobody to ask", and show the browser fallback instead.
 
+/**
+ * Call into the shell, tolerating either arity.
+ *
+ * Android's addJavascriptInterface throws when the argument count does not match the Kotlin
+ * method, and it throws in a way nothing notices: the caller is usually an async click handler, so
+ * the rejection is swallowed and the button simply does nothing. That is exactly what happened to
+ * the settings button — `openSettings()` takes no parameter in Kotlin, every other method takes a
+ * JSON string, and this sent one to all of them.
+ *
+ * The retry is not defensive padding. The two halves of this bridge ship on completely different
+ * cycles: the web app deploys in a minute and the shell needs a signed APK on three phones, so
+ * they are ALWAYS temporarily out of step with each other, in both directions. A call that works
+ * against either arity is the difference between that being a non-event and being a dead button
+ * for however long the APK takes.
+ */
 function call(name, payload) {
   const n = nativeObj();
   if (!n || typeof n[name] !== "function") return false;
+  const json = typeof payload === "string" ? payload : JSON.stringify(payload);
   try {
-    n[name](typeof payload === "string" ? payload : JSON.stringify(payload));
+    n[name](json);
     return true;
-  } catch (e) {
-    console.warn("[bridge] " + name + " failed:", e);
-    return false;
+  } catch (withArg) {
+    try {
+      n[name]();
+      return true;
+    } catch (bare) {
+      console.warn("[bridge] " + name + " failed with and without a payload:", withArg, bare);
+      return false;
+    }
   }
 }
 

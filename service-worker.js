@@ -12,10 +12,22 @@
 //     outright so a future GET against it can never be served stale — a stale event log would
 //     silently show the wrong streaks.
 //
-// Bump CACHE_VERSION whenever the cached assets change. `npm run build:sw` regenerates the SHELL
-// list from the real module graph, and CI fails if it drifts.
+// ---- Why the version is generated and not typed ----
+//
+// It used to be a constant with a comment above it asking whoever changed an asset to remember to
+// bump it. Nobody ever did, and the failure is silent in the worst possible way: a browser only
+// re-installs a service worker whose BYTES have changed, so an unchanged version string meant an
+// unchanged file meant no re-install — and a phone kept serving the modules it cached the first
+// time it ever opened the app. Every fix shipped after that point simply never arrived, and the
+// app carried on looking fine while being weeks out of date.
+//
+// So it is derived from the contents of everything in SHELL, by the same generator that writes
+// SHELL, and `--check` fails the build if either has drifted. Change any shell file and the
+// version moves on its own.
 
-const CACHE_VERSION = "goalbuddy-v1";
+// GEN:VERSION-START — content hash of SHELL, written by scripts/gen-sw-shell.mjs
+const CACHE_VERSION = "goalbuddy-3c3e674f4864";
+// GEN:VERSION-END
 
 const SHELL = [
   // GEN:SHELL-START — generated from the module graph by scripts/gen-sw-shell.mjs (npm run build:sw)
@@ -78,8 +90,9 @@ self.addEventListener("fetch", (event) => {
   if (url.hostname.endsWith(".supabase.co")) return;
 
   // Navigation: cache-first, so launching offline opens the app rather than an error page. A newer
-  // build still arrives through the service worker update, not through this fetch, so nobody gets
-  // trapped on a stale shell.
+  // build arrives through the service worker update rather than through this fetch — which is only
+  // true because the version above changes whenever the assets do. It was not true before, and
+  // this comment was the claim that made it easy to miss.
   if (req.mode === "navigate") {
     event.respondWith(
       caches.match("./index.html")

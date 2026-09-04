@@ -13,6 +13,7 @@
 // stop running.
 
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, relative } from "node:path";
 
@@ -68,22 +69,52 @@ const block =
   assets.map((a) => `  "${a}",`).join("\n") +
   "\n  // GEN:SHELL-END";
 
+// The cache version, derived from what is actually IN the cache.
+//
+// A browser re-installs a service worker only when its bytes change, so a hand-typed version that
+// nobody remembers to bump means the file never changes, the worker never re-installs, and phones
+// serve the modules they cached on first run for as long as the app is installed. Every fix after
+// that point ships to a server nobody is reading from. Hashing the contents makes the version move
+// on its own, and --check makes forgetting impossible rather than merely unlikely.
+const hash = createHash("sha256");
+for (const asset of assets) {
+  const path = asset === "./" ? "index.html" : asset.replace(/^\.\//, "");
+  const abs = resolve(root, path);
+  if (!existsSync(abs)) continue;
+  hash.update(asset);
+  hash.update("\u0000");
+  hash.update(readFileSync(abs));
+}
+const version = "goalbuddy-" + hash.digest("hex").slice(0, 12);
+const versionBlock =
+  "// GEN:VERSION-START — content hash of SHELL, written by scripts/gen-sw-shell.mjs\n" +
+  `const CACHE_VERSION = "${version}";\n` +
+  "// GEN:VERSION-END";
+
 const swPath = resolve(root, "service-worker.js");
 const sw = readFileSync(swPath, "utf8");
 const MARKERS = /[ \t]*\/\/ GEN:SHELL-START[\s\S]*?[ \t]*\/\/ GEN:SHELL-END/;
+const VERSION_MARKERS = /\/\/ GEN:VERSION-START[\s\S]*?\/\/ GEN:VERSION-END/;
 if (!MARKERS.test(sw)) {
   console.error("✗ GEN:SHELL markers not found in service-worker.js");
   process.exit(2);
 }
-const next = sw.replace(MARKERS, block);
+if (!VERSION_MARKERS.test(sw)) {
+  console.error("✗ GEN:VERSION markers not found in service-worker.js");
+  process.exit(2);
+}
+// The list first, then the hash — the version covers the worker's own contents through the assets
+// it names, and writing them in the other order would hash a file that is about to change.
+const next = sw.replace(MARKERS, block).replace(VERSION_MARKERS, versionBlock);
 
 if (process.argv.includes("--check")) {
   if (next !== sw) {
-    console.error("✗ service-worker.js precache list is stale — run `npm run build:sw` and commit.");
+    console.error("✗ service-worker.js is stale — run `npm run build:sw` and commit.");
+    console.error("  (the precache list, the cache version, or both)");
     process.exit(1);
   }
-  console.log(`✓ SW precache list up to date (${jsFiles.length} modules, ${fonts.length} fonts).`);
+  console.log(`✓ SW up to date: ${jsFiles.length} modules, ${fonts.length} fonts, ${version}.`);
 } else {
   writeFileSync(swPath, next);
-  console.log(`✓ SW precache list written: ${jsFiles.length} modules, ${fonts.length} fonts.`);
+  console.log(`✓ SW written: ${jsFiles.length} modules, ${fonts.length} fonts, ${version}.`);
 }

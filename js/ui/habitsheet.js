@@ -16,7 +16,10 @@ import * as fmt from "./format.js";
 
 const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
 
-export function openHabitsSheet(host, { state, me, today, onEditHabit, onEditGoals, onClosed }) {
+export function openHabitsSheet(
+  host,
+  { state, me, today, onEditHabit, onEditGoals, onOpenSettings, embedded = false, onClosed },
+) {
   const sheet = openSheet(host, { onClose: () => { if (onClosed) onClosed(); } });
   const habits = [...state.habits.values()];
 
@@ -41,6 +44,14 @@ export function openHabitsSheet(host, { state, me, today, onEditHabit, onEditGoa
       el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "My goals"),
       el("button.tap", { onclick: () => handOffTo(() => onEditHabit(null)) }, "＋ New habit"),
     ),
+
+    // The shell's own settings — sync, reminders, Health Connect, the delivery diagnostic. Only
+    // when there IS a shell, because in a browser there is nothing to open and a dead row is worse
+    // than a missing one.
+    embedded && onOpenSettings
+      ? el("button.link", { onclick: () => handOffTo(() => onOpenSettings()) },
+          "Pause settings — sync, reminders, permissions →")
+      : null,
   );
 
   return sheet;

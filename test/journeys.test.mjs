@@ -189,6 +189,48 @@ test("the choice is what decides whether a quiet day costs anything on the board
   assert.equal(sensed.noData, 7);
 });
 
+test("a binding naming a sensor that cannot read the metric is not believed", () => {
+  // Older builds bound every habit on a phone to one source, so a vape habit on a Galaxy with
+  // Health Connect ended up bound to a watch that has never heard of vaping. Those rows are in the
+  // shared log for good; what had to stop was acting on them.
+  //
+  // The cost of believing one is not cosmetic: an automatic source going quiet is NO_DATA and
+  // costs nothing, so a habit wrongly marked automatic can never be missed, and somebody who never
+  // logged a puff would show a clean record for ever.
+  const events = [
+    E(ev.member("m1", "Me")),
+    E(ev.habit("h", {
+      name: "Vape puffs", metric: METRIC.PUFFS, direction: AT_MOST, target: 200,
+      aggregate: AGGREGATE.LAST, tz: TZ, dayStartHour: 0, scored: true,
+    })),
+    E(ev.bind("m1", "h", SOURCE.HEALTH_CONNECT)),
+  ];
+  const s = replay(events);
+  const h = s.habits.get("h");
+  assert.equal(sourceFor(s, h, "m1"), SOURCE.MANUAL);
+  assert.equal(rawDayStatus(s, h, "m1", day(0)), MISS, "silence is still a miss");
+});
+
+test("but a binding that makes sense is believed, including Pause on an urge", () => {
+  const steps = build(add("steps"));
+  assert.equal(sourceFor(steps, steps.habits.get("h"), "m1"), SOURCE.HEALTH_CONNECT);
+
+  // The breathing screen genuinely does write urges, so Pause is a real source for one.
+  const urges = replay([
+    E(ev.member("m1", "Me")),
+    E(ev.habit("h", {
+      name: "Vape urges", metric: METRIC.URGES, direction: AT_MOST, target: 5,
+      aggregate: AGGREGATE.SUM, tz: TZ, dayStartHour: 0,
+    })),
+    E(ev.bind("m1", "h", SOURCE.PAUSE)),
+  ]);
+  assert.equal(sourceFor(urges, urges.habits.get("h"), "m1"), SOURCE.PAUSE);
+
+  // Screen time is Pause's own metric, so that one is believed too.
+  const screen = build(add("screen"));
+  assert.equal(sourceFor(screen, screen.habits.get("h"), "m1"), SOURCE.PAUSE);
+});
+
 // ===========================================================================
 // Tracking it — one journey per type
 // ===========================================================================

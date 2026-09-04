@@ -42,9 +42,19 @@ const TYPES = [
     start: 400, period: PERIOD.DAY,
   },
   {
+    // The number the vape itself keeps, read off and entered once a day. LAST, not SUM: it is a
+    // running total like steps are, and adding today's reading to yesterday's would double it.
     key: "puffs", label: "Vape puffs", icon: "💨", metric: METRIC.PUFFS,
-    direction: AT_MOST, aggregate: AGGREGATE.SUM, unit: "puffs", step: 1,
-    start: 20, period: PERIOD.DAY,
+    direction: AT_MOST, aggregate: AGGREGATE.LAST, unit: "puffs", step: 10,
+    start: 200, period: PERIOD.DAY,
+  },
+  {
+    // The other half, and a genuinely different measurement: not how much you vaped but how often
+    // you wanted to and what came of it. Discrete events, so SUM, and the breathing screen is what
+    // records them.
+    key: "urges", label: "Vape urges", icon: "🧘", metric: METRIC.URGES,
+    direction: AT_MOST, aggregate: AGGREGATE.SUM, unit: "given in", step: 1,
+    start: 5, period: PERIOD.DAY,
   },
   {
     // Fed by Pause itself. Not a watch metric and not really a manual one either — the phone

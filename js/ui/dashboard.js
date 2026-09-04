@@ -65,13 +65,11 @@ function header(ctx) {
     ),
     el("div.hdr-actions",
       el("span.pill." + cls, el("i.dot"), queued ? text + " · " + queued : text),
-      el("button.icon-btn", { onclick: () => ctx.onOpenHabits(), "aria-label": "Habits" }, "☰"),
-      // Embedded, this is the only route back to Health Connect, reminders and leaving the group,
-      // because settings stopped being a tab. In a browser there is no shell to open, so it is
-      // not drawn at all rather than drawn dead.
-      ctx.embedded
-        ? el("button.icon-btn", { onclick: () => ctx.onOpenSettings(), "aria-label": "Settings" }, "⚙")
-        : null,
+      // One button, not two. There used to be a ☰ for the habit list and a ⚙ for the shell's
+      // settings, which asked the reader to know which of two apps a given setting belonged to —
+      // a distinction that is an implementation detail here and the whole point of merging them
+      // was that it should stop being visible. Everything you might go looking for is behind this.
+      el("button.icon-btn", { onclick: () => ctx.onOpenHabits(), "aria-label": "Menu" }, "☰"),
     ),
   );
 }
@@ -248,10 +246,15 @@ function habitCard(habit, ctx) {
     ),
     // The breathing screen is its own thing: it interrupts an urge rather than recording one, and
     // the recording is what happens afterwards. Everything else just needs a way in.
-    intervention
-      ? el("button.tap", { onclick: () => ctx.onUrge(habit) }, "I want to vape 💨")
-      : el("button.logbtn", { onclick: () => ctx.onLog(habit) },
-          auto ? "Enter it manually" : "＋ Log"),
+    //
+    // BOTH, for an intervention habit. It had only the first, which meant the one habit in the app
+    // whose number comes off a device you read yourself was the only one with nowhere to type it —
+    // you could ask to be talked out of vaping and had no way to say what actually happened.
+    intervention ? el("button.tap", { onclick: () => ctx.onUrge(habit) }, "I want to vape 💨") : null,
+    el("button.logbtn", { onclick: () => ctx.onLog(habit) },
+      intervention ? "Enter today's count"
+        : auto ? "Enter it manually"
+        : "＋ Log"),
   );
 }
 

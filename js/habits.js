@@ -24,7 +24,8 @@
 // exactly the person the leaderboard would otherwise punish.
 
 import {
-  T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY, AGGREGATE,
+  T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY, AGGREGATE, SOURCE,
+  HEALTH_METRICS, PAUSE_METRICS, isInterventionHabit,
   PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
 } from "./schema.js";
 
@@ -525,7 +526,22 @@ export function isTracking(state, habit, memberId, day = null) {
  * into it.
  */
 export function sourceFor(state, habit, memberId) {
-  return state.bindings.get(memberId + "|" + habit.habitId) || habit.source;
+  const bound = state.bindings.get(memberId + "|" + habit.habitId) || habit.source;
+
+  // A binding that names a sensor which cannot read this metric is not a promise about where the
+  // number comes from — it is a leftover, and the engine must not act on it. Earlier builds bound
+  // every habit on a phone to one source, so a vape-puff habit on a Galaxy with Health Connect
+  // ended up bound to a watch that has never heard of vaping. Those bindings are in the shared log
+  // for good; what stops mattering is whether they are believed.
+  //
+  // It matters because of what a binding decides: an automatic source going quiet is NO_DATA and
+  // costs nothing, so a habit wrongly marked automatic can never be missed. Somebody who never
+  // logs a puff would show a clean record forever.
+  if (bound === SOURCE.HEALTH_CONNECT && !HEALTH_METRICS.has(habit.metric)) return SOURCE.MANUAL;
+  if (bound === SOURCE.PAUSE
+      && !PAUSE_METRICS.has(habit.metric)
+      && !isInterventionHabit(habit)) return SOURCE.MANUAL;
+  return bound;
 }
 
 function exemptReason(state, habit, memberId, day) {

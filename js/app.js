@@ -65,11 +65,68 @@ function demoBlocked() {
   return true;
 }
 
-/** Hand off to the shell's settings sheet. Only drawn when embedded, so only reachable there. */
-async function onOpenSettings() {
-  const { openSettings } = await import("./bridge.js");
-  openSettings();
+/**
+ * Nothing fails quietly.
+ *
+ * Every one of these handlers is an async function on a click, so a thrown error becomes an
+ * unhandled rejection: no message, no console anybody is reading, and a button that does nothing.
+ * Two separate bugs hid behind exactly that for a release — one of them a one-character argument
+ * mismatch — and on a phone there is no console to check, so "it does nothing" was the entire bug
+ * report available to the person using it.
+ *
+ * A wrapper rather than a try/catch in each: the ones people forget to write are the ones that
+ * matter, and forgetting is the normal case.
+ */
+function guard(what, fn) {
+  return async (...args) => {
+    try {
+      return await fn(...args);
+    } catch (err) {
+      console.error("[" + what + "]", err);
+      showProblem("Something went wrong opening " + what + ". " + (err && err.message ? err.message : err));
+      return undefined;
+    }
+  };
 }
+
+/** A dismissible banner. Deliberately ugly: it is meant to be reported, not lived with. */
+function showProblem(message) {
+  const existing = document.querySelector(".problem");
+  if (existing) existing.remove();
+  const bar = document.createElement("div");
+  bar.className = "problem";
+  bar.setAttribute("role", "alert");
+  bar.textContent = message;
+  const close = document.createElement("button");
+  close.textContent = "✕";
+  close.setAttribute("aria-label", "Dismiss");
+  close.onclick = () => bar.remove();
+  bar.append(close);
+  document.body.append(bar);
+}
+
+// The same net, under everything that never went through guard(). A phone has no console, so an
+// error nobody surfaces is an error nobody can report.
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (e) => {
+    console.error("[unhandled]", e.reason);
+    showProblem("Something went wrong: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+}
+
+/**
+ * Hand off to the shell's settings sheet, and say so if there is nothing to hand off to.
+ *
+ * This was silently dead for a release. The bridge call failed on an argument-count mismatch, the
+ * failure was swallowed, and the button did nothing at all — which is indistinguishable from a
+ * button nobody wired up. It reports now, and so does everything else that can fail.
+ */
+const onOpenSettings = guard("settings", async () => {
+  const { openSettings } = await import("./bridge.js");
+  if (!openSettings()) {
+    showProblem("Couldn't open Pause's settings from here. Open the Pause app directly.");
+  }
+});
 
 /** Type a number in — the only way half these habits ever get a value. */
 async function onLog(habit) {
@@ -125,19 +182,21 @@ async function onEditHabit(habitId) {
   });
 }
 
-/** The habit list, which used to be a whole tab for an errand people run once a month. */
-async function onOpenHabits() {
+/** The menu: the habit list, your goals, and — inside Pause — the shell's own settings. */
+const onOpenHabits = guard("menu", async () => {
   if (demoBlocked()) return;
   const { openHabitsSheet } = await import("./ui/habitsheet.js");
   openHabitsSheet(document.body, {
     state: ctx.state,
     me: ctx.me,
     today: ctx.today,
+    embedded: caps().embedded,
     onEditHabit,
     onEditGoals,
+    onOpenSettings,
     onClosed: () => refresh(),
   });
-}
+});
 
 function onTab(tab) {
   ui.tab = tab;

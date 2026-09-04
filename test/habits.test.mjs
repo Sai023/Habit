@@ -12,7 +12,7 @@ import {
   rawDayStatus, valueOn, targetOn, publicValue,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "../js/habits.js";
-import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE } from "../js/schema.js";
+import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE, METRIC } from "../js/schema.js";
 
 // ---------------------------------------------------------------------------
 // Tiny harness
@@ -57,7 +57,13 @@ function group({ habit, logs = [], extra = [] }) {
 }
 
 const manualHabit = { name: "Read", direction: AT_LEAST, target: 1, source: SOURCE.MANUAL };
-const autoHabit = { name: "Steps", direction: AT_LEAST, target: 10000, source: SOURCE.HEALTH_CONNECT };
+// The metric is not decoration. A binding to Health Connect is only believed for a metric Health
+// Connect can actually read, so a habit called "Steps" that never says it measures steps is not a
+// watch-fed habit — it is the leftover this fixture used to accidentally describe.
+const autoHabit = {
+  name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 10000,
+  source: SOURCE.HEALTH_CONNECT,
+};
 
 const log = (n, value, opts = {}) =>
   E(ev.log("h1", opts.member || "m1", day(n), value, opts.source || SOURCE.MANUAL, opts.externalId || null),
@@ -344,7 +350,12 @@ function threeMembers({ carolSource = SOURCE.MANUAL, carolLogs = [0, 1, 2] } = {
     E(ev.member("m1", "Alice"), at(D0, 6)),
     E(ev.member("m2", "Bob"), at(D0, 6)),
     E(ev.member("m3", "Carol"), at(D0, 6)),
-    E(ev.habit("h1", { tz: TZ, dayStartHour: 4, ...manualHabit, source: carolSource, scored: true }), at(D0, 6)),
+    // A watch-fed habit has to be one a watch can read, or the engine rightly disbelieves the
+    // binding. The target stays at 1 so the arithmetic below is still about days rather than steps.
+    E(ev.habit("h1", {
+      tz: TZ, dayStartHour: 4, ...manualHabit, source: carolSource, scored: true,
+      ...(carolSource === SOURCE.HEALTH_CONNECT ? { metric: METRIC.STEPS } : {}),
+    }), at(D0, 6)),
   ];
   for (let n = 0; n <= 6; n += 1) {
     events.push(log(n, 1, { member: "m1" }));                    // Alice: 7/7
