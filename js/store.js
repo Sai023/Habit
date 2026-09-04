@@ -156,17 +156,72 @@ export async function setupCode() {
  * the user through onboarding a second time and mint a second id for the same person — half their
  * data on one leaderboard row, half on another, and nothing anywhere saying why.
  *
- * Deliberately refuses to overwrite. If this context has already joined something — someone
- * testing standalone, or a build from before this existed — that stays authoritative, because
- * silently repointing a device at a different room is far worse than showing onboarding once.
+ * Refuses to repoint a device at a DIFFERENT room. Someone testing standalone, or a build from
+ * before this existed, stays authoritative — silently moving a device to another group is far
+ * worse than showing onboarding once.
+ *
+ * ---- But the shell wins on WHO, inside its own room ----
+ *
+ * Same room, different member, is not a conflict: it is a phone that has been set up again. It
+ * happened, and it was as bad as it sounds. A second phone joined by pasting the first phone's
+ * SETUP code, so this database recorded the first person's member id. Leaving the group cleared
+ * the shell's store — but a WebView's IndexedDB is separate storage and survived it, so after
+ * rejoining properly with an invite the shell knew it was Anj and this context still believed it
+ * was Sahil. It displayed his day, and everything she logged was written to his row.
+ *
+ * So a handover naming this same room replaces the member id. The shell is the thing that just
+ * completed a join; this context is only remembering what it was told last time.
  */
-export async function adoptIdentity({ code, memberId, name } = {}) {
-  if (!code || !memberId) return false;
-  if (await db.getMeta("groupCode", null)) return false;
+/**
+ * What to do with an identity the shell has offered, given what this context already holds.
+ *
+ * Pure, and separated from the writing for the usual reason: this is a three-way decision with a
+ * security-shaped edge on one side and a data-corruption-shaped edge on the other, and it was
+ * previously a pair of early returns nobody could exercise without a browser.
+ *
+ *   "ignore"   nothing to do, or a request to move this device to a DIFFERENT room. Refused
+ *              outright — silently repointing somebody at another group is worse than showing
+ *              onboarding twice.
+ *   "adopt"    this context has never joined anything. Take the whole identity.
+ *   "rebind"   same room, different person. The shell has just been set up and this context is
+ *              only remembering what it was told last time, so the shell wins on WHO.
+ */
+export function identityAction(handover, stored) {
+  const code = handover && handover.code;
+  const memberId = handover && handover.memberId;
+  if (!code || !memberId) return "ignore";
 
-  await db.setMeta("groupCode", code);
-  await db.setMeta("memberId", memberId);
-  await db.setMeta("name", name || "Me");
+  const held = (stored && stored.code) || null;
+  if (!held) return "adopt";
+  if (held !== code) return "ignore";
+  return (stored && stored.memberId) === memberId ? "ignore" : "rebind";
+}
+
+export async function adoptIdentity({ code, memberId, name } = {}) {
+  const stored = {
+    code: await db.getMeta("groupCode", null),
+    memberId: await db.getMeta("memberId", null),
+  };
+
+  switch (identityAction({ code, memberId }, stored)) {
+    case "adopt":
+      await db.setMeta("groupCode", code);
+      await db.setMeta("memberId", memberId);
+      await db.setMeta("name", name || "Me");
+      break;
+
+    case "rebind":
+      await db.setMeta("memberId", memberId);
+      if (name) await db.setMeta("name", name);
+      break;
+
+    default:
+      return false;
+  }
+
+  // Every derived figure was computed for the previous member. Without this the screen keeps
+  // showing the last person's day until something else happens to invalidate it — which is the
+  // symptom the rebind branch exists to end.
   invalidateDerived();
   // No member event is committed here. The shell already pushed one under this id when it joined,
   // so this device is adopting an identity the room has heard of, not announcing a new one.
