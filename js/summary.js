@@ -103,7 +103,7 @@ export function buildSummary(state, me, today, memberIds = null) {
     day: today,
     at: Date.now(),
     habits,
-    // How the day went, as one line: the shell's Home screen wants a sentence, not a table.
+    // How the day went, as one line, for anything that wants a sentence rather than a table.
     done: habits.filter((h) => h.status === HIT).length,
     due: habits.filter((h) => h.status === HIT || h.status === MISS).length,
     waiting: habits.filter((h) => h.status === NO_DATA).length,
@@ -246,7 +246,15 @@ function riskContract(state, me, today) {
   return out;
 }
 
-function onGoalStreak(state, me, today) {
+/**
+ * Exported because the Today screen draws it now.
+ *
+ * It used to be read only by the shell, off the summary, and rendered as a native card on a Home
+ * tab that no longer exists. Two readers is exactly the moment a second implementation appears in
+ * the UI layer, and dashboard.js opens by promising there is only ever one answer to "what is my
+ * streak" — so it comes from here rather than being worked out again over there.
+ */
+export function onGoalStreak(state, me, today) {
   let streak = 0;
   let day = today;
 

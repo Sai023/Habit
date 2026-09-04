@@ -229,6 +229,64 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 /* A progress bar for build habits; a draining budget for reduce habits. Different shapes
    because they mean opposite things — a full bar is success in one and failure in the other. */
+/* ---------- the day hero ---------- */
+
+.hero {
+  background: var(--surface);
+  border-radius: var(--r);
+  padding: var(--pad-card);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* The one lift on the screen. Everything below it is a card on flat surface, so the gradient is
+     what says "read this first" without needing to be bigger than everything else. */
+  background-image: linear-gradient(140deg, rgba(62, 224, 196, 0.13), transparent 62%);
+}
+.hero-head { display: flex; align-items: center; gap: 13px; }
+.hero-mark {
+  width: 44px; height: 44px; flex: none;
+  border-radius: 50%;
+  background: var(--surface-hi);
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-head);
+  filter: grayscale(1); opacity: 0.5;
+}
+.hero-mark.is-lit { filter: none; opacity: 1; }
+.hero-run { min-width: 0; }
+.hero-streak { display: flex; align-items: baseline; gap: 5px; }
+.hero-streak b { font-size: var(--fs-display); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.hero-streak span { font-size: var(--fs-body); font-weight: 600; color: var(--teal-soft); }
+.hero-none { font-size: var(--fs-title); font-weight: 800; letter-spacing: -0.02em; }
+.hero-sub { font-size: var(--fs-small); color: var(--dim); margin-top: 2px; }
+.hero-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: var(--fs-small); color: var(--dim); }
+.hero-pct { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.hero-pct.is-hit { color: var(--teal-soft); }
+
+.hero-penalty {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.45;
+  color: var(--danger);
+}
+
+/* Secondary to the streak above it, and separated rather than merely spaced: this is the day
+   broken down, not another headline. */
+.hero-cats {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+.hero-cat { display: flex; flex-direction: column; gap: 4px; }
+.hero-cat-top { display: flex; align-items: center; gap: 7px; font-size: var(--fs-small); }
+.hero-cat-icon { flex: none; }
+.hero-cat-name { flex: 1; min-width: 0; color: var(--dim); }
+.hero-cat-num { font-weight: 600; color: var(--dim); font-variant-numeric: tabular-nums; }
+.hero-cat-num.is-hit { color: var(--teal-soft); }
+.bar.is-poor > i { background: var(--danger); }
+.bar.is-hit > i { background: var(--teal-soft); }
+
 .bar { height: 5px; border-radius: 999px; background: var(--surface-hi); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 999px; background: var(--teal); }
 .card.is-over .bar > i { background: var(--danger); }

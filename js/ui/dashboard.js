@@ -14,6 +14,7 @@ import {
   CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES,
 } from "../score.js";
 import { seasonTally, categoryBreakdown } from "../season.js";
+import { onGoalStreak } from "../summary.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -96,6 +97,7 @@ function todayTab(ctx) {
   }
 
   return [
+    dayHero(ctx),
     el("section.sec",
       el("div.sec-hd",
         el("h2.sec-title", "Your day"),
@@ -261,6 +263,93 @@ function habitCard(habit, ctx) {
         : auto ? "Enter it manually"
         : "＋ Log"),
   );
+}
+
+/**
+ * The day in one card: how long the run is, and how today is going.
+ *
+ * ---- Where this came from ----
+ *
+ * This was a native card on a Home tab, which was a screen that opened the app by summarising the
+ * screen you would see if you pressed the next tab along. It showed the streak, then a digest of
+ * the same habits Today lists in full, then a count of slowed apps that the Focus tab already
+ * showed. A person's first impression of the app was a table of contents for itself.
+ *
+ * The streak and the percentage are the two things it had that Today genuinely lacked, so they
+ * moved here and the tab went away. Both come off the engine that already computes them for the
+ * board and for the shell's notifications — nothing on this screen is worked out twice.
+ */
+function dayHero(ctx) {
+  const streak = onGoalStreak(ctx.state, ctx.me, ctx.today);
+  const scored = dayScore(ctx.state, ctx.me, ctx.today, ctx.today);
+  const pct = Math.round(scored.pct || 0);
+  const bonus = Math.round(scored.bonus || 0);
+
+  return el("section.sec",
+    el("div.hero",
+      el("div.hero-head",
+        el("div.hero-mark" + (streak > 0 ? ".is-lit" : ""), streak > 0 ? "🔥" : "·"),
+        el("div.hero-run",
+          streak > 0
+            ? el("div.hero-streak", el("b", String(streak)), el("span", streak === 1 ? " day" : " days"))
+            : el("div.hero-none", "Start your streak"),
+          el("div.hero-sub", streak > 0
+            ? "every habit, on goal"
+            : "meet every goal today to begin"),
+        ),
+      ),
+      el("div.hero-row",
+        el("span", "Today, across everything"),
+        el("span.hero-pct" + (pct >= 100 ? ".is-hit" : ""),
+          pct + "%",
+          // Beside the percentage, never inside it. The day is worth exactly a hundred; this is
+          // what beating the targets earned on top.
+          bonus > 0 ? el("span.row-bonus", " +" + bonus) : null,
+        ),
+      ),
+      el("div.bar", { role: "presentation" }, el("i", { style: "width:" + Math.min(100, pct) + "%" })),
+
+      // The taper penalty, said out loud.
+      //
+      // Missing three days in a week holds the ceiling where it is AND costs every bonus point
+      // that week, across every habit. Nobody would ever deduce that from a smaller number, and it
+      // lived in one native card that no longer exists — so it gets a sentence rather than a
+      // silence, in the one place the day is being summarised.
+      scored.bonusForfeited
+        ? el("p.hero-penalty", scored.bonusWithheld > 0
+            ? "No bonus this week — you missed three days, so your limit holds and the "
+              + Math.round(scored.bonusWithheld) + " points you'd have earned don't count."
+            : "No bonus this week — you missed three days, so your limit holds where it is.")
+        : null,
+
+      // What carried the day and what sank it. Only the categories actually being asked about
+      // today, because a row reading "0 of 0" is not a shortfall, it is a category nobody signed
+      // up for.
+      categoryLines(scored),
+    ),
+  );
+}
+
+function categoryLines(scored) {
+  const live = (scored.categories || []).filter((c) => c.eligible && c.share > 0);
+  if (!live.length) return null;
+
+  return el("div.hero-cats", live.map((c) => {
+    const reached = Math.min(100, Math.round((c.score || 0) * 100));
+    const tone = reached >= 100 ? " is-hit" : reached < 50 ? " is-poor" : "";
+    const bonus = Math.round(c.bonus || 0);
+    return el("div.hero-cat",
+      el("div.hero-cat-top",
+        el("span.hero-cat-icon", CATEGORY_ICON[c.category]),
+        el("span.hero-cat-name", CATEGORY_LABEL[c.category]),
+        el("span.hero-cat-num" + tone,
+          Math.round(c.points) + " of " + Math.round(c.share),
+          bonus > 0 ? el("span.row-bonus", " +" + bonus) : null,
+        ),
+      ),
+      el("div.bar" + tone, { role: "presentation" }, el("i", { style: "width:" + reached + "%" })),
+    );
+  }));
 }
 
 function progressBar(value, target) {
