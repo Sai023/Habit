@@ -16,12 +16,12 @@
 // three phones.
 
 import {
-  walk, valueForPeriod, targetFor, rawPeriodStatus, isTracking, periodKey, periodStart, periodEnd, HIT, MISS, NO_DATA, EXEMPT,
+  walk, valueForPeriod, targetFor, rawPeriodStatus, rawDayStatus, sourceFor, isTracking, periodKey, periodStart, periodEnd, HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
 import { leaderboard, dayScore, CATEGORY_LABEL, CATEGORY_ICON } from "./score.js";
 import { seasonTally, categoryBreakdown } from "./season.js";
 import { noticesFor } from "./notices.js";
-import { AT_MOST, PERIOD } from "./schema.js";
+import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
 import * as fmt from "./ui/format.js";
 
 // 3 adds the bonus fields. Additive only: an older shell ignores what it does not know, and a
@@ -141,6 +141,9 @@ export function buildSummary(state, me, today, memberIds = null) {
     // Consecutive days everything due was met, across every habit. Pause draws its hero from this
     // now instead of from screen time alone.
     onGoalStreak: streak,
+    // What the shell needs to work out, at nine in the evening, whether anything is still
+    // outstanding — WITHOUT re-implementing scoring. See riskContract().
+    risk: riskContract(state, me, today),
     // Already-worded things the shell should consider posting, each with a stable id it dedupes
     // on. The shell never learns why any of them is here — deciding that means knowing what a
     // streak is, and that answer exists once, in the engine.
@@ -192,6 +195,57 @@ export function buildSummary(state, me, today, memberIds = null) {
  * only counted once it is already won, the same rule the per-habit streak uses: a hit cannot later
  * become a miss, so counting it early is safe and lets the number tick up the moment it is earned.
  */
+/**
+ * What each daily habit is asking for today, in terms the shell can check on its own.
+ *
+ * ---- Why this is data and not a verdict ----
+ *
+ * The at-risk nudge has to fire at nine in the evening on a day nobody opened the app — which is
+ * exactly the day it matters, and exactly the day this summary is stale. The shell cannot ask the
+ * engine anything at that moment: there is no WebView running.
+ *
+ * So it is given the two things it cannot derive — the TARGET, which the taper makes
+ * path-dependent and impossible to compute from a formula, and the STREAK, which is what decides
+ * whether a habit is worth protecting — and it reads today's VALUE itself, fresh, from Health
+ * Connect or its own counters or the room. Target and streak move slowly; the value moves all day.
+ * Pairing a slow fact with a fresh one is what makes the answer honest without a second engine.
+ *
+ * The line this holds: the shell compares a number to a number and reports what it finds. It never
+ * says a day is lost, because whether a day is lost is a verdict and verdicts are decided once,
+ * here. "Nothing logged yet" and "6,200 of 8,000" are facts about data, true whatever the engine
+ * would go on to conclude.
+ *
+ * Daily habits only. "Three times a week" cannot be outstanding on a Tuesday, and a monthly
+ * savings goal is deliberately not judged until the month closes.
+ */
+function riskContract(state, me, today) {
+  const out = [];
+  for (const habit of state.habits.values()) {
+    if (habit.period !== PERIOD.DAY) continue;
+    if (!habit.scored) continue;
+    if (!isTracking(state, habit, me, today)) continue;
+    // A day already excused — travel, a rest day — is not one to chase somebody about.
+    if (rawDayStatus(state, habit, me, today) === EXEMPT) continue;
+
+    const w = walk(state, habit.habitId, me, today);
+    out.push({
+      id: habit.habitId,
+      name: habit.name || "Habit",
+      icon: habit.icon || "◆",
+      metric: habit.metric || "",
+      // "at_most" is a ceiling: outstanding means OVER. "at_least" is a floor: outstanding means
+      // under. One field, because the shell has no table of what a metric means.
+      dir: habit.direction,
+      target: targetFor(state, habit, me, today),
+      // Whether silence is a miss. An automatic source going quiet is a broken pipeline and must
+      // not be reported as something the person failed to do.
+      manual: !AUTOMATIC_SOURCES.has(sourceFor(state, habit, me)),
+      streak: w ? w.streak : 0,
+    });
+  }
+  return out;
+}
+
 function onGoalStreak(state, me, today) {
   let streak = 0;
   let day = today;
