@@ -48,7 +48,7 @@ function paint() {
   if (!ctx || onboarding) return;
   renderApp(root, {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
-    onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog,
+    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog,
     onOpenSettings, onBoardCategory, onBoardSeason,
   });
 }
@@ -253,56 +253,6 @@ function onTab(tab) {
   paint();
 }
 
-/**
- * The urge button. In the shell this hands off to Pause's breathing screen, which is native for a
- * reason: it has to appear instantly, possibly over another app, and a WebView cold start is far
- * too slow for the moment somebody is reaching for a vape.
- *
- * In a browser there is nothing to hand off to, so it logs directly — enough to develop against.
- */
-/**
- * The urge, and what came of it.
- *
- * Inside Pause the shell owns this: a notification with the two answers on it, so the decision can
- * be made from the lock screen at the moment it matters. In a browser there is no breathing screen
- * to show, so the least it can do is ask.
- *
- * It used to log a 1 the instant the button was pressed — charging somebody a puff for admitting
- * they wanted one, before they had decided anything. That made the number wrong in the direction
- * that matters most, since resisting is the whole point of pressing it, and it turned the one
- * button meant to help into a reason not to touch the app.
- */
-async function onUrge(habit) {
-  if (caps().native) {
-    const { notify } = await import("./bridge.js");
-    notify({ title: "Pause", body: "Take a breath.", actions: ["Resisted", "Vaped anyway"] });
-    return;
-  }
-  if (demoBlocked()) return;
-  const [{ openSheet }, { el }] = await Promise.all([
-    import("./ui/sheet.js"), import("./dom.js"),
-  ]);
-  const sheet = openSheet(document.body);
-  const answer = async (amount) => {
-    const { logDiscrete } = await import("./store.js");
-    // Zero is a real entry, not a no-op: it is the record of a resisted urge, and it is what makes
-    // a clean day something the engine can see rather than something it has to assume.
-    await logDiscrete(habit.habitId, ctx.today, amount);
-    sheet.close();
-    await refresh();
-  };
-  sheet.paint(
-    el("div.sheet-head",
-      el("span.card-icon", habit.icon || "\u25c6"),
-      el("span.sheet-title", "Take a breath"),
-    ),
-    el("p.sheet-now", "Sixty seconds is usually all it takes. What happened?"),
-    el("div.sheet-actions",
-      el("button.ghost", { onclick: () => answer(1) }, "I gave in"),
-      el("button.tap", { onclick: () => answer(0) }, "I resisted"),
-    ),
-  );
-}
 
 async function onStart() {
   ctx = null;

@@ -207,21 +207,18 @@ function habitCard(habit, ctx) {
   const source = sourceFor(ctx.state, habit, ctx.me);
   const src = fmt.source(source);
   const reduce = habit.direction === AT_MOST;
-  // An urge is a discrete thing that happens and can be talked out of; screen time is a running
-  // total nobody interrupts. Only the first kind gets the intervention button.
-  //
-  // Keyed off what the habit IS, not off who feeds it. It used to require a Pause-sourced habit,
-  // and nothing can read vape puffs, so every habit created through the editor bound to manual and
-  // the intervention was unreachable for all of them — the flow only worked in the demo, where the
-  // binding was written by hand.
+  // A ceiling you count yourself — puffs, urges — rather than a running total something reads for
+  // you. It no longer changes the card's SIZE, only how the card speaks: what the log button is
+  // called, and whether the source badge is allowed to claim the number arrives on its own.
   const intervention = isInterventionHabit(habit);
-  // Something fills this in already, so the button is an override rather than the way in.
+  // Something fills this in already, so logging is an override rather than the way in. An
+  // intervention habit is never "auto" whatever it is bound to: nothing anywhere reads a puff.
   const auto = AUTOMATIC_SOURCES.has(source) && !intervention;
 
   const classes = ["card"];
-  // The card with the big action gets the full row: it is the one you tap, and a half-width button
-  // stranded beside dead space reads as a layout accident rather than a choice.
-  if (intervention) classes.push("has-action");
+  // Every card is the same size now. This one used to span the whole grid to make room for an
+  // "I want to vape" button, which left the habit somebody checks most often as a slab twice the
+  // size of everything around it — for a button that was never pressed.
   if (status === HIT) classes.push("is-hit");
   if (status === NO_DATA) classes.push("is-nodata");
   if (reduce && value != null && value > target) classes.push("is-over");
@@ -256,13 +253,9 @@ function habitCard(habit, ctx) {
       el("span.src", src.icon, " ", src.label),
       status === HIT ? el("span", "✓") : null,
     ),
-    // The breathing screen is its own thing: it interrupts an urge rather than recording one, and
-    // the recording is what happens afterwards. Everything else just needs a way in.
-    //
-    // BOTH, for an intervention habit. It had only the first, which meant the one habit in the app
-    // whose number comes off a device you read yourself was the only one with nowhere to type it —
-    // you could ask to be talked out of vaping and had no way to say what actually happened.
-    intervention ? el("button.tap", { onclick: () => ctx.onUrge(habit) }, "I want to vape 💨") : null,
+    // One way in, named for what it actually asks for. A puff count is read off the device and
+    // typed, so "Enter today's count" is the instruction; a watch metric is already filled in and
+    // only needs an override; everything else is just a log.
     el("button.logbtn", { onclick: () => ctx.onLog(habit) },
       intervention ? "Enter today's count"
         : auto ? "Enter it manually"
