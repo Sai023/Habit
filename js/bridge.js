@@ -198,6 +198,17 @@ export function setSyncConfig({ groupCode, memberId, supabaseUrl, supabaseKey, h
 }
 
 /**
+ * Hand the shell the day's answers, already worked out.
+ *
+ * The shell caches this and draws its own Home and Insights from it, so those screens can show
+ * every habit rather than only the screen-time ones Pause measures itself — without Kotlin ever
+ * deciding what a hit is. Verdicts come from habits.js or they come from two places.
+ */
+export function setSummary(summary) {
+  return call("setSummary", summary);
+}
+
+/**
  * Ask the shell to open its habit settings.
  *
  * Only meaningful embedded, where settings is a sheet rather than a tab. In a browser there is

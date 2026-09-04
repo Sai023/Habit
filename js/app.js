@@ -298,6 +298,33 @@ async function refresh() {
   ctx = { state, events: await db.allEvents(), me: memberId, today: todayKey(state), demo: false };
   paint();
   tellShell(state, memberId, code);
+  tellShellSummary(state, memberId);
+}
+
+let lastSummary = "";
+
+/**
+ * Keep the shell's copy of today's answers current.
+ *
+ * Sent on every refresh rather than on a timer: the shell's Home and Insights are native and open
+ * without this app running at all, so the last thing it was told has to be the truth as of the
+ * last time anybody looked. Guarded by a signature, because a repaint is not news.
+ */
+async function tellShellSummary(state, memberId) {
+  if (!isNative()) return;
+  try {
+    const [{ buildSummary, summarySignature }, { setSummary }] = await Promise.all([
+      import("./summary.js"), import("./bridge.js"),
+    ]);
+    const summary = buildSummary(state, memberId, todayKey(state));
+    const signature = summarySignature(summary);
+    if (signature === lastSummary) return;
+    lastSummary = signature;
+    setSummary(summary);
+  } catch (err) {
+    // Never let a display nicety take the dashboard down with it.
+    console.warn("[summary]", err);
+  }
 }
 
 let lastShellConfig = "";
