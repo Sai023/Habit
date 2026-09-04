@@ -13,6 +13,7 @@
 
 import { el, render } from "../dom.js";
 import { showProblem } from "./problem.js";
+import { shellViewportHeight } from "../bridge.js";
 
 /**
  * How tall the window really is, as opposed to how tall it says it is.
@@ -28,9 +29,20 @@ import { showProblem } from "./problem.js";
  * be honest. When it is, the excess is the part being clipped away.
  */
 export function visibleHeight() {
+  // What the shell measured, when there is a shell. Exact, and it costs nothing to prefer it.
+  const told = shellViewportHeight();
+  if (told > 0) return told;
+
+  // Otherwise: a layout viewport cannot be taller than the display and still be honest. This is a
+  // guess and it was not a good enough one on its own — the overshoot on a real phone turned out
+  // to be roughly the height of the navigation bar rather than the whole page, which is well
+  // inside any sensible threshold. It stays as a floor under the case where the shell is too old
+  // to report, and the sheet anchors to the TOP whenever it fires, because the top of the viewport
+  // is the one place guaranteed to be on screen no matter how much is being clipped off the
+  // bottom.
   const inner = window.innerHeight || 0;
   const screenH = (window.screen && window.screen.height) || 0;
-  if (!screenH || inner <= screenH * 1.15) return inner;
+  if (!screenH || inner <= screenH) return inner;
   return screenH;
 }
 
@@ -47,12 +59,17 @@ export function openSheet(host = document.body, { onClose } = {}) {
     onclick: (e) => { if (e.target === layer) close(); },
   });
 
-  // Pin the layer to the part of the window that can actually be seen. On a normal browser this is
-  // exactly what `inset: 0` already does and the line changes nothing.
+  // Pin the layer to the part of the window that can actually be seen. On a normal browser the two
+  // agree and these lines change nothing.
   const visible = visibleHeight();
-  if (visible && Math.abs(visible - (window.innerHeight || 0)) > 1) {
+  const mismatch = visible > 0 && Math.abs(visible - (window.innerHeight || 0)) > 1;
+  if (mismatch) {
     layer.style.height = visible + "px";
     layer.style.bottom = "auto";
+    // Anchored from the top when the numbers disagree and nothing has told us the true height.
+    // A bottom-anchored sheet is only as right as the height it is measured against; the top of
+    // the viewport is where the view begins whatever it was sized to.
+    if (shellViewportHeight() <= 0) layer.classList.add("sheet-stuck");
   }
 
   const onKey = (e) => { if (e.key === "Escape") close(); };

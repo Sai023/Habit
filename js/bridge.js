@@ -49,6 +49,19 @@ function nativeObj() {
  * primitives, and a string that we parse here is both simpler and easier to version than a
  * hand-marshalled object.
  */
+/**
+ * How tall the shell says the page really is, in CSS pixels, or 0 if it has not said.
+ *
+ * Kept here rather than measured, because measuring is what fails. A WebView laid out at the wrong
+ * size reports that wrong size through every API the page has — innerHeight, visualViewport,
+ * documentElement all agree with one another and all of them are wrong. The shell is the only
+ * thing that knows both the size it gave the view and the size the view took.
+ */
+let shellViewport = 0;
+export function shellViewportHeight() {
+  return shellViewport;
+}
+
 export function installBridge({ onData, onReady: ready, onNavigate: navigate } = {}) {
   if (typeof window === "undefined") return;
   onChange = onData || (() => {});
@@ -119,6 +132,15 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
 
   // A shell that was already up before this script parsed needs a nudge to re-announce itself.
   const n = nativeObj();
+  // The shell calls this on every layout change. A CSS variable as well as a value, so styling
+  // can use it without every component having to ask.
+  window.onShellViewport = (height) => {
+    const h = Number(height) || 0;
+    if (h <= 0) return;
+    shellViewport = h;
+    document.documentElement.style.setProperty("--shell-vh", h + "px");
+  };
+
   if (n && typeof n.requestReady === "function") { try { n.requestReady(); } catch { /* ignore */ } }
 }
 
