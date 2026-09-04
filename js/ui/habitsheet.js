@@ -18,7 +18,7 @@ const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
 
 export function openHabitsSheet(
   host,
-  { state, me, today, onEditHabit, onEditGoals, onOpenSettings, embedded = false, onClosed },
+  { state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite, embedded = false, onClosed },
 ) {
   const sheet = openSheet(host, { onClose: () => { if (onClosed) onClosed(); } });
   const habits = [...state.habits.values()];
@@ -44,6 +44,12 @@ export function openHabitsSheet(
       el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "My goals"),
       el("button.tap", { onclick: () => handOffTo(() => onEditHabit(null)) }, "＋ New habit"),
     ),
+
+    // Reachable every time, not once at the end of onboarding. Somebody joins the group months
+    // after it was made, and the code to hand them has to be findable on that day.
+    onInvite
+      ? el("button.link", { onclick: () => handOffTo(() => onInvite()) }, "Invite someone →")
+      : null,
 
     // The shell's own settings — sync, reminders, Health Connect, the delivery diagnostic. Only
     // when there IS a shell, because in a browser there is nothing to open and a dead row is worse

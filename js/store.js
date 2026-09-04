@@ -11,7 +11,7 @@ import { replay } from "./habits.js";
 import { ev, T, SOURCE } from "./schema.js";
 import { uuid, groupCode as newGroupCode, normalizeGroupCode } from "./id.js";
 import { samplesToEvents, discreteEvent } from "./ingest.js";
-import { encodeSetup } from "./setup-code.js";
+import { encodeSetup, encodeInvite } from "./setup-code.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 export { uuid };
@@ -126,6 +126,19 @@ export async function ensureBindings(source = SOURCE.MANUAL) {
  * Carries the member id, so the shell posts as the same person this browser does rather than
  * appearing as a second member with half the data. Not for sharing — see setup-code.js.
  */
+/**
+ * The string to send somebody so they can join.
+ *
+ * Deliberately built from the same connection details as the setup code and WITHOUT the member
+ * id, so it can be forwarded to a group chat without turning anybody into anybody else.
+ */
+export async function inviteCode() {
+  const { code } = await identity();
+  if (!code) return "";
+  const web = typeof location !== "undefined" ? location.origin : "";
+  return encodeInvite({ url: SUPABASE_URL, key: SUPABASE_ANON_KEY, code, web });
+}
+
 export async function setupCode() {
   const { memberId, name, code } = await identity();
   if (!code) return "";

@@ -211,8 +211,24 @@ const onOpenHabits = guard("menu", async () => {
     onEditHabit,
     onEditGoals,
     onOpenSettings,
+    onInvite,
     onClosed: () => refresh(),
   });
+});
+
+/**
+ * The code to hand somebody so they can join.
+ *
+ * Its own screen rather than a line on the onboarding one, because inviting is something you do
+ * whenever somebody new turns up — and the only code that stayed findable afterwards was the setup
+ * code, which is the one that must never be sent.
+ */
+const onInvite = guard("invite", async () => {
+  if (demoBlocked()) return;
+  const { openInviteSheet } = await import("./ui/invitesheet.js");
+  const { identity } = await import("./store.js");
+  const { code } = await identity();
+  openInviteSheet(document.body, { groupCode: code, onClosed: () => refresh() });
 });
 
 /** Which slice of the board is showing. Kept in `ui` so it survives a sync repaint. */

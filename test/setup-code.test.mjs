@@ -4,7 +4,7 @@
 // half your data on each row, and nothing anywhere says why.
 
 import assert from "node:assert/strict";
-import { encodeSetup, decodeSetup } from "../js/setup-code.js";
+import { encodeSetup, decodeSetup, encodeInvite, decodeInvite, codeKind } from "../js/setup-code.js";
 
 let passed = 0;
 const failures = [];
@@ -80,6 +80,52 @@ test("an older code with no web address still works", () => {
   const decoded = decodeSetup(older);
   assert.equal(decoded.memberId, sample.memberId);
   assert.equal(decoded.web, "");
+});
+
+// ---------------------------------------------------------------------------
+// The invite — the code you are meant to send
+// ---------------------------------------------------------------------------
+
+const INVITE = { url: "https://x.supabase.co", key: "pk", code: "HABIT-7Q2XK9", web: "https://h.example.com" };
+
+test("an invite carries where the group lives and nothing about who you are", () => {
+  // The distinction the whole thing turns on. A setup code says "this phone is me"; forwarding one
+  // makes the recipient post as the sender, which is exactly what happened before this existed.
+  const code = encodeInvite(INVITE);
+  const back = decodeInvite(code);
+  assert.deepEqual(back, INVITE);
+  assert.equal(back.memberId, undefined, "no identity in it at all");
+  assert.equal("m" in back, false);
+});
+
+test("the two codes cannot be mistaken for each other by a parser", () => {
+  const invite = encodeInvite(INVITE);
+  const setup = encodeSetup({ ...INVITE, memberId: "m1", name: "Sahil" });
+
+  assert.equal(decodeSetup(invite), null, "an invite is not a setup code");
+  assert.equal(decodeInvite(setup), null, "and a setup code is not an invite");
+  assert.equal(codeKind(invite), "invite");
+  assert.equal(codeKind(setup), "setup");
+  assert.equal(codeKind("HABIT-7Q2XK9"), null, "the short room code is neither");
+  assert.equal(codeKind(""), null);
+});
+
+test("an invite without a room, a project or a key is refused", () => {
+  assert.equal(encodeInvite({ ...INVITE, code: "" }), "");
+  assert.equal(encodeInvite({ ...INVITE, url: "" }), "");
+  assert.equal(encodeInvite({ ...INVITE, key: "" }), "");
+});
+
+test("a malformed invite returns null rather than throwing", () => {
+  assert.equal(decodeInvite("HI1."), null);
+  assert.equal(decodeInvite("HI1.!!!not-base64!!!"), null);
+  assert.equal(decodeInvite(null), null);
+  assert.equal(decodeInvite("nonsense"), null);
+});
+
+test("an invite survives a group name with an accent in the web address", () => {
+  const code = encodeInvite({ ...INVITE, web: "https://héllo.example.com" });
+  assert.equal(decodeInvite(code).web, "https://héllo.example.com");
 });
 
 if (failures.length) {
