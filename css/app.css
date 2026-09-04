@@ -35,6 +35,14 @@
   --pad:  16px;
   --pad-card: 14px;
 
+  /* Six steps, mirrored in ui/theme/Tokens.kt. See the note there for why there were 23. */
+  --fs-micro:   11.5px;
+  --fs-small:   13px;
+  --fs-body:    15px;
+  --fs-head:    17px;
+  --fs-title:   22px;
+  --fs-display: 28px;
+
   color-scheme: dark;
 }
 
@@ -46,7 +54,7 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 16px;
+  font-size: var(--fs-body);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
@@ -90,15 +98,15 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   justify-content: space-between;
   gap: 12px;
 }
-.hdr-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
-.hdr-sub { font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.hdr-title { font-size: var(--fs-head); font-weight: 700; letter-spacing: -0.01em; }
+.hdr-sub { font-size: var(--fs-small); color: var(--dim); font-variant-numeric: tabular-nums; }
 .hdr-actions { display: flex; align-items: center; gap: 8px; }
 
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-micro);
   font-weight: 600;
   padding: 4px 9px;
   border-radius: 999px;
@@ -116,7 +124,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   border-radius: 50%;
   display: grid; place-items: center;
   background: var(--surface);
-  font-size: 15px;
+  font-size: var(--fs-body);
 }
 
 /* ---------- layout ---------- */
@@ -126,13 +134,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .sec { display: flex; flex-direction: column; gap: 10px; }
 .sec-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .sec-title {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--dim);
 }
-.sec-note { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.sec-note { font-size: var(--fs-small); color: var(--dim); font-variant-numeric: tabular-nums; }
 
 /* ---------- today's habit cards ---------- */
 
@@ -162,7 +170,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
    diagnosis, not a headline, and the percentage above it is still the score. */
 .row-parts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .part {
-  font-size: 11px; padding: 2px 7px; border-radius: 999px;
+  font-size: var(--fs-micro); padding: 2px 7px; border-radius: 999px;
   background: var(--surface-hi, #182046); color: var(--dim);
 }
 .part.is-full { color: var(--teal); }
@@ -182,7 +190,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   padding: 12px var(--pad-card);
   border-radius: var(--r);
   background: var(--danger); color: #12060a;
-  font-size: 13px; line-height: 1.4; font-weight: 600;
+  font-size: var(--fs-small); line-height: 1.4; font-weight: 600;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 /* The rescue layout. If a sheet measured itself off-screen, it stops being a bottom sheet and
@@ -197,25 +205,25 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 .problem button {
   margin-left: auto; background: none; border: 0; color: inherit;
-  font-size: 15px; font-weight: 700; cursor: pointer; padding: 0 2px;
+  font-size: var(--fs-body); font-weight: 700; cursor: pointer; padding: 0 2px;
 }
 
 /* The correlation card. Deliberately quieter than a habit card: it is something to read once,
    not a control, and giving it the teal accent would have it competing with today's numbers for
    the same glance. */
 .card.insight { gap: 6px; border-left: 2px solid var(--teal-dim); }
-.insight-line { margin: 0; font-size: 14px; line-height: 1.45; }
+.insight-line { margin: 0; font-size: var(--fs-body); line-height: 1.45; }
 .insight-line strong { font-weight: 700; }
-.insight-note { margin: 0; font-size: 12.5px; color: var(--dim); line-height: 1.45; }
+.insight-note { margin: 0; font-size: var(--fs-small); color: var(--dim); line-height: 1.45; }
 .card-top { display: flex; align-items: center; gap: 7px; }
-.card-icon { font-size: 15px; line-height: 1; }
+.card-icon { font-size: var(--fs-body); line-height: 1; }
 .card-name {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
   color: var(--dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.card-value { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.05; }
-.card-of { font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.card-value { font-size: var(--fs-display); font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.card-of { font-size: var(--fs-small); color: var(--dim); font-variant-numeric: tabular-nums; }
 .card.is-hit .card-value { color: var(--teal); }
 .card.is-nodata .card-value { color: var(--dim); }
 
@@ -229,14 +237,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .dots > i { width: 8px; height: 8px; border-radius: 50%; background: var(--teal-dim); }
 .dots > i.spent { background: var(--danger); }
 
-.card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--dim); }
+.card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-micro); color: var(--dim); }
 .src { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
 .tap {
   background: var(--teal);
   color: #00201B;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fs-small);
   border-radius: var(--r-sm);
   padding: 9px 10px;
   width: 100%;
@@ -246,7 +254,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 .streakline {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  font-size: 13px; color: var(--dim);
+  font-size: var(--fs-small); color: var(--dim);
   padding: 0 2px;
 }
 .streakline b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -265,12 +273,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   align-items: center;
 }
 .row.is-me { background: var(--surface-hi); }
-.row-rank { font-size: 14px; font-weight: 700; color: var(--dim); text-align: center; font-variant-numeric: tabular-nums; }
+.row-rank { font-size: var(--fs-body); font-weight: 700; color: var(--dim); text-align: center; font-variant-numeric: tabular-nums; }
 .row-main { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.row-name { font-size: 14.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-.row-name .tagemoji { font-size: 14px; }
-.row-meta { font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
-.row-pct { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.row-name { font-size: var(--fs-body); font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.row-name .tagemoji { font-size: var(--fs-body); }
+.row-meta { font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
+.row-pct { font-size: var(--fs-head); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .row-bar { height: 4px; border-radius: 999px; background: var(--surface-hi); overflow: hidden; }
 .row-bar > i { display: block; height: 100%; background: var(--teal); border-radius: 999px; }
 .row.is-crown .row-bar > i { background: var(--teal-soft); }
@@ -284,14 +292,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   border-left: 2px solid var(--amber);
   border-radius: 0 var(--r-sm) var(--r-sm) 0;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--text);
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 .note b { color: var(--amber); font-weight: 700; }
-.note button { color: var(--teal); font-weight: 700; text-align: left; font-size: 12px; }
+.note button { color: var(--teal); font-weight: 700; text-align: left; font-size: var(--fs-small); }
 
 /* ---------- activity ---------- */
 
@@ -303,10 +311,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   align-items: baseline;
   padding: 8px 2px;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .feed .ev:last-child { border-bottom: 0; }
-.ev-when { color: var(--dim); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ev-when { color: var(--dim); font-size: var(--fs-micro); font-variant-numeric: tabular-nums; }
 .ev-what { min-width: 0; }
 .ev-what b { font-weight: 700; }
 
@@ -318,15 +326,15 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   display: flex; flex-direction: column; gap: 14px; align-items: center;
   padding: 40px 8px;
 }
-.empty h1 { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
-.empty p { margin: 0; color: var(--dim); font-size: 14px; max-width: 34ch; }
+.empty h1 { font-size: var(--fs-title); font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+.empty p { margin: 0; color: var(--dim); font-size: var(--fs-body); max-width: 34ch; }
 .empty .tap { width: auto; padding: 11px 22px; }
 .ghost {
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 10px 18px;
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: var(--fs-small);
   color: var(--dim);
 }
 
@@ -334,7 +342,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   background: var(--surface-hi);
   border-radius: var(--r-sm);
   padding: 9px 12px;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: var(--dim);
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
 }
@@ -359,13 +367,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   max-width: 150px;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: 5px 0;
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--dim);
   border-radius: var(--r-sm);
 }
-.nav-btn .g { font-size: 17px; line-height: 1; }
+.nav-btn .g { font-size: var(--fs-head); line-height: 1; }
 .nav-btn[aria-current="page"] { color: var(--teal); }
 
 /* ---------- onboarding ---------- */
@@ -382,15 +390,15 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   gap: 16px;
   padding: 28px 0 calc(24px + env(safe-area-inset-bottom));
 }
-.form h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-.lede { margin: -8px 0 4px; color: var(--dim); font-size: 14px; }
+.form h1 { font-size: var(--fs-title); font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+.lede { margin: -8px 0 4px; color: var(--dim); font-size: var(--fs-body); }
 .stack-btn { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 280px; }
 
-.link { color: var(--teal); font-size: 13.5px; font-weight: 600; padding: 4px 0; text-align: left; }
+.link { color: var(--teal); font-size: var(--fs-small); font-weight: 600; padding: 4px 0; text-align: left; }
 .back { align-self: flex-start; color: var(--dim); }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
-.field-label { font-size: 12.5px; font-weight: 600; color: var(--dim); }
+.field-label { font-size: var(--fs-small); font-weight: 600; color: var(--dim); }
 .field input,
 .inline-field input {
   font: inherit;
@@ -412,18 +420,18 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .starter-head {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 13px 14px; text-align: left;
-  font-size: 14.5px;
+  font-size: var(--fs-body);
 }
 .starter-name { flex: 1; font-weight: 700; }
 .starter-check { color: var(--teal); font-weight: 800; }
 .starter-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
-.starter-blurb { margin: 0; font-size: 12.5px; color: var(--dim); }
-.inline-field { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim); }
+.starter-blurb { margin: 0; font-size: var(--fs-small); color: var(--dim); }
+.inline-field { display: flex; align-items: center; gap: 10px; font-size: var(--fs-small); color: var(--dim); }
 .inline-field input { width: 88px; text-align: right; font-variant-numeric: tabular-nums; }
 
-.note-inline { margin: 0; font-size: 12.5px; color: var(--dim); line-height: 1.5; }
+.note-inline { margin: 0; font-size: var(--fs-small); color: var(--dim); line-height: 1.5; }
 .note-inline b { color: var(--text); font-weight: 600; }
-.err { margin: 0; font-size: 13px; color: var(--danger); }
+.err { margin: 0; font-size: var(--fs-small); color: var(--danger); }
 
 .tap:disabled { opacity: 0.55; }
 
@@ -437,19 +445,19 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 }
 .codebox.private { border: 1px solid var(--amber); background: rgba(240, 180, 41, 0.06); }
 .codebox-label {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase;
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.11em; text-transform: uppercase;
   color: var(--dim);
 }
 .codebox.private .codebox-label { color: var(--amber); }
 .codebox-value {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 20px; font-weight: 700; letter-spacing: 0.06em;
+  font-size: var(--fs-title); font-weight: 700; letter-spacing: 0.06em;
   color: var(--teal);
   word-break: break-all;
   user-select: all;
 }
-.codebox-value.small { font-size: 11.5px; letter-spacing: 0; color: var(--text); line-height: 1.45; }
-.codebox-note { margin: 0; font-size: 12.5px; color: var(--dim); line-height: 1.5; }
+.codebox-value.small { font-size: var(--fs-micro); letter-spacing: 0; color: var(--text); line-height: 1.45; }
+.codebox-note { margin: 0; font-size: var(--fs-small); color: var(--dim); line-height: 1.5; }
 .codebox-note b { color: var(--text); font-weight: 700; }
 .copy { align-self: flex-start; }
 
@@ -467,7 +475,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 8px;
-  font-size: 12.5px;
+  font-size: var(--fs-small);
   font-weight: 600;
   color: var(--teal);
 }
@@ -496,8 +504,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 }
 .sheet-grip { width: 38px; height: 4px; border-radius: 999px; background: var(--line); align-self: center; }
 .sheet-head { display: flex; align-items: center; gap: 9px; }
-.sheet-title { font-size: 17px; font-weight: 700; }
-.sheet-now { margin: 0; font-size: 13px; color: var(--dim); }
+.sheet-title { font-size: var(--fs-head); font-weight: 700; }
+.sheet-now { margin: 0; font-size: var(--fs-small); color: var(--dim); }
 .sheet-actions { display: flex; gap: 10px; }
 .sheet-actions .tap { flex: 1; }
 .sheet-actions .ghost { flex: none; }
@@ -508,7 +516,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .stepper input {
   flex: 1;
   text-align: center;
-  font-size: 22px;
+  font-size: var(--fs-title);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -517,7 +525,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--surface-hi);
-  font-size: 22px;
+  font-size: var(--fs-title);
   font-weight: 700;
   color: var(--text);
 }
@@ -533,14 +541,14 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 8px 13px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   font-weight: 600;
   color: var(--dim);
   white-space: nowrap;
 }
 .chip.on { background: var(--teal); border-color: var(--teal); color: #00201B; }
 
-.check { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; color: var(--text); }
+.check { display: flex; align-items: flex-start; gap: 10px; font-size: var(--fs-small); color: var(--text); }
 .check input { width: 18px; height: 18px; accent-color: var(--teal); flex: none; margin-top: 1px; }
 
 .form .sec-title { margin: 10px 0 -4px; }
@@ -560,13 +568,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 /* Beside the percentage, never inside it. A day is worth exactly 100, so the bonus is a second
    smaller number rather than a bigger first one. */
-.row-bonus { font-size: 12px; font-weight: 700; color: var(--teal); margin-left: 3px; }
+.row-bonus { font-size: var(--fs-small); font-weight: 700; color: var(--teal); margin-left: 3px; }
 
 /* Reference material, not a feature. Closed by default, opened once when somebody starts arguing
    about the standings — so it is a plain <details> with no script behind it. */
 .explainer { margin-top: 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
 .explainer > summary {
-  cursor: pointer; padding: 12px var(--pad); font-size: 13px; font-weight: 700;
+  cursor: pointer; padding: 12px var(--pad); font-size: var(--fs-small); font-weight: 700;
   color: var(--teal); list-style: none;
 }
 .explainer > summary::-webkit-details-marker { display: none; }
@@ -575,18 +583,18 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .explainer > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
 
 .rule-lede {
-  margin: 0; padding: 0 var(--pad) 10px; font-size: 13px; line-height: 1.5;
+  margin: 0; padding: 0 var(--pad) 10px; font-size: var(--fs-small); line-height: 1.5;
   color: var(--text); border-bottom: 1px solid var(--line);
 }
 .rules { display: flex; flex-direction: column; gap: 11px; padding: 12px var(--pad) var(--pad); }
-.rule { font-size: 12.5px; line-height: 1.5; color: var(--dim); }
+.rule { font-size: var(--fs-small); line-height: 1.5; color: var(--dim); }
 .rule b { color: var(--text); font-weight: 700; }
 
-.weights { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 1px 0 2px; }
+.weights { width: 100%; border-collapse: collapse; font-size: var(--fs-small); margin: 1px 0 2px; }
 .weights td { padding: 5px 0; border-bottom: 1px solid var(--line); color: var(--dim); }
 .weights tr:last-child td { border-bottom: none; }
 .weights td.w { text-align: right; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; width: 3.5em; }
-.weights td.b { text-align: right; width: 6em; font-size: 11px; }
+.weights td.b { text-align: right; width: 6em; font-size: var(--fs-micro); }
 
 /* A destructive confirmation. The action that cannot be undone should not look like the one that
    can — the default tap is the app's affirmative green, which is the wrong promise on "Delete". */

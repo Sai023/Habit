@@ -63,7 +63,7 @@ function header(ctx) {
   const queued = ctx.sync?.queued || 0;
   return el("header.hdr",
     el("div",
-      el("div.hdr-title", ctx.state.meta?.name || "Habits"),
+      el("div.hdr-title", ctx.state.meta?.name || "Goal Buddy"),
       el("div.hdr-sub", fmt.dayLabel(ctx.today), ctx.demo ? " · demo data" : ""),
     ),
     el("div.hdr-actions",
