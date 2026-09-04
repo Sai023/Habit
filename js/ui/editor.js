@@ -7,6 +7,7 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
+import { confirmSheet } from "./confirmsheet.js";
 import { saveHabit, deleteHabit, bindSource } from "../store.js";
 import { sourceFor } from "../habits.js";
 import { uuid } from "../id.js";
@@ -426,7 +427,13 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
   async function remove() {
     // Logs are left alone on purpose: a deleted habit stops being tracked, but the history stays
     // in the log, so bringing it back does not start anyone from zero.
-    if (!confirm("Delete this habit for the whole group? Past entries are kept.")) return;
+    const sure = await confirmSheet(document.body, {
+      title: "Delete " + (form.name || "this habit") + "?",
+      body: "It goes for the whole group. Past entries are kept, so the history still reads "
+        + "correctly — it just stops being tracked or scored from here on.",
+      confirmLabel: "Delete it",
+    });
+    if (!sure) return;
     await deleteHabit(form.habitId);
     saved = true;
     sheet.close();

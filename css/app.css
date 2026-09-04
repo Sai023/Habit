@@ -587,3 +587,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .weights tr:last-child td { border-bottom: none; }
 .weights td.w { text-align: right; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; width: 3.5em; }
 .weights td.b { text-align: right; width: 6em; font-size: 11px; }
+
+/* A destructive confirmation. The action that cannot be undone should not look like the one that
+   can — the default tap is the app's affirmative green, which is the wrong promise on "Delete". */
+.tap.danger { background: var(--danger); color: #12060a; }

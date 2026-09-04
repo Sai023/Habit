@@ -62,7 +62,9 @@ function paint() {
  */
 function demoBlocked() {
   if (!isDemo) return false;
-  alert("This is example data. Start or join a real group to change anything.");
+  // showProblem, not alert: a WebView with no WebChromeClient swallows alert() entirely, so in
+  // Pause this said nothing at all and a tap in demo mode simply appeared to do nothing.
+  showProblem("This is example data. Start or join a real group to change anything.");
   return true;
 }
 
@@ -324,8 +326,8 @@ function onFixSync(row) {
     return;
   }
   const who = row.memberId === ctx?.me ? "Your" : (row.name || "Their") + "'s";
-  alert(
-    who + " phone hasn't reported this week.\n\n"
+  showProblem(
+    who + " phone hasn't reported this week. "
     + "On that phone, in Pause: open the group settings and read what the delivery card says. "
     + "It is usually battery optimisation putting the app to sleep \u2014 on Samsung, check "
     + "Settings \u2192 Battery \u2192 Background usage limits and make sure Pause is not sleeping.",
