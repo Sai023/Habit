@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import {
-  dayScore, categoryScores, habitScore, categoryFor, scoreOver, categoryOver,
+  dayScore, categoryScores, habitScore, categoryFor, scoreOver, categoryOver, expectedBy,
   CATEGORY, CATEGORY_WEIGHT, BONUS_CAP,
 } from "../js/score.js";
 import { ev, SOURCE, METRIC, AT_LEAST, AT_MOST, AGGREGATE, PERIOD } from "../js/schema.js";
@@ -177,17 +177,32 @@ test("a manual ceiling with nothing logged is a miss, not a free perfect day", (
   assert.equal(habitIn(s, "puffs", 0).score, 0);
 });
 
-test("weekly workouts are graded against pace from Monday", () => {
-  // Explicitly asked for: the week is a race you can fall behind in, and being told so on Tuesday
-  // is the point of running one.
-  const none = world(["gym"]);
-  assert.equal(habitIn(none, "gym", 1).score, 0, "Tuesday with none done is behind");
+test("the weekly expectation is a whole number, because nobody does 0.43 of a workout", () => {
+  // Three a week reads 1, 1, 2, 2, 3, 3, 3 from Monday to Sunday. A fraction is the right maths
+  // and the wrong thing to show somebody: "you are behind by 0.43" is not a sentence anyone can
+  // act on, and the score is computed against exactly the figure the card displays.
+  const s = world(["gym"]);
+  const gym = s.habits.get("gym");
+  assert.deepEqual(
+    [0, 1, 2, 3, 4, 5, 6].map((n) => expectedBy(gym, day(n))),
+    [1, 1, 2, 2, 3, 3, 3],
+  );
+});
 
-  // One workout by Tuesday: expected is 3 x 2/7 = 0.857, so one is ahead of pace.
+test("weekly workouts are graded against that pace from Monday", () => {
+  // Explicitly asked for: the week is a race you can fall behind in, and being told so on Monday
+  // night is the point of running one.
+  const none = world(["gym"]);
+  assert.equal(habitIn(none, "gym", 0).score, 0, "Monday with none done is behind");
+  assert.equal(habitIn(none, "gym", 0).expected, 1, "and the card says one was expected");
+
+  // One by Monday night is exactly on pace — a pass, not a bonus.
   const one = world(["gym"], [["gym", 0, 1]]);
-  const tue = habitIn(one, "gym", 1);
-  assert.ok(tue.score > 1, "ahead of pace on Tuesday");
-  assert.ok(Math.abs(tue.expected - 3 * 2 / 7) < 1e-9);
+  assert.equal(habitIn(one, "gym", 0).score, 1);
+  assert.equal(habitIn(one, "gym", 1).score, 1, "still on pace on Tuesday");
+  // Two by Wednesday keeps it; one does not.
+  assert.equal(habitIn(one, "gym", 2).expected, 2);
+  assert.equal(habitIn(one, "gym", 2).score, 0.5);
 });
 
 test("finishing the week early locks the maximum for the rest of it", () => {
@@ -201,11 +216,23 @@ test("the week resets, so last week's three do not pay for this week", () => {
   assert.equal(habitIn(s, "gym", 8).score, 0, "next Tuesday starts again at nothing");
 });
 
-test("monthly savings is judged on reachability, not on a daily drip", () => {
-  // A payday lump, not a drip. Straight-line pace would park fifteen per cent of the day at zero
-  // for the three weeks before anybody is paid — for a habit nobody could yet have performed.
+test("an untouched month in progress is NOT JUDGED, rather than judged generously", () => {
+  // The honest version of "no penalty before payday". Handing out full marks for a goal nobody has
+  // started is a free fifteen per cent: a month with nothing saved would score perfectly on
+  // twenty-seven days and fail on one, so missing the target entirely cost a single day.
+  //
+  // Not eligible is the neutral state this design already has everywhere else, and it is what
+  // "you cannot be behind on something you have not been paid for yet" actually means.
   const nothing = world(["savings"]);
-  assert.equal(habitIn(nothing, "savings", 0).score, 1, "early in the month, still reachable");
+  assert.equal(habitIn(nothing, "savings", 0).eligible, false);
+  assert.equal(scoreOf(nothing, 0).pct, null, "nothing else tracked, so nothing to score");
+});
+
+test("once there is money in it, the month shows where you stand", () => {
+  const part = world(["savings"], [["savings", 3, 1000]]);
+  const h = habitIn(part, "savings", 5);
+  assert.equal(h.eligible, true);
+  assert.equal(h.score, 0.5, "half the target is half the credit");
 
   const paid = world(["savings"], [["savings", 20, 2000]]);
   assert.equal(habitIn(paid, "savings", 22).score, BONUS_CAP, "hit the target, hold the maximum");

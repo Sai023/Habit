@@ -10,9 +10,9 @@
 
 import assert from "node:assert/strict";
 import {
-  replay, walk, rawDayStatus, rawPeriodStatus, leaderboard, targetFor, targetOn, isTracking,
-  goalOn, latestGoal, periodKey, addDays, HIT, MISS, EXEMPT,
+  replay, walk, rawDayStatus, rawPeriodStatus, targetFor, targetOn, isTracking, goalOn, latestGoal, periodKey, addDays, HIT, MISS, EXEMPT,
 } from "../js/habits.js";
+import { leaderboard } from "../js/score.js";
 import { ev, SOURCE, METRIC, AT_LEAST, AT_MOST, AGGREGATE, PERIOD } from "../js/schema.js";
 
 let passed = 0;
@@ -60,14 +60,18 @@ test("lowering a goal on Sunday does not turn the week into a good one", () => {
   // The whole point. 6,000 a day against a 10,000 goal is seven misses; setting the goal to 5,000
   // on Sunday used to make it seven hits, retroactively, in silence.
   const before = badWeek();
-  assert.equal(pct(before), 0);
 
   const after = badWeek([
     E(ev.goal("m1", "h", { target: 10000 }), at(0)),   // the goal they actually committed to
     E(ev.goal("m1", "h", { target: 5000 }), at(6)),    // ...and the Sunday-night edit
   ]);
-  assert.equal(pct(after), 0, "the week must not be rescued");
+  assert.equal(pct(after), pct(before), "the week must not be rescued");
   for (let n = 0; n < 7; n += 1) assert.equal(statusOn(after, n), MISS, "day " + n);
+
+  // And the lever really would have worked, which is what makes the assertion above worth making:
+  // the same number set on the MONDAY turns the same seven days into a perfect week.
+  const ifItHadApplied = badWeek([E(ev.goal("m1", "h", { target: 5000 }), at(0))]);
+  assert.ok(pct(ifItHadApplied) > pct(after), "same edit, made honestly, does change the score");
 });
 
 test("but it does apply from the next day, exactly as promised", () => {
@@ -116,7 +120,9 @@ test("switching a habit off does not delete the days you already missed", () => 
   for (let n = 0; n < 6; n += 1) {
     assert.equal(statusOn(s, n), MISS, "day " + n + " must still count");
   }
-  assert.equal(pct(s), 0);
+  // The days are still there and still scored, so the week reads exactly as it did before anybody
+  // reached for the switch.
+  assert.equal(pct(s), pct(badWeek()));
 });
 
 test("opting out starts tomorrow, and then really does excuse you", () => {

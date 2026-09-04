@@ -6,10 +6,9 @@
 
 import assert from "node:assert/strict";
 import {
-  replay, walk, leaderboard, addDays, isoWeekKey, periodKey, periodStart, periodEnd,
-  daysInPeriod, periodsBetween, rawPeriodStatus, valueForPeriod, progressFor,
-  HIT, MISS, NO_DATA, EXEMPT,
+  replay, walk, addDays, isoWeekKey, periodKey, periodStart, periodEnd, daysInPeriod, periodsBetween, rawPeriodStatus, valueForPeriod, progressFor, HIT, MISS, NO_DATA, EXEMPT,
 } from "../js/habits.js";
+import { leaderboard, categoryOver, CATEGORY } from "../js/score.js";
 import { ev, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, METRIC, PERIOD } from "../js/schema.js";
 
 let passed = 0;
@@ -199,22 +198,36 @@ function mixedGroup(savingsWeight = 1) {
 }
 
 test("a monthly goal is not drowned by a daily one", () => {
+  // The claim survives the move to categories; the arithmetic behind it changed. Pooling every
+  // period into one hits-over-eligible ratio would make Bob's single savings result about a
+  // thirtieth of his month — worth three per cent against Alice's twenty-eight step results.
+  //
+  // Savings is its own category now, so that one result carries the whole of Money. It is worth
+  // LESS than fitness, deliberately, because the group said 40/30/15/15 — but it is worth its
+  // share rather than its frequency, which is the thing that was being got wrong.
   const rows = leaderboard(mixedGroup(), ["m1", "m2"], "2026-02-01", "2026-02-28", "2026-03-02");
   const alice = rows.find((r) => r.name === "Alice");
   const bob = rows.find((r) => r.name === "Bob");
 
-  assert.equal(alice.pct, 50, "perfect on steps, nothing saved — half the goals met");
-  assert.equal(bob.pct, 50, "nothing on steps, saved the target — also half");
-  assert.equal(alice.pct, bob.pct, "28 results and 1 result must count the same");
+  // Neither of them runs Discipline or Rest, so the day is shared 40/15 — Fitness 73, Money 27.
+  assert.equal(alice.pct, 73, "perfect steps, nothing saved: she loses exactly the Money share");
+  assert.equal(bob.pct, 49, "a third of the steps, plus the whole of Money");
+
+  const money = categoryOver(mixedGroup(), "m2", "2026-02-01", "2026-02-28", CATEGORY.MONEY, addDays);
+  assert.equal(money.pct, 100, "one deposit, one category, fully earned");
+  assert.ok(bob.pct > 25, "and it is worth a quarter of his board, not a thirtieth of it");
 });
 
-test("weight is what tips a habit, now that the denominator is fair", () => {
-  const rows = leaderboard(mixedGroup(3), ["m1", "m2"], "2026-02-01", "2026-02-28", "2026-03-02");
-  const alice = rows.find((r) => r.name === "Alice");
-  const bob = rows.find((r) => r.name === "Bob");
-  assert.equal(alice.pct, 25); // steps only: 1 of 4 parts
-  assert.equal(bob.pct, 75);   // savings, worth 3 of 4 parts
-  assert.equal(bob.crown, true);
+test("a per-habit weight no longer tips anything, whoever sets it", () => {
+  // It used to, from 0.5x to 10x, set by whoever created the habit. In a group of three that was
+  // never a preference — it was a dial on your own scoreline, and the winning move was to put ten
+  // on the easiest thing you did. The categories are the group's priorities and they live in code.
+  const plain = leaderboard(mixedGroup(1), ["m1", "m2"], "2026-02-01", "2026-02-28", "2026-03-02");
+  const rigged = leaderboard(mixedGroup(3), ["m1", "m2"], "2026-02-01", "2026-02-28", "2026-03-02");
+  assert.deepEqual(
+    rigged.map((r) => [r.name, r.pct, r.crown]),
+    plain.map((r) => [r.name, r.pct, r.crown]),
+  );
 });
 
 test("each habit's own ratio is reported, so the board can be broken down", () => {

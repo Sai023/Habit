@@ -8,10 +8,9 @@
 
 import assert from "node:assert/strict";
 import {
-  replay, walk, streak, leaderboard, dayKey, addDays, daysBetween, isoDayOfWeek,
-  rawDayStatus, valueOn, targetOn, publicValue,
-  HIT, MISS, NO_DATA, EXEMPT,
+  replay, walk, streak, dayKey, addDays, daysBetween, isoDayOfWeek, rawDayStatus, valueOn, targetOn, publicValue, HIT, MISS, NO_DATA, EXEMPT,
 } from "../js/habits.js";
+import { leaderboard } from "../js/score.js";
 import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE, METRIC } from "../js/schema.js";
 
 // ---------------------------------------------------------------------------

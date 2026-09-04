@@ -16,9 +16,9 @@
 // three phones.
 
 import {
-  walk, valueForPeriod, targetFor, rawPeriodStatus, isTracking, leaderboard,
-  periodKey, periodStart, periodEnd, HIT, MISS, NO_DATA, EXEMPT,
+  walk, valueForPeriod, targetFor, rawPeriodStatus, isTracking, periodKey, periodStart, periodEnd, HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
+import { leaderboard } from "./score.js";
 import { AT_MOST, PERIOD } from "./schema.js";
 import * as fmt from "./ui/format.js";
 

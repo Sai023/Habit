@@ -13,9 +13,9 @@
 
 import assert from "node:assert/strict";
 import {
-  replay, walk, rawDayStatus, rawPeriodStatus, valueOn, valueForPeriod, leaderboard, periodKey,
-  addDays, sourceFor, HIT, MISS, NO_DATA,
+  replay, walk, rawDayStatus, rawPeriodStatus, valueOn, valueForPeriod, periodKey, addDays, sourceFor, HIT, MISS, NO_DATA,
 } from "../js/habits.js";
+import { leaderboard } from "../js/score.js";
 import {
   ev, SOURCE, METRIC, AT_LEAST, AT_MOST, AGGREGATE, PERIOD, AUTOMATIC_SOURCES, PAUSE_METRICS,
   HEALTH_METRICS, sourceForDevice, isInterventionHabit,

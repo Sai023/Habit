@@ -6,11 +6,9 @@
 
 import { el, render } from "../dom.js";
 import {
-  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus,
-  walk, leaderboard, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween,
-  isoDayOfWeek,
-  compareDays, HIT, MISS, NO_DATA, EXEMPT,
+  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
+import { leaderboard } from "../score.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,

@@ -11,7 +11,10 @@
 
 import assert from "node:assert/strict";
 import { planMerge } from "../js/sync.js";
-import { replay, walk, leaderboard, valueOn } from "../js/habits.js";
+import {
+  replay, walk, valueOn,
+} from "../js/habits.js";
+import { leaderboard } from "../js/score.js";
 import { ev, SOURCE, AT_LEAST, METRIC } from "../js/schema.js";
 
 let passed = 0;

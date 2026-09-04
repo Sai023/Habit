@@ -5,9 +5,9 @@
 
 import assert from "node:assert/strict";
 import {
-  replay, leaderboard, targetFor, isTracking, rawDayStatus, walk,
-  HIT, MISS, EXEMPT,
+  replay, targetFor, isTracking, rawDayStatus, walk, HIT, MISS, EXEMPT,
 } from "../js/habits.js";
+import { leaderboard } from "../js/score.js";
 import { ev, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, METRIC } from "../js/schema.js";
 
 let passed = 0;
