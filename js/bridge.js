@@ -21,6 +21,9 @@ export const BRIDGE_VERSION = 1;
 
 let capabilities = {
   version: 0, healthConnect: false, alarms: false, tile: false, native: false,
+  // Whether openFocus() goes anywhere. False on a shell where Focus is still a tab of its
+  // own, so the control is simply not drawn rather than drawn and inert.
+  focusSettings: false,
   // Hosted as a native tab rather than opened in a browser. Drives one thing only: the app stops
   // drawing its own bottom bar, because the shell is already drawing one.
   embedded: false,
@@ -247,6 +250,17 @@ export function setSummary(summary) {
  */
 export function openSettings() {
   return call("openSettings", {});
+}
+
+/**
+ * Open the screen-time controls: which apps get slowed, the goal, and the limits.
+ *
+ * Gated on caps().focusSettings rather than on being embedded. Those controls were a tab in every
+ * shell up to this one, and a shell that still has the tab has no sheet to open — so an older
+ * phone that picks up this build must not be offered a button that does nothing.
+ */
+export function openFocus() {
+  return call("openFocus", {});
 }
 
 /** Show a notification now, with optional action buttons ("+1", "Resisted"). */

@@ -49,8 +49,9 @@ function paint() {
   if (!ctx || onboarding) return;
   renderApp(root, {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
+    focusSettings: caps().focusSettings,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason,
-    onOpenSettings, onBoardCategory, onBoardSeason,
+    onOpenSettings, onOpenFocus, onBoardCategory, onBoardSeason,
   });
 }
 
@@ -145,6 +146,20 @@ const onOpenSettings = guard("settings", async () => {
   const { openSettings } = await import("./bridge.js");
   if (!openSettings()) {
     showProblem("Couldn't open settings from here. Open Goal Buddy directly.");
+  }
+});
+
+/**
+ * Hand off to the shell's screen-time controls.
+ *
+ * The control that calls this is only drawn when caps().focusSettings says the shell has somewhere
+ * to send it, so reaching here and failing means the shell changed underneath a page that was
+ * already open — which is exactly what a mid-session update does.
+ */
+const onOpenFocus = guard("focus", async () => {
+  const { openFocus } = await import("./bridge.js");
+  if (!openFocus()) {
+    showProblem("Couldn't open screen-time settings from here.");
   }
 });
 

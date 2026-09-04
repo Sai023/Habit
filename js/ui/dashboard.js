@@ -262,6 +262,13 @@ function habitCard(habit, ctx) {
       intervention ? "Enter today's count"
         : auto ? "Enter it manually"
         : "＋ Log"),
+
+    // Screen time is measured by the shell, so the shell is where its dials are. They used to be a
+    // tab, which put one habit's settings permanently in the navigation of an app that tracks
+    // several — so they open from the habit instead, which is what they have always been about.
+    PAUSE_METRICS.has(habit.metric) && ctx.focusSettings
+      ? el("button.cardlink", { onclick: () => ctx.onOpenFocus() }, "Adjust limits →")
+      : null,
   );
 }
 

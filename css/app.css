@@ -528,6 +528,17 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 /* ---------- logging a number ---------- */
 
+/* Quieter than .logbtn on purpose: the card already has one primary action, and this is the
+   errand you run once a month rather than the thing you opened the card to do. */
+.cardlink {
+  align-self: flex-start;
+  padding: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--dim);
+}
+.cardlink:active { color: var(--teal); }
+
 .logbtn {
   width: 100%;
   border: 1px solid var(--line);
