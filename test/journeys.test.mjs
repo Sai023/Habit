@@ -147,9 +147,12 @@ test("on a full phone, the automatic presets bind to a sensor and the rest to th
   assert.equal(on("calories"), SOURCE.HEALTH_CONNECT);
   assert.equal(on("screen"), SOURCE.PAUSE);
   assert.equal(on("opens"), SOURCE.PAUSE);
+  // A workout is a health metric now: Health Connect keeps exercise sessions and Samsung Health
+  // writes into it. It is the one that is a COUNT OF EVENTS rather than a running total, which is
+  // why the shell sends one row per session with the source's own id on it.
+  assert.equal(on("sessions"), SOURCE.HEALTH_CONNECT);
   // Nothing can read these, on any device, however capable.
   assert.equal(on("puffs"), SOURCE.MANUAL);
-  assert.equal(on("sessions"), SOURCE.MANUAL);
   assert.equal(on("amount"), SOURCE.MANUAL);
   assert.equal(on("custom"), SOURCE.MANUAL);
 });

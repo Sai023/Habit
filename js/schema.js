@@ -94,7 +94,13 @@ export const SOURCE = {
 export const AUTOMATIC_SOURCES = new Set([SOURCE.HEALTH_CONNECT, SOURCE.STRAVA, SOURCE.PAUSE]);
 
 /** What a watch can answer for, and what only the Pause shell can. */
-export const HEALTH_METRICS = new Set([METRIC.STEPS, METRIC.SLEEP, METRIC.ACTIVE_CALORIES]);
+export const HEALTH_METRICS = new Set([
+  METRIC.STEPS, METRIC.SLEEP, METRIC.ACTIVE_CALORIES,
+  // Health Connect keeps exercise sessions, which Samsung Health writes into. A workout is the
+  // one health metric that is a COUNT OF EVENTS rather than a running total, so the shell sends
+  // one row per session carrying Health Connect's own id and the engine de-duplicates on it.
+  METRIC.SESSIONS,
+]);
 export const PAUSE_METRICS = new Set([METRIC.APP_OPENS, METRIC.SCREEN_MINUTES]);
 
 /**
@@ -167,6 +173,10 @@ export const HABIT_DEFAULTS = {
   scored: null,                  // null = decide from direction (reduce habits opt OUT by default)
   grace: { earnEvery: 7, cap: 2 },
   taper: null,                   // { amount: 1, everyDays: 7, floor: 0 }
+  // Minute of the day to be reminded, or null for no reminder. On the HABIT rather than in a
+  // settings screen, so the days it nudges you are by construction the days it scores — a reminder
+  // kept somewhere else drifts away from the commitment the moment either one is edited.
+  remindAt: null,
 };
 
 /** Build a payload with the version stamp every event needs. */

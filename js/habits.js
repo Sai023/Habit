@@ -230,6 +230,9 @@ function normalizeHabit(p, createdDay) {
   h.grace = { ...(GRACE_BY_PERIOD[h.period] || HABIT_DEFAULTS.grace), ...(p.grace || {}) };
   h.target = Number(h.target) || 0;
   h.dayStartHour = Number.isFinite(Number(h.dayStartHour)) ? Number(h.dayStartHour) : 4;
+  h.remindAt = Number.isFinite(Number(p.remindAt)) && Number(p.remindAt) >= 0
+    ? Math.min(1439, Math.round(Number(p.remindAt)))
+    : (p.remindAt === null ? null : (h.remindAt ?? null));
   // Reduce habits opt OUT of crown/clown by default. Being bottom of a quitting metric produces
   // hidden and falsified logs, not quitting — so scoring one takes a deliberate opt-in.
   h.scored = p.scored == null ? h.direction === AT_LEAST : Boolean(p.scored);

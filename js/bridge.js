@@ -221,6 +221,9 @@ export function setSyncConfig({ groupCode, memberId, supabaseUrl, supabaseKey, h
     groupCode, memberId, supabaseUrl, supabaseKey,
     habits: (habits || []).map((h) => ({
       habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
+      // The schedule travels with the habit so the shell can raise the alarm on the right days
+      // without holding a second opinion about which days those are.
+      name: h.name || "", days: h.days || [], remindAt: h.remindAt ?? null,
     })),
   });
 }

@@ -155,6 +155,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .chip.on:disabled { opacity: 0.75; }
 .chips-tight { margin-top: 2px; }
 
+/* Seven of them across a phone, so they are square and terse rather than word-shaped. */
+.chips-days { gap: 6px; }
+.chip-day { flex: 1; min-width: 0; padding-left: 0; padding-right: 0; text-align: center; }
+
 /* Visible, not alarming: an unreported day is a fact about the record, not a verdict. */
 .row-quiet { color: var(--dim); }
 

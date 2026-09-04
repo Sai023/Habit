@@ -89,6 +89,20 @@ const TYPES = [
   },
 ];
 
+/** ISO weekdays, Monday first, which is how a week is spoken here. */
+const WEEKDAYS = [
+  [1, "M"], [2, "T"], [3, "W"], [4, "T"], [5, "F"], [6, "S"], [7, "S"],
+];
+
+/** "07:00" from a minute of the day, and back. */
+const toClock = (minute) =>
+  String(Math.floor(minute / 60)).padStart(2, "0") + ":" + String(minute % 60).padStart(2, "0");
+const fromClock = (text) => {
+  const [h, m] = String(text || "").split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return Math.max(0, Math.min(1439, h * 60 + m));
+};
+
 const CADENCES = [
   { period: PERIOD.DAY, label: "Every day", note: "Judged one day at a time." },
   { period: PERIOD.WEEK, label: "Weekly", note: "Which days don't matter — only the total." },
@@ -138,6 +152,8 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
       && (existing ? AUTOMATIC_SOURCES.has(sourceFor(state, existing, me)) : true),
     visibility: existing?.visibility || VISIBILITY.FULL,
     taper: !!existing?.taper,
+    days: Array.isArray(existing?.days) && existing.days.length ? [...existing.days] : [1, 2, 3, 4, 5, 6, 7],
+    remindAt: existing?.remindAt ?? null,
     tz: existing?.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     dayStartHour: existing?.dayStartHour ?? 4,
     error: "",
@@ -286,6 +302,51 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         }, c.label))),
         el("p.note-inline", CADENCES.find((c) => c.period === form.period).note),
 
+        // Which days it applies to. Only for a daily habit, because that is the only place the
+        // engine reads it: "three times a week" already says nothing about which three, and
+        // printing Mon/Wed/Fri beside a weekly total would be a promise nothing keeps.
+        form.period === PERIOD.DAY ? el("h2.sec-title", "Which days") : null,
+        form.period === PERIOD.DAY ? el("div.chips.chips-days", WEEKDAYS.map(([n, label]) =>
+          el("button.chip.chip-day" + (form.days.includes(n) ? ".on" : ""), {
+            "aria-label": "Day " + n,
+            onclick: () => {
+              // Never allow zero days. A habit active on no days is EXEMPT for ever — it would sit
+              // on the list looking tracked and quietly never be asked about again.
+              const next = form.days.includes(n)
+                ? form.days.filter((d) => d !== n)
+                : [...form.days, n].sort();
+              if (next.length) { form.days = next; paint(); }
+            },
+          }, label))) : null,
+        form.period === PERIOD.DAY && form.days.length < 7
+          ? el("p.note-inline", "The other days are rest days — they don't count against you.")
+          : null,
+
+        el("h2.sec-title", "Remind me"),
+        el("div.chips",
+          el("button.chip" + (form.remindAt == null ? ".on" : ""), {
+            onclick: () => { form.remindAt = null; paint(); },
+          }, "No reminder"),
+          el("button.chip" + (form.remindAt != null ? ".on" : ""), {
+            onclick: () => { if (form.remindAt == null) { form.remindAt = 19 * 60; paint(); } },
+          }, "On the day"),
+        ),
+        form.remindAt != null ? el("label.inline-field",
+          el("input", {
+            type: "time",
+            value: toClock(form.remindAt),
+            oninput: (e) => {
+              const m = fromClock(e.target.value);
+              if (m != null) form.remindAt = m;
+            },
+          }),
+          el("span", form.period === PERIOD.DAY && form.days.length < 7
+            ? "on the days above" : "every day"),
+        ) : null,
+        el("p.note-inline", form.remindAt == null
+          ? "Nothing will nudge you about this one."
+          : "Pause raises this on your phone, so it arrives whether or not the app is open."),
+
         el("h2.sec-title", "On the board"),
         el("label.check",
           el("input", {
@@ -347,6 +408,8 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         visibility: form.visibility,
         taper: form.direction === AT_MOST && form.taper
           ? { amount: 1, everyDays: 7, floor: 0 } : null,
+        days: form.period === PERIOD.DAY ? form.days : [1, 2, 3, 4, 5, 6, 7],
+        remindAt: form.remindAt,
         tz: form.tz,
         dayStartHour: form.dayStartHour,
         // The habit's own default is the BEST source the metric could ever have, because it is

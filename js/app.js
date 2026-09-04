@@ -362,6 +362,7 @@ function tellShell(state, memberId, code) {
   if (!isNative()) return;
   const habits = [...state.habits.values()].map((h) => ({
     habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
+    name: h.name || "", days: h.days || [], remindAt: h.remindAt ?? null,
   }));
   const signature = code + "|" + memberId + "|" + JSON.stringify(habits);
   if (signature === lastShellConfig) return;
