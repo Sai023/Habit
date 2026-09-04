@@ -15,6 +15,26 @@ import { el, render } from "../dom.js";
 import { showProblem } from "./problem.js";
 
 /**
+ * How tall the window really is, as opposed to how tall it says it is.
+ *
+ * Inside Pause the page is hosted in a WebView that Compose measures with WRAP_CONTENT, so the
+ * view grows to the height of its own CONTENT and is then clipped to the box it is given. The page
+ * has no idea: window.innerHeight reports that oversized height, `position: fixed; inset: 0`
+ * faithfully spans it, and anything anchored to the bottom — every sheet in this app — lands below
+ * the visible edge. Only the top forty pixels of it ever showed, which reads as "the button does
+ * nothing" and dims the screen for good measure.
+ *
+ * The screen is the check, because the layout viewport cannot be larger than the display and still
+ * be honest. When it is, the excess is the part being clipped away.
+ */
+export function visibleHeight() {
+  const inner = window.innerHeight || 0;
+  const screenH = (window.screen && window.screen.height) || 0;
+  if (!screenH || inner <= screenH * 1.15) return inner;
+  return screenH;
+}
+
+/**
  * Open a sheet. Returns a handle: `paint` replaces its contents, `close` dismisses it.
  *
  * `onClose` fires exactly once, however the sheet went away — dismissed or closed by its own
@@ -26,6 +46,14 @@ export function openSheet(host = document.body, { onClose } = {}) {
   const layer = el("div.sheet-layer", {
     onclick: (e) => { if (e.target === layer) close(); },
   });
+
+  // Pin the layer to the part of the window that can actually be seen. On a normal browser this is
+  // exactly what `inset: 0` already does and the line changes nothing.
+  const visible = visibleHeight();
+  if (visible && Math.abs(visible - (window.innerHeight || 0)) > 1) {
+    layer.style.height = visible + "px";
+    layer.style.bottom = "auto";
+  }
 
   const onKey = (e) => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
@@ -66,7 +94,10 @@ export function openSheet(host = document.body, { onClose } = {}) {
       const sheet = layer.querySelector(".sheet");
       if (!sheet) return;
       const r = sheet.getBoundingClientRect();
-      const vh = window.innerHeight || 0;
+      // Measured against what is visible, not against what the window claims. Comparing with
+      // innerHeight was why this check stayed quiet through the exact bug it was written for: the
+      // sheet was inside the reported viewport and nowhere near the screen.
+      const vh = visibleHeight();
       const offScreen = r.height < 24 || r.top >= vh - 8 || r.bottom <= 8;
       if (!offScreen) return;
       layer.classList.add("sheet-stuck");
