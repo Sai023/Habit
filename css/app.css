@@ -33,6 +33,7 @@
   --r:    14px;
   --r-sm: 9px;
   --pad:  16px;
+  --pad-card: 14px;
 
   color-scheme: dark;
 }
@@ -74,7 +75,7 @@ body.embedded .app { padding-bottom: env(safe-area-inset-bottom); }
 body.embedded .nav { display: none; }
 
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
-button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; border-radius: 6px; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; border-radius: var(--r-sm); }
 
 /* ---------- header ---------- */
 
@@ -140,7 +141,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .card {
   background: var(--surface);
   border-radius: var(--r);
-  padding: 14px;
+  padding: var(--pad-card);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -178,8 +179,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 60;
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 12px var(--pad-card);
+  border-radius: var(--r);
   background: var(--danger); color: #12060a;
   font-size: 13px; line-height: 1.4; font-weight: 600;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
@@ -431,7 +432,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .codebox {
   background: var(--surface);
   border-radius: var(--r);
-  padding: 14px;
+  padding: var(--pad-card);
   display: flex; flex-direction: column; gap: 8px;
 }
 .codebox.private { border: 1px solid var(--amber); background: rgba(240, 180, 41, 0.06); }
