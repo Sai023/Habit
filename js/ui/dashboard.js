@@ -12,6 +12,7 @@ import {
   leaderboard, categoryOver, dayScore, expectedBy, categoryFor as categoryOf,
   CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
 } from "../score.js";
+import { seasonTally, categoryBreakdown } from "../season.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -335,10 +336,12 @@ function boardTab(ctx) {
         .map((r, i) => ({ ...r, rank: i + 1, crown: false, clown: false }))
     : rows;
 
+  if (ctx.boardSeason) return seasonSection(ctx, members);
+
   return el("section.sec",
     el("div.sec-hd",
       el("h2.sec-title", "The board"),
-      el("span.sec-note", "This week"),
+      el("button.link.sec-note", { onclick: () => ctx.onBoardSeason(true) }, "All time →"),
     ),
     live.length > 1 ? el("div.chips.chips-tight",
       el("button.chip" + (!filter ? ".on" : ""), {
@@ -353,6 +356,50 @@ function boardTab(ctx) {
     el("div.board", ranked.map((r) => boardRow(r, ctx))),
     el("p.sec-note", { style: "padding:0 2px" },
       "Rest days and days with no data are left out of the score — you're measured on the days you were actually asked to show up."),
+  );
+}
+
+/**
+ * The long game: every completed week has a winner, and the crowns stack up.
+ *
+ * A weekly board resets every Monday, which is fair and forgettable — nothing carries, so a
+ * brilliant February is worth exactly as much as last week. Points are the number that makes it a
+ * season: they only ever go up, one bad week cannot dent them, and they reward whoever kept
+ * showing up over whoever had a single enormous fortnight.
+ */
+function seasonSection(ctx, members) {
+  const { weeks, rows } = seasonTally(ctx.state, members, ctx.today);
+
+  return el("section.sec",
+    el("div.sec-hd",
+      el("h2.sec-title", "All time"),
+      el("button.link.sec-note", { onclick: () => ctx.onBoardSeason(false) }, "← This week"),
+    ),
+    weeks === 0
+      ? el("p.sec-note", { style: "padding:0 2px" },
+          "Nothing to tally yet — the first week has to finish. This week's board is still live.")
+      : el("div.board", rows.map((r) => el("article.row" + (r.memberId === ctx.me ? ".is-me" : "")
+          + (r.rank === 1 && r.crowns > 0 ? ".is-crown" : ""),
+          el("div.row-rank", r.rank === 1 && r.crowns > 0 ? "👑" : String(r.rank)),
+          el("div.row-main",
+            el("div.row-name", r.memberId === ctx.me ? "You" : r.name),
+            el("div.row-meta",
+              r.crowns + (r.crowns === 1 ? " week won" : " weeks won"),
+              r.weeks ? " of " + r.weeks : "",
+              r.bestCrownStreak > 1 ? " · best run " + r.bestCrownStreak : "",
+              r.crownStreak > 1 ? " · 🔥 " + r.crownStreak + " in a row" : "",
+            ),
+            el("div.row-meta",
+              r.avg === null ? "nothing scored yet" : "averaging " + r.avg + "%",
+              r.best ? " · best week " + r.best.pct + "%" : "",
+            ),
+          ),
+          el("div.row-pct", String(r.points)),
+        ))),
+    weeks > 0 ? el("p.sec-note", { style: "padding:0 2px" },
+      "Points are every week you have played, added up — they only go up, so one bad week costs "
+      + "you the crown and not the season. " + weeks + (weeks === 1 ? " week" : " weeks")
+      + " counted so far.") : null,
   );
 }
 
@@ -382,6 +429,13 @@ function boardRow(row, ctx) {
       ),
     ),
     el("div.row-pct", row.pct == null ? "—" : row.pct + "%"),
+
+    // Which category carried the week and which sank it. The percentage says where somebody came;
+    // this says what to do about it on Monday, which is the only part anybody can act on.
+    row.pct != null ? el("div.row-parts", categoryBreakdown(
+      ctx.state, row.memberId, addDays(ctx.today, -(isoDayOfWeek(ctx.today) - 1)), ctx.today,
+    ).map((part) => el("span.part" + (part.pct >= 100 ? ".is-full" : part.pct < 50 ? ".is-low" : ""),
+      CATEGORY_ICON[part.category] + " " + part.pct + "%"))) : null,
     // The fairness rule, made visible. If the bottom row had a silent pipeline there is no clown
     // at all this week — and the person is told why, and offered the fix, rather than left to
     // wonder why their numbers look bad.

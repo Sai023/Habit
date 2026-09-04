@@ -49,7 +49,7 @@ function paint() {
   renderApp(root, {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
     onTab, onUrge, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog,
-    onOpenSettings, onBoardCategory,
+    onOpenSettings, onBoardCategory, onBoardSeason,
   });
 }
 
@@ -218,6 +218,12 @@ const onOpenHabits = guard("menu", async () => {
 /** Which slice of the board is showing. Kept in `ui` so it survives a sync repaint. */
 function onBoardCategory(category) {
   ui.boardCategory = category;
+  paint();
+}
+
+/** This week, or the whole season. Kept in `ui` so a sync repaint does not bounce you back. */
+function onBoardSeason(on) {
+  ui.boardSeason = !!on;
   paint();
 }
 

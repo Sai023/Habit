@@ -136,6 +136,28 @@ test("where you stand in the group comes along too", () => {
 // What it must survive
 // ---------------------------------------------------------------------------
 
+test("the day's categories come along, already labelled", () => {
+  // The shell has no table of what a category is called or what it is worth, and giving it one
+  // would be the second implementation this whole design exists to avoid.
+  const s = buildSummary(world([
+    E(ev.log("steps", "m1", day(0), 11000, SOURCE.HEALTH_CONNECT), at(0)),
+    E(ev.log("puffs", "m1", day(0), 100, SOURCE.MANUAL), at(0)),
+  ]), "m1", day(0), ["m1"]);
+  const keys = s.categories.map((c) => c.key);
+  assert.ok(keys.includes("fitness") && keys.includes("discipline"));
+  for (const c of s.categories) {
+    assert.equal(typeof c.label, "string");
+    assert.ok(c.pct >= 0 && c.pct <= 100);
+    assert.ok(c.share > 0, "a category with no share would not be here");
+  }
+  assert.equal(typeof s.today_pct, "number");
+});
+
+test("the season rides along, or is null before a week has finished", () => {
+  const s = buildSummary(world(), "m1", day(0), ["m1"]);
+  assert.ok(s.season === null || typeof s.season.weeks === "number");
+});
+
 test("it survives a round trip through JSON unchanged", () => {
   // It crosses to Kotlin as a string and comes back out of SharedPreferences days later. A Map, a
   // Date or an undefined in here is a field that silently vanishes on somebody else's phone.

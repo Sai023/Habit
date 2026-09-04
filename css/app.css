@@ -157,6 +157,16 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 /* Seven of them across a phone, so they are square and terse rather than word-shaped. */
 .chips-days { gap: 6px; }
+
+/* Where a week's number came from, under the row that reports it. Small and quiet: it is a
+   diagnosis, not a headline, and the percentage above it is still the score. */
+.row-parts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.part {
+  font-size: 11px; padding: 2px 7px; border-radius: 999px;
+  background: var(--surface-hi, #182046); color: var(--dim);
+}
+.part.is-full { color: var(--teal); }
+.part.is-low { color: var(--danger); }
 .chip-day { flex: 1; min-width: 0; padding-left: 0; padding-right: 0; text-align: center; }
 
 /* Visible, not alarming: an unreported day is a fact about the record, not a verdict. */
