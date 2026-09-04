@@ -6,11 +6,12 @@
 
 import { el, render } from "../dom.js";
 import {
-  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, HIT, MISS, NO_DATA, EXEMPT,
+  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
 import {
   leaderboard, categoryOver, dayScore, expectedBy, categoryFor as categoryOf,
   CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
+  CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES,
 } from "../score.js";
 import { seasonTally, categoryBreakdown } from "../season.js";
 import {
@@ -370,6 +371,95 @@ function boardTab(ctx) {
     el("div.board", ranked.map((r) => boardRow(r, ctx))),
     el("p.sec-note", { style: "padding:0 2px" },
       "Rest days and days with no data are left out of the score — you're measured on the days you were actually asked to show up."),
+    pointsExplainer(ctx),
+  );
+}
+
+/**
+ * How a day becomes points, in the group's own numbers.
+ *
+ * ---- Why this is not a static block of prose ----
+ *
+ * Every figure below is read from the engine — the weights out of CATEGORY_WEIGHT, the ceiling out
+ * of BONUS_CAP, the miss limit out of TAPER_MISS_LIMIT. Written out by hand it would be correct on
+ * the day it shipped and quietly wrong after the next rule change, which is worse than having no
+ * explanation at all: a leaderboard nobody understands is merely opaque, one that explains itself
+ * incorrectly is untrustworthy.
+ *
+ * Collapsed by default, and a plain <details> rather than a scripted accordion — it is reference
+ * material somebody opens once when they start arguing about the standings.
+ */
+function pointsExplainer(ctx) {
+  const bonusMax = Math.round((BONUS_CAP - 1) * 100);
+  const weights = CATEGORY_ORDER.map((c) => ({
+    key: c,
+    label: CATEGORY_LABEL[c],
+    icon: CATEGORY_ICON[c],
+    weight: CATEGORY_WEIGHT[c],
+    bonus: BONUS_CATEGORIES.has(c),
+  }));
+
+  const rule = (title, body) => el("div.rule", el("b", title), " ", body);
+
+  return el("details.explainer",
+    el("summary", "How points work"),
+
+    el("p.rule-lede",
+      "A DAY is worth exactly 100 — never a habit, never a week. A week is the average of its "
+      + "days, and the season is every week added up."),
+
+    el("div.rules",
+      rule("The four shares",
+        "Each day's 100 is split by what the group agreed. Nobody can change these, because a "
+        + "dial on how much your own easiest habit counts is a dial on your own scoreline."),
+
+      el("table.weights",
+        weights.map((w) => el("tr",
+          el("td", w.icon + " " + w.label),
+          el("td.w", String(w.weight)),
+          el("td.b", w.bonus ? "bonus" : "no bonus"),
+        )),
+      ),
+
+      rule("Only what you're actually doing counts",
+        "The shares are re-spread over the categories you're being judged on that day, so a day "
+        + "is out of 100 whether you run two of them or all four. Resting, or a sensor going "
+        + "quiet, removes a category rather than scoring it zero — and never raises your score."),
+
+      rule("Habits inside a category split it equally",
+        "Two fitness habits get half of Core fitness each. Tracking more never lowers your "
+        + "ceiling; it just divides that category between them."),
+
+      rule("Beating a target pays a bonus, up to " + bonusMax + " more",
+        "Kept separate from the 100 so the percentage keeps meaning what it says. It's shared out "
+        + "by weight like everything else, and " + CATEGORY_LABEL[CATEGORY.REST] + " earns none — "
+        + "sleeping past your target isn't an achievement to pay for, and paying for it would make "
+        + "a low sleep goal the cheapest way up the board."),
+
+      rule("A ceiling is pass or fail on the day",
+        "Under your limit is full marks, and further under earns more of the bonus. One over is "
+        + "zero for that habit that day — the limit is the point."),
+
+      rule("Missing " + TAPER_MISS_LIMIT + " days holds your taper, and costs the week's bonus",
+        "Your vape ceiling stops coming down that week, on every habit you have. Holding is "
+        + "easier than not holding, so it has to cost something — otherwise the strongest play is "
+        + "to miss " + TAPER_MISS_LIMIT + " days a week for ever and keep the opening allowance."),
+
+      rule("A silent sensor is not a failure",
+        "A watch that reported nothing is a broken pipeline, and it costs nothing. A habit you "
+        + "log by hand and didn't log IS a miss — the number existed, and reporting it was the "
+        + "task. Workouts are the exception: you can always type those in yourself."),
+
+      rule("Monthly goals are judged when the month ends",
+        "A savings target isn't scored while the month can still be saved, so an early deposit "
+        + "never drags your day down. When the month closes it colours all of its days at once. "
+        + "Hitting it early is paid on the day."),
+
+      rule("The season is won on points",
+        "Crowns only break a tie. Three near-misses used to be worth the same as three terrible "
+        + "weeks, which decided the season on a handful of Sundays and left nothing to play for "
+        + "once somebody was clear."),
+    ),
   );
 }
 
@@ -392,28 +482,35 @@ function seasonSection(ctx, members) {
     weeks === 0
       ? el("p.sec-note", { style: "padding:0 2px" },
           "Nothing to tally yet — the first week has to finish. This week's board is still live.")
+      // The rank NUMBER, not a crown. The season is ranked on points now, so its leader may
+      // have won no weeks at all — and 👑 means "won a week" everywhere else in this app.
+      // Putting it on the season leader would be two different claims wearing one symbol.
       : el("div.board", rows.map((r) => el("article.row" + (r.memberId === ctx.me ? ".is-me" : "")
-          + (r.rank === 1 && r.crowns > 0 ? ".is-crown" : ""),
-          el("div.row-rank", r.rank === 1 && r.crowns > 0 ? "👑" : String(r.rank)),
+          + (r.rank === 1 ? ".is-crown" : ""),
+          el("div.row-rank", String(r.rank)),
           el("div.row-main",
             el("div.row-name", r.memberId === ctx.me ? "You" : r.name),
             el("div.row-meta",
-              r.crowns + (r.crowns === 1 ? " week won" : " weeks won"),
+              r.crowns ? "👑 " + r.crowns + (r.crowns === 1 ? " week won" : " weeks won") : "no weeks won",
               r.weeks ? " of " + r.weeks : "",
               r.bestCrownStreak > 1 ? " · best run " + r.bestCrownStreak : "",
               r.crownStreak > 1 ? " · 🔥 " + r.crownStreak + " in a row" : "",
             ),
             el("div.row-meta",
-              r.avg === null ? "nothing scored yet" : "averaging " + r.avg + "%",
-              r.best ? " · best week " + r.best.pct + "%" : "",
+              // "a week" rather than "%": with bonus in it a week can be worth more than a
+              // hundred, and a percentage that goes to 115 reads as a bug rather than a reward.
+              r.avg === null ? "nothing scored yet" : "averaging " + r.avg + " a week",
+              r.best ? " · best " + r.best.pct : "",
+              r.bonus ? " · " + r.bonus + " from bonus" : "",
             ),
           ),
           el("div.row-pct", String(r.points)),
         ))),
     weeks > 0 ? el("p.sec-note", { style: "padding:0 2px" },
-      "Points are every week you have played, added up — they only go up, so one bad week costs "
-      + "you the crown and not the season. " + weeks + (weeks === 1 ? " week" : " weeks")
-      + " counted so far.") : null,
+      "Every week you play adds its score to your total, so the season is won on points rather "
+      + "than on a handful of Sundays — and bonus points, which only come from beating a target "
+      + "rather than meeting it, are how somebody behind closes a gap. Crowns break a tie. "
+      + weeks + (weeks === 1 ? " week" : " weeks") + " counted so far.") : null,
   );
 }
 
@@ -447,7 +544,13 @@ function boardRow(row, ctx) {
         row.noData ? el("span.row-quiet", " · " + row.noData + " not reported") : null,
       ),
     ),
-    el("div.row-pct", row.pct == null ? "—" : row.pct + "%"),
+    // The percentage, and beside it what beating the targets earned on top. Two numbers rather
+    // than one on purpose: a day is worth exactly a hundred, so folding the bonus in would make
+    // the figure everybody reads mean something different from the figure everybody agreed to.
+    el("div.row-pct",
+      row.pct == null ? "—" : row.pct + "%",
+      row.bonus ? el("span.row-bonus", " +" + row.bonus) : null,
+    ),
 
     // Which category carried the week and which sank it. The percentage says where somebody came;
     // this says what to do about it on Monday, which is the only part anybody can act on.

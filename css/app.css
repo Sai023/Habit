@@ -553,3 +553,37 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------------------------------------------------------------------------
+   The bonus, and the panel that explains where it came from
+   --------------------------------------------------------------------------- */
+
+/* Beside the percentage, never inside it. A day is worth exactly 100, so the bonus is a second
+   smaller number rather than a bigger first one. */
+.row-bonus { font-size: 12px; font-weight: 700; color: var(--teal); margin-left: 3px; }
+
+/* Reference material, not a feature. Closed by default, opened once when somebody starts arguing
+   about the standings — so it is a plain <details> with no script behind it. */
+.explainer { margin-top: 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.explainer > summary {
+  cursor: pointer; padding: 12px var(--pad); font-size: 13px; font-weight: 700;
+  color: var(--teal); list-style: none;
+}
+.explainer > summary::-webkit-details-marker { display: none; }
+.explainer > summary::after { content: " ⌄"; color: var(--dim); }
+.explainer[open] > summary::after { content: " ⌃"; }
+.explainer > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+
+.rule-lede {
+  margin: 0; padding: 0 var(--pad) 10px; font-size: 13px; line-height: 1.5;
+  color: var(--text); border-bottom: 1px solid var(--line);
+}
+.rules { display: flex; flex-direction: column; gap: 11px; padding: 12px var(--pad) var(--pad); }
+.rule { font-size: 12.5px; line-height: 1.5; color: var(--dim); }
+.rule b { color: var(--text); font-weight: 700; }
+
+.weights { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 1px 0 2px; }
+.weights td { padding: 5px 0; border-bottom: 1px solid var(--line); color: var(--dim); }
+.weights tr:last-child td { border-bottom: none; }
+.weights td.w { text-align: right; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; width: 3.5em; }
+.weights td.b { text-align: right; width: 6em; font-size: 11px; }

@@ -15,7 +15,10 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
-import { dayScore, scoreOver, leaderboard, BONUS_CAP, BONUS_CATEGORIES, CATEGORY } from "../js/score.js";
+import {
+  dayScore, scoreOver, leaderboard, BONUS_CAP, BONUS_CATEGORIES,
+  CATEGORY, CATEGORY_ORDER, CATEGORY_WEIGHT, CATEGORY_LABEL, CATEGORY_ICON,
+} from "../js/score.js";
 import { ev, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, METRIC } from "../js/schema.js";
 
 let passed = 0;
@@ -185,6 +188,38 @@ test("the cap is a constant the rest of the app can read", () => {
 });
 
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// What the Transparency Panel promises the group
+// ---------------------------------------------------------------------------
+
+test("the four weights add up to a hundred", () => {
+  // The panel tells the group a day is worth exactly 100 and then prints these four numbers
+  // beside each other. If they stop summing to a hundred the explanation becomes a lie that
+  // nobody would think to check.
+  const total = CATEGORY_ORDER.reduce((sum, c) => sum + CATEGORY_WEIGHT[c], 0);
+  assert.equal(total, 100);
+});
+
+test("every category has a weight, a name and an icon to print", () => {
+  for (const c of CATEGORY_ORDER) {
+    assert.ok(CATEGORY_WEIGHT[c] > 0, c + " has a weight");
+    assert.ok(CATEGORY_LABEL[c], c + " has a label");
+    assert.ok(CATEGORY_ICON[c], c + " has an icon");
+  }
+  assert.equal(CATEGORY_ORDER.length, Object.keys(CATEGORY_WEIGHT).length);
+});
+
+test("bonus is earnable everywhere except Rest & recovery", () => {
+  // The panel says so in as many words, and the rule it describes lives in one Set. Anything
+  // added to the categories later has to make this decision deliberately.
+  for (const c of CATEGORY_ORDER) {
+    assert.equal(
+      BONUS_CATEGORIES.has(c), c !== CATEGORY.REST,
+      c + " bonus eligibility",
+    );
+  }
+});
 
 if (failures.length) {
   for (const f of failures) console.error("✗ " + f.name + "\n  " + f.err.message);
