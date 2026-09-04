@@ -14,6 +14,7 @@ import { dayKey } from "./habits.js";
 import { HABIT_DEFAULTS } from "./schema.js";
 import { installBridge, caps, isNative, setSyncConfig, openSettings } from "./bridge.js";
 import { showProblem } from "./ui/problem.js";
+import { watchForUpdates } from "./update.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 const root = document.getElementById("app");
@@ -463,6 +464,10 @@ async function boot() {
   await refresh();
   await startSync();
 }
+
+// Before boot, and outside it. If a bad build is what stopped the app starting, the machinery
+// that can replace that build has to be running regardless of whether boot got anywhere.
+watchForUpdates();
 
 boot().catch((err) => {
   console.error("[app] boot failed:", err);

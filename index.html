@@ -17,15 +17,5 @@
   <noscript class="noscript">Goal Buddy needs JavaScript enabled.</noscript>
   <script type="module" src="./js/app.js"></script>
 
-  <script>
-    // Offline shell. Deliberately non-fatal: a registration that fails must never stop the app
-    // loading, it just runs online-only. Matters most embedded in Pause, where every other tab
-    // works without a connection and this one would otherwise show a blank page.
-    if ("serviceWorker" in navigator) {
-      addEventListener("load", () => {
-        navigator.serviceWorker.register("./service-worker.js").catch(() => {});
-      });
-    }
-  </script>
 </body>
 </html>
