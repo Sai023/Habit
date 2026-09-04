@@ -7,7 +7,8 @@
 import { el, render } from "../dom.js";
 import {
   valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus,
-  walk, leaderboard, sourceFor, periodKey, periodEnd, addDays, daysBetween, isoDayOfWeek,
+  walk, leaderboard, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween,
+  isoDayOfWeek,
   compareDays, HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
 import {
@@ -194,7 +195,12 @@ function habitCard(habit, ctx) {
   // would read as though you had failed on every rest day.
   const key = periodKey(ctx.today, habit.period);
   const value = valueForPeriod(ctx.state, habit, ctx.me, key);
-  const target = targetFor(ctx.state, habit, ctx.me, periodEnd(key, habit.period));
+  // Tapered to the end of the period, but read against the goal in force at its START — the
+  // same pair the engine scores with, so the card can never show a target the verdict disagrees
+  // with.
+  const target = targetFor(
+    ctx.state, habit, ctx.me, periodEnd(key, habit.period), periodStart(key, habit.period),
+  );
   const status = rawPeriodStatus(ctx.state, habit, ctx.me, key);
   const cadence = CADENCE[habit.period] || "";
   const source = sourceFor(ctx.state, habit, ctx.me);
@@ -380,6 +386,25 @@ function recentActivity(ctx, limit) {
   // is one thing that happened, not three.
   for (let i = ctx.events.length - 1; i >= 0 && out.length < limit; i -= 1) {
     const e = ctx.events[i];
+    // Goal changes belong in the feed. They are the one thing a person can do that moves their own
+    // score without doing anything, and they were completely invisible: the number simply became
+    // easier and the board reflected it. They cannot rewrite the past any more, but "quietly" was
+    // half of what made it worth doing.
+    if (e.type === T.GOAL) {
+      const g = e.payload || {};
+      const habit = ctx.state.habits.get(g.habitId);
+      if (!habit) continue;
+      const key = "goal|" + g.habitId + "|" + g.memberId + "|" + e.eventId;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const who = g.memberId === ctx.me ? "You" : (ctx.state.members.get(g.memberId)?.name || "Someone");
+      out.push(el("div.ev",
+        el("span", "🎯"),
+        el("span.ev-when", fmt.whenLabel(e.ts, ctx.now)),
+        el("span.ev-what", el("b", who), " ", goalPhrase(habit, g)),
+      ));
+      continue;
+    }
     if (e.type !== T.LOG) continue;
     const p = e.payload || {};
     const habit = ctx.state.habits.get(p.habitId);
@@ -410,6 +435,14 @@ function publicNumber(habit, payload, ctx) {
   if (payload.memberId === ctx.me) return payload.value;
   if (habit.visibility === VISIBILITY.FULL) return payload.value;
   return null;
+}
+
+/** A goal change, in the fewest words that still say what happened. */
+function goalPhrase(habit, payload) {
+  const name = (habit.name || "a habit").toLowerCase();
+  if (payload.active === false) return "stopped tracking " + name;
+  if (payload.target == null) return "changed their " + name + " goal";
+  return "set their " + name + " goal to " + fmt.value(habit.metric, Number(payload.target));
 }
 
 function verbFor(habit, value, source) {

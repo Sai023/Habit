@@ -273,7 +273,19 @@ export function replay(events) {
         const startHour = p.dayStartHour != null ? p.dayStartHour
           : (prev ? prev.dayStartHour : HABIT_DEFAULTS.dayStartHour);
         const createdDay = prev ? prev.createdDay : dayKey(e.ts, tz, startHour);
-        habits.set(p.habitId, normalizeHabit({ ...(prev || {}), ...p }, createdDay));
+        const next = normalizeHabit({ ...(prev || {}), ...p }, createdDay);
+        // The same cheat one level up: the group's target is the fallback for anybody without a
+        // goal of their own, and editing it re-scored all of history too. A habit's first
+        // definition counts from its birthday; later changes to the number count from the next
+        // day, exactly like a personal goal.
+        const targets = (prev && prev.targets) ? prev.targets.slice() : [];
+        if (!targets.length) {
+          targets.push({ from: createdDay, target: next.target });
+        } else if (targets[targets.length - 1].target !== next.target) {
+          targets.push({ from: addDays(dayKey(e.ts, tz, startHour), 1), target: next.target });
+        }
+        next.targets = targets;
+        habits.set(p.habitId, next);
         break;
       }
 
@@ -307,20 +319,48 @@ export function replay(events) {
         if (p.memberId && p.habitId && p.source) bindings.set(p.memberId + "|" + p.habitId, p.source);
         break;
 
-      case T.GOAL:
-        if (p.memberId && p.habitId) {
-          const previous = goals.get(p.memberId + "|" + p.habitId) || {};
-          goals.set(p.memberId + "|" + p.habitId, {
-            // An edit sends only what changed, so a target left out keeps the old one rather than
-            // silently reverting this person to the group's default.
-            target: p.target != null ? Number(p.target) : previous.target,
-            active: p.active != null ? Boolean(p.active) : (previous.active !== false),
-          });
-        }
+      case T.GOAL: {
+        if (!p.memberId || !p.habitId) break;
+        const key = p.memberId + "|" + p.habitId;
+        const list = goals.get(key) || [];
+        const h = habits.get(p.habitId);
+        const tz = (h && h.tz) || HABIT_DEFAULTS.tz;
+        const startHour = h ? h.dayStartHour : HABIT_DEFAULTS.dayStartHour;
+        const authored = dayKey(e.ts, tz, startHour);
+        const previous = list.length ? list[list.length - 1] : {};
+        list.push({
+          // WHEN it starts counting, which used to be "always, including every day already
+          // behind you". A goal is one number that the whole of a member's history was scored
+          // against, latest value wins, so a bad week could be turned into a good one by lowering
+          // the number on Sunday night — and `active: false` was better still, because it made
+          // every past day EXEMPT and deleted the week outright. Off, then on again, and it was
+          // gone. Nothing in the log said it had happened.
+          //
+          // Setting a goal for the first time is not changing one: it counts from that day, or a
+          // joiner's first day would be judged against a number they never chose. Every change
+          // after that counts from the next day, so today is always scored against what was
+          // already true when it started.
+          from: list.length ? addDays(authored, 1) : authored,
+          // An edit sends only what changed, so a target left out keeps the old one rather than
+          // silently reverting this person to the group's default.
+          target: p.target != null ? Number(p.target) : previous.target,
+          active: p.active != null ? Boolean(p.active) : (previous.active !== false),
+          setOn: authored,
+        });
+        goals.set(key, list);
         break;
+      }
 
       case T.EXEMPT:
         if (p.memberId && p.from && p.to) {
+          // "I was away last week" is not something that can be decided after the week. Travel is
+          // known in advance or within a day or two of getting back, and without this an exemption
+          // was the cleanest cheat in the app: any run of bad days could simply be excused, after
+          // the fact, by the person who had them. Same window logs get, for the same reason.
+          const eh = habits.get(p.habitId);
+          const etz = (eh && eh.tz) || HABIT_DEFAULTS.tz;
+          const eStart = eh ? eh.dayStartHour : HABIT_DEFAULTS.dayStartHour;
+          if (daysBetween(p.from, dayKey(e.ts, etz, eStart)) > MAX_BACKFILL_DAYS) break;
           exemptions.push({
             memberId: p.memberId,
             habitId: p.habitId || null,
@@ -394,8 +434,43 @@ export function valueOn(state, habit, memberId, day) {
 }
 
 /** The target on a given day, after any taper has stepped it. */
+/** The group's target as it stood on a given day, before any taper. */
+function baseTargetOn(habit, day) {
+  const list = habit.targets;
+  if (!list || !list.length) return habit.target;
+  let found = list[0].target;
+  for (const t of list) {
+    if (t.from <= day) found = t.target;
+    else break;
+  }
+  return found;
+}
+
 export function targetOn(habit, day) {
-  return taperedTarget(habit, day, habit.target);
+  return taperedTarget(habit, day, baseTargetOn(habit, day));
+}
+
+/**
+ * The goal this member had in force on a given day, or null before they set one.
+ *
+ * Entries are appended in replay order and their `from` days only ever move forward, so the last
+ * one that has started is the one that counts.
+ */
+export function goalOn(state, habitId, memberId, day) {
+  const list = state.goals.get(memberId + "|" + habitId);
+  if (!list || !list.length) return null;
+  let found = null;
+  for (const g of list) {
+    if (g.from <= day) found = g;
+    else break;
+  }
+  return found;
+}
+
+/** The goal as most recently SET, whether or not it has started counting yet. */
+export function latestGoal(state, habitId, memberId) {
+  const list = state.goals.get(memberId + "|" + habitId);
+  return list && list.length ? list[list.length - 1] : null;
 }
 
 function taperedTarget(habit, day, base) {
@@ -414,9 +489,14 @@ function taperedTarget(habit, day, base) {
  * measures fitness rather than effort — which is not what anybody joined a habit tracker for.
  * A taper still applies, to whichever number is theirs.
  */
-export function targetFor(state, habit, memberId, day) {
-  const goal = state.goals.get(memberId + "|" + habit.habitId);
-  const base = goal && Number.isFinite(goal.target) && goal.target > 0 ? goal.target : habit.target;
+export function targetFor(state, habit, memberId, day, goalDay = day) {
+  // Two days, because they answer different questions. `day` is where the taper has got to;
+  // `goalDay` is which goal was in force. For a daily habit they are the same. For a weekly one
+  // the taper looks at the end of the week and the goal at its start, so a target lowered on
+  // Wednesday cannot quietly re-score the Monday and Tuesday of the same week.
+  const goal = goalOn(state, habit.habitId, memberId, goalDay);
+  const fallback = baseTargetOn(habit, goalDay);
+  const base = goal && Number.isFinite(goal.target) && goal.target > 0 ? goal.target : fallback;
   return taperedTarget(habit, day, base);
 }
 
@@ -427,8 +507,13 @@ export function targetFor(state, habit, memberId, day) {
  * without everyone signing up for all five. An untracked habit is EXEMPT for that person and
  * leaves their board score untouched, rather than dragging it to zero.
  */
-export function isTracking(state, habit, memberId) {
-  const goal = state.goals.get(memberId + "|" + habit.habitId);
+export function isTracking(state, habit, memberId, day = null) {
+  // With no day, the question is "am I signed up for this", and the answer is whatever they last
+  // said — the screens that ask are showing intent. Scoring passes a day, because there the
+  // question is what was true THEN, and opting out on Sunday must not excuse the Tuesday.
+  const goal = day == null
+    ? latestGoal(state, habit.habitId, memberId)
+    : goalOn(state, habit.habitId, memberId, day);
   return !goal || goal.active !== false;
 }
 
@@ -480,7 +565,11 @@ export function valueForPeriod(state, habit, memberId, key) {
  */
 export function rawPeriodStatus(state, habit, memberId, key) {
   // Not signed up for this one. Different from failing it, and must not cost them anything.
-  if (!isTracking(state, habit, memberId)) return EXEMPT;
+  //
+  // Asked as of the period's START. A week you began committed to is a week you are judged on,
+  // whatever you decided about it on the Saturday.
+  const opensOn = periodStart(key, habit.period);
+  if (!isTracking(state, habit, memberId, opensOn)) return EXEMPT;
 
   const days = daysInPeriod(key, habit.period);
   // A period is exempt only when EVERY day in it is. Three days away does not excuse a whole week
@@ -505,7 +594,7 @@ export function rawPeriodStatus(state, habit, memberId, key) {
     // by never opening the app is not a habit. This is also why the daily reminder exists.
     return AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId)) ? NO_DATA : MISS;
   }
-  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period));
+  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period), opensOn);
   const met = habit.direction === AT_MOST ? value <= target : value >= target;
   return met ? HIT : MISS;
 }

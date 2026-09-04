@@ -125,6 +125,10 @@ export function demoState(now = Date.now()) {
     }
   }
 
+  // A goal change, so the feed has one. It is the one thing somebody can do that moves their own
+  // score without doing anything, and until recently it was completely silent.
+  events.push(E(ev.goal("lerato", "steps", { target: 8000 }), evening(day(-3), 21)));
+
   // A trip that must not cost anyone their streak.
   events.push(E(ev.exempt("thabo", day(-4), day(-2), "travel"), evening(day(-5))));
 

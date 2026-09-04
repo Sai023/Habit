@@ -10,7 +10,7 @@
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { setGoals, bindSource } from "../store.js";
-import { targetFor, isTracking, sourceFor } from "../habits.js";
+import { targetFor, isTracking, sourceFor, latestGoal } from "../habits.js";
 import { caps } from "../bridge.js";
 import {
   METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE, HEALTH_METRICS, PAUSE_METRICS,
@@ -45,7 +45,13 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
 
   const rows = habits.map((habit) => {
     const scale = SCALE[habit.metric];
-    const current = targetFor(state, habit, me, habit.createdDay);
+    // What they last SET, not what is currently in force — a change made yesterday is already
+    // theirs even though it starts counting today, and showing the old number would invite them
+    // to "fix" it a second time.
+    const set = latestGoal(state, habit.habitId, me);
+    const current = set && Number.isFinite(set.target) && set.target > 0
+      ? set.target
+      : targetFor(state, habit, me, habit.createdDay);
     const canAuto = deviceSourceFor(habit.metric) !== SOURCE.MANUAL;
     return {
       habit,
@@ -72,6 +78,12 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
 
         el("p.note-inline",
           "You're measured against your own number, so nobody is competing with anyone else's fitness."),
+        // Said before they save, not after. A change that silently did nothing until tomorrow
+        // would read as a bug the first time somebody checked, and a change that silently applied
+        // to yesterday is the thing this rule exists to stop.
+        firstRun ? null : el("p.note-inline",
+          "Changes start counting tomorrow. Today is judged on what you'd already set — which is "
+          + "also why nobody can rescue a bad week from this screen."),
 
         error ? el("p.err", error) : null,
         el("button.tap", { onclick: submit, disabled: busy },
