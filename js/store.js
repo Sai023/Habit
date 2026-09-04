@@ -296,6 +296,20 @@ export async function saveHabit(habitId, fields) {
   return commit(ev.habit(habitId || uuid(), fields));
 }
 
+/**
+ * Draw a line under the standings and start counting again from [fromDay].
+ *
+ * Wipes the LEADERBOARD only. Habits, targets, tapers, every logged number and every per-habit
+ * streak survive untouched — this writes one group setting and deletes nothing, because the season
+ * is derived from the log rather than kept as a tally. See seasonStart().
+ */
+export async function startNewSeason(fromDay) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fromDay || ""))) {
+    throw new Error("A season has to start on a real day.");
+  }
+  return commit(ev.meta({ seasonFrom: fromDay }));
+}
+
 export async function deleteHabit(habitId) {
   return commit(ev.deleteHabit(habitId));
 }

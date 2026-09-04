@@ -504,6 +504,12 @@ function seasonSection(ctx, members) {
       + "than on a handful of Sundays — and bonus points, which only come from beating a target "
       + "rather than meeting it, are how somebody behind closes a gap. Crowns break a tie. "
       + weeks + (weeks === 1 ? " week" : " weeks") + " counted so far.") : null,
+
+    // Offered here rather than buried in settings, because this is the screen you are looking at
+    // when you decide the standings are not worth keeping.
+    ctx.onNewSeason
+      ? el("button.link.sec-note", { onclick: () => ctx.onNewSeason() }, "Start a new season →")
+      : null,
   );
 }
 

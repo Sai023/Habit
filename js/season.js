@@ -22,16 +22,40 @@ import { leaderboard, categoryOver, CATEGORY_ORDER } from "./score.js";
 import { PERIOD } from "./schema.js";
 
 /**
- * When the group started, as a day.
+ * When the season being played started, as a day.
  *
- * The earliest habit's birthday: before that there was nothing to score, and starting the season
+ * By default the earliest habit's birthday: before that there was nothing to score, and starting
  * from a member's join date would give whoever joined last a shorter, easier season.
+ *
+ * ---- Why it can be moved ----
+ *
+ * A group spends its first weeks getting the thing working, and those weeks are not a contest —
+ * they are a phone syncing as the wrong person, a metric being renamed, a taper being argued
+ * about. Carrying that into a standings table that is meant to last means the season opens with
+ * results nobody agrees with and no way to draw a line under them.
+ *
+ * So `meta.seasonFrom` moves the line. It is a group-wide setting, last write wins, and it is
+ * DERIVED-ONLY: nothing is deleted, no log is touched, no streak breaks. Weeks before it stop
+ * being tallied and everything else — habits, targets, tapers, history, per-habit streaks — is
+ * exactly as it was. Wiping the standings and wiping the data are different requests, and this
+ * is the first one.
+ *
+ * An older build that does not know the key merges it into meta and never reads it, so it keeps
+ * showing the whole season. That is the safe direction to be wrong in: it over-reports history
+ * rather than inventing a reset nobody asked for.
  */
 export function seasonStart(state) {
   let earliest = null;
   for (const habit of state.habits.values()) {
     if (!habit.createdDay) continue;
     if (earliest === null || habit.createdDay < earliest) earliest = habit.createdDay;
+  }
+
+  const line = state.meta && state.meta.seasonFrom;
+  // Only ever moves the start FORWARD. A line before the first habit describes weeks that never
+  // existed, and one that arrives malformed must not blank the standings.
+  if (typeof line === "string" && /^\d{4}-\d{2}-\d{2}$/.test(line)) {
+    if (earliest === null || line > earliest) return line;
   }
   return earliest;
 }

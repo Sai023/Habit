@@ -48,7 +48,7 @@ function paint() {
   if (!ctx || onboarding) return;
   renderApp(root, {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
-    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog,
+    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason,
     onOpenSettings, onBoardCategory, onBoardSeason,
   });
 }
@@ -231,6 +231,38 @@ const onInvite = guard("invite", async () => {
   const { identity } = await import("./store.js");
   const { code } = await identity();
   openInviteSheet(document.body, { groupCode: code, onClosed: () => refresh() });
+});
+
+/**
+ * Draw a line under the standings.
+ *
+ * Starts on the next Monday rather than today, because a season that begins mid-week opens with a
+ * week half of which was played under the old one — and the first thing anybody would ask about
+ * the new table is why week one looks odd.
+ *
+ * Says plainly what survives. "Reset" is a word people have learned to read as "lose everything",
+ * and the whole point of this is that it only clears the scoreboard.
+ */
+const onNewSeason = guard("season", async () => {
+  if (demoBlocked()) return;
+  const [{ confirmSheet }, { startNewSeason }, { periodStart, isoWeekKey, addDays }] =
+    await Promise.all([
+      import("./ui/confirmsheet.js"), import("./store.js"), import("./habits.js"),
+    ]);
+
+  const monday = addDays(periodStart(isoWeekKey(ctx.today), "week"), 7);
+  const sure = await confirmSheet(document.body, {
+    title: "Start a new season?",
+    body: "Crowns, points and weeks won go back to zero for everybody, from Monday " + monday + ". "
+      + "Nothing else changes — every habit, target, taper, logged number and streak stays exactly "
+      + "as it is. It only clears the scoreboard.",
+    confirmLabel: "Start it",
+    cancelLabel: "Keep the season",
+  });
+  if (!sure) return;
+
+  await startNewSeason(monday);
+  await refresh();
 });
 
 /** Which slice of the board is showing. Kept in `ui` so it survives a sync repaint. */
