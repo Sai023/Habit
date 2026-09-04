@@ -70,8 +70,22 @@ export function visibleHeight() {
 export function openSheet(host = document.body, { onClose } = {}) {
   let closed = false;
 
+  // Tapping the backdrop dismisses. DRAGGING across it does not — which is not the same thing,
+  // and the difference is the whole of a real complaint: a sheet that does not fill the screen
+  // leaves backdrop above it, a finger swiping down starts there, and the browser reports the
+  // whole gesture as a click on the backdrop. Trying to scroll the page behind, or just moving
+  // your thumb, closed the sheet.
+  let downAt = null;
   const layer = el("div.sheet-layer", {
-    onclick: (e) => { if (e.target === layer) close(); },
+    onpointerdown: (e) => { downAt = { x: e.clientX, y: e.clientY }; },
+    onclick: (e) => {
+      if (e.target !== layer) return;
+      const from = downAt;
+      downAt = null;
+      // A tap wanders a few pixels; a swipe does not stay inside ten.
+      if (from && Math.hypot(e.clientX - from.x, e.clientY - from.y) > 10) return;
+      close();
+    },
   });
 
   // Pin the layer to the part of the window that can actually be seen. On a normal browser the two
