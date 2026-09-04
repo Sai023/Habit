@@ -238,8 +238,20 @@ test("each habit's own ratio is reported, so the board can be broken down", () =
   assert.equal(byHabit.save, 0);
 });
 
-test("the period still running contributes partial progress, not a verdict", () => {
-  // Otherwise a month-long goal shows nothing on this week's board until the month closes.
+test("a month still running is not judged, and colours its days once it closes", () => {
+  // This used to score a month in progress on how far through it you were, and that punished
+  // honesty. A month with NOTHING saved was not eligible and cost nothing; logging the first 3000
+  // of a 5000 target made it eligible at 60% and dragged every day down — so the cheapest thing to
+  // do with an early deposit was to sit on it until the total looked respectable. A tracker that
+  // pays you to withhold data is worse than one that ignores the category.
+  //
+  // So a monthly goal is invisible until it settles, and then colours the whole month at once.
+  // Two consequences worth having written down:
+  //
+  //   - Its 15 points move to the other categories while the month runs, so nobody is scored out
+  //     of a hundred that includes something they cannot yet have done.
+  //   - A closed month re-scores the weeks inside it. That is the "in retrospect" half, and it is
+  //     the price of not judging early. Weekly habits are unaffected: they still pace live.
   const s = replay([
     E(ev.member("m1", "Alice"), at("2026-03-01", 7)),
     E(ev.habit("save", {
@@ -249,9 +261,31 @@ test("the period still running contributes partial progress, not a verdict", () 
     }), at("2026-03-01", 7)),
     E(ev.log("save", "m1", "2026-03-10", 3000, SOURCE.MANUAL), at("2026-03-10")),
   ]);
+
+  // The raw progress figure is unchanged — the card still shows how far along you are.
   assert.equal(progressFor(s, s.habits.get("save"), "m1", "2026-03"), 0.6);
+
+  const during = leaderboard(s, ["m1"], "2026-03-09", "2026-03-15", "2026-03-11");
+  assert.equal(during[0].pct, null, "nothing to score while the month can still be saved");
+
+  const after = leaderboard(s, ["m1"], "2026-03-09", "2026-03-15", "2026-04-02");
+  assert.equal(after[0].pct, 60, "and once April arrives, March is judged on what happened");
+});
+
+test("hitting a monthly target early is paid straight away", () => {
+  // The one exception to not judging mid-month, and it has to exist: waiting to be paid for
+  // something already finished would make an early payday worth less than a late one.
+  const s = replay([
+    E(ev.member("m1", "Alice"), at("2026-03-01", 7)),
+    E(ev.habit("save", {
+      name: "Savings", metric: METRIC.AMOUNT, direction: AT_LEAST, target: 5000,
+      period: PERIOD.MONTH, aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL,
+      tz: TZ, dayStartHour: 4, scored: true,
+    }), at("2026-03-01", 7)),
+    E(ev.log("save", "m1", "2026-03-05", 5000, SOURCE.MANUAL), at("2026-03-05")),
+  ]);
   const rows = leaderboard(s, ["m1"], "2026-03-09", "2026-03-15", "2026-03-11");
-  assert.equal(rows[0].pct, 60, "three fifths of the way, showing on the board as such");
+  assert.equal(rows[0].pct, 100, "done is done, on the day it is done");
 });
 
 test("an untouched ceiling is a perfect score, not a zero", () => {

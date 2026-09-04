@@ -194,13 +194,13 @@ test("discrete habits are left alone — an urge is not a running total", () => 
   const s = replay([
     E(ev.member("sam1", "Alice"), at(D0, 6)),
     E(ev.habit("urges", {
-      name: "Vape urges", metric: METRIC.URGES, aggregate: AGGREGATE.SUM,
+      name: "Vape puffs", metric: METRIC.PUFFS, aggregate: AGGREGATE.SUM,
       tz: TZ, dayStartHour: 4, source: SOURCE.PAUSE,
     }), at(D0, 6)),
     E(ev.bind("sam1", "urges", SOURCE.PAUSE), at(D0, 7)),
   ]);
   const { events } = samplesToEvents(s, "sam1",
-    { source: SOURCE.PAUSE, samples: [{ metric: METRIC.URGES, start: at(day(0), 12), value: 1 }] },
+    { source: SOURCE.PAUSE, samples: [{ metric: METRIC.PUFFS, start: at(day(0), 12), value: 1 }] },
     { now: at(day(0), 12) });
   assert.equal(events.length, 0, "discrete events go through their own append path");
 });

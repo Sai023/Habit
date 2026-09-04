@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import {
-  replay, targetFor, isTracking, rawDayStatus, walk, HIT, MISS, EXEMPT,
+  replay, targetFor, isTracking, rawDayStatus, walk, addDays, HIT, MISS, EXEMPT,
 } from "../js/habits.js";
 import { leaderboard } from "../js/score.js";
 import { ev, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, METRIC } from "../js/schema.js";
@@ -91,6 +91,14 @@ test("an opted-out habit leaves the board score untouched rather than sinking it
 });
 
 test("a taper applies to the member's own number, not the group's", () => {
+  // Logged clean every day, on purpose. A tapering habit only steps down for somebody who is
+  // actually running it: three missed days in a week hold the next one, and an unlogged manual day
+  // is a miss. Without these logs this would be testing the hold rule by accident rather than the
+  // personal target it is named for.
+  const clean = Array.from({ length: 50 }, (_, n) => {
+    const d = addDays("2026-03-01", n);
+    return E(ev.log("puffs", "m1", d, 0, SOURCE.MANUAL), at(d, 20));
+  });
   const s = replay([
     E(ev.member("m1", "Sahil"), at("2026-03-01", 7)),
     E(ev.habit("puffs", {
@@ -99,6 +107,7 @@ test("a taper applies to the member's own number, not the group's", () => {
       taper: { amount: 1, everyDays: 7, floor: 0 },
     }), at("2026-03-01", 7)),
     E(ev.goal("m1", "puffs", { target: 12 }), at("2026-03-01", 8)),
+    ...clean,
   ]);
   const puffs = s.habits.get("puffs");
   assert.equal(targetFor(s, puffs, "m1", "2026-03-01"), 12);

@@ -228,12 +228,21 @@ test("an untouched month in progress is NOT JUDGED, rather than judged generousl
   assert.equal(scoreOf(nothing, 0).pct, null, "nothing else tracked, so nothing to score");
 });
 
-test("once there is money in it, the month shows where you stand", () => {
+test("part-way through a month is still not judged, however much is in it", () => {
+  // Judging progress mid-month punished honesty: nothing saved was not eligible and cost nothing,
+  // while logging the first half of the target made it eligible at 50% and dragged the day down.
+  // The cheapest move was to sit on an early deposit, which is the opposite of what a savings
+  // tracker is for. Nothing is lost by waiting — a closed month colours all of its days.
   const part = world(["savings"], [["savings", 3, 1000]]);
-  const h = habitIn(part, "savings", 5);
-  assert.equal(h.eligible, true);
-  assert.equal(h.score, 0.5, "half the target is half the credit");
+  assert.equal(habitIn(part, "savings", 5).eligible, false, "half saved, still not judged");
 
+  const none = world(["savings"], []);
+  assert.equal(habitIn(none, "savings", 5).eligible, false, "and nothing saved is the same");
+});
+
+test("but hitting the monthly target is paid on the day it happens", () => {
+  // The exception, and it has to exist: waiting to be paid for something already finished would
+  // make an early payday worth less than a late one.
   const paid = world(["savings"], [["savings", 20, 2000]]);
   assert.equal(habitIn(paid, "savings", 22).score, BONUS_CAP, "hit the target, hold the maximum");
 });

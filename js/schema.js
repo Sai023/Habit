@@ -44,8 +44,7 @@ export const METRIC = {
   STEPS: "steps",
   SLEEP: "sleep_minutes",
   ACTIVE_CALORIES: "active_calories",
-  URGES: "urges",
-  PUFFS: "puffs",                 // read off the vape and typed in
+  PUFFS: "puffs",                 // puffs off the vape, counted through the day
   APP_OPENS: "app_opens",         // Pause already counts these
   SCREEN_MINUTES: "screen_minutes",
   SESSIONS: "sessions",           // workouts, meditations — things you did N of
@@ -61,6 +60,21 @@ export const METRIC = {
  * how the leaderboard combines habits that produce wildly different numbers of results.
  */
 export const PERIOD = { DAY: "day", WEEK: "week", MONTH: "month" };
+
+/**
+ * Metrics that no longer exist, and what they became.
+ *
+ * `urges` counted "times you gave in" and was meant for single digits. In practice the group used
+ * it as a puff counter — a ceiling of eighty with seventy-eight logged on an ordinary day — so the
+ * name described something nobody was measuring. Retiring it is a RENAME, not a unit change: the
+ * numbers already were puffs, the category was already Discipline, and the breathing screen
+ * already treated it the same way, so every past log keeps its meaning exactly.
+ *
+ * Applied at replay rather than by rewriting the room. The log is append-only and every device
+ * replays all of it, so translating on read migrates all three phones at once and leaves the
+ * history honest about what was actually written.
+ */
+export const LEGACY_METRIC = { urges: METRIC.PUFFS };
 
 /**
  * Grace scales with the period, or it means nothing.
@@ -125,7 +139,7 @@ export const PAUSE_METRICS = new Set([METRIC.APP_OPENS, METRIC.SCREEN_MINUTES]);
  */
 export function isInterventionHabit(habit) {
   if (!habit || habit.direction !== AT_MOST) return false;
-  return habit.metric === METRIC.PUFFS || habit.metric === METRIC.URGES;
+  return habit.metric === METRIC.PUFFS;
 }
 
 export function sourceForDevice(metric, { pause = false, health = false } = {}) {
@@ -172,7 +186,16 @@ export const HABIT_DEFAULTS = {
   visibility: VISIBILITY.PROGRESS,
   scored: null,                  // null = decide from direction (reduce habits opt OUT by default)
   grace: { earnEvery: 7, cap: 2 },
-  taper: null,                   // { amount: 1, everyDays: 7, floor: 0 }
+  // How a ceiling comes down over time. Null for a habit that does not taper.
+  //
+  //   { amount: 1,  everyDays: 7, floor: 0 }   minus one a week
+  //   { percent: 10, everyDays: 7, floor: 0 }  minus a tenth of the ORIGINAL a week — linear, so
+  //                                            eighty reaches zero in ten weeks rather than
+  //                                            asymptoting the way compounding would
+  //
+  // The schedule runs from the MEMBER's baseline (their first goal), not the habit's birthday, so
+  // somebody joining a six-month-old habit starts at the top of their own taper.
+  taper: null,
   // Minute of the day to be reminded, or null for no reminder. On the HABIT rather than in a
   // settings screen, so the days it nudges you are by construction the days it scores — a reminder
   // kept somewhere else drifts away from the commitment the moment either one is edited.

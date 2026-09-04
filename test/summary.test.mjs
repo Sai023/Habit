@@ -251,6 +251,33 @@ test("the signature ignores the clock, or it would fire on every repaint", () =>
   assert.equal(summarySignature(s1), summarySignature(s2));
 });
 
+test("the bonus crosses the bridge as its own number, never inside the percentage", () => {
+  // The shell draws these and cannot recompute them, so this payload is the whole contract. A day
+  // is worth exactly 100 and the bonus rides beside it — folding them together would make "out of
+  // 100" meaningless on the one screen most people look at.
+  const s = buildSummary(world([
+    E(ev.log("steps", "m1", day(0), 20000, SOURCE.HEALTH_CONNECT), at(0)),
+    E(ev.log("sleep", "m1", day(0), 480, SOURCE.HEALTH_CONNECT), at(0)),
+    E(ev.log("puffs", "m1", day(0), 0, SOURCE.MANUAL), at(0)),
+  ]), "m1", day(0), ["m1", "m2"]);
+
+  assert.equal(s.v, SUMMARY_VERSION, "the version says which fields to expect");
+  assert.equal(s.today_pct, 100, "a day is still out of a hundred");
+  assert.ok(s.today_bonus > 0, "and beating the targets is worth something beside it");
+  assert.ok(s.today_bonus <= 15, "never outside its own ceiling");
+  assert.equal(s.bonus_held, false);
+  assert.equal(s.bonus_withheld, 0);
+  for (const c of s.categories) assert.equal(typeof c.bonus, "number");
+});
+
+test("Rest & recovery reports no bonus however well it went", () => {
+  const s = buildSummary(world([
+    E(ev.log("sleep", "m1", day(0), 700, SOURCE.HEALTH_CONNECT), at(0)),
+  ]), "m1", day(0), ["m1", "m2"]);
+  const rest = s.categories.find((c) => c.key === "rest");
+  if (rest) assert.equal(rest.bonus, 0, "oversleeping is not an achievement to pay for");
+});
+
 if (failures.length) {
   for (const { name, err } of failures) {
     console.error("\n✗ " + name);

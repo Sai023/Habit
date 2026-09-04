@@ -28,7 +28,7 @@ const SCALE = {
 const UNIT = {
   [METRIC.STEPS]: "steps", [METRIC.PUFFS]: "puffs", [METRIC.SESSIONS]: "times",
   [METRIC.ACTIVE_CALORIES]: "kcal", [METRIC.SCREEN_MINUTES]: "minutes", [METRIC.AMOUNT]: "",
-  [METRIC.APP_OPENS]: "opens", [METRIC.URGES]: "urges",
+  [METRIC.APP_OPENS]: "opens",
 };
 
 export function openLogSheet(host, { state, habit, me, today, onSaved }) {

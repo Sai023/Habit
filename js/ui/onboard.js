@@ -14,9 +14,15 @@ import { METRIC, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY } from "../schema.js";
  * The habits a new group starts with.
  *
  * Two that a watch can fill in on its own, and one that it cannot. The third is the reason the
- * reduce direction exists: it counts DOWN from a ceiling and tapers weekly, and it stays out of
- * the crown and clown scoring, because being bottom of a quitting metric produces hidden logs
- * rather than quitting.
+ * reduce direction exists: it counts DOWN from a ceiling, and the ceiling drops a tenth of its
+ * starting value every week until it reaches zero — a quit plan with a date on it rather than an
+ * open-ended diary.
+ *
+ * It IS scored, which it briefly was not. Keeping reduce habits off the board was meant to stop
+ * "bottom of a quitting metric" producing hidden logs, but Discipline is thirty per cent of the
+ * day and is made of reduce habits, so excusing them deleted the category rather than protecting
+ * anybody. The protection lives where it belongs now: the clown is suppressed on a silent
+ * pipeline, and a ceiling cannot be failed by a sensor going quiet.
  */
 const STARTERS = [
   {
@@ -39,13 +45,13 @@ const STARTERS = [
     },
   },
   {
-    key: "urges", icon: "💨", name: "Vape urges",
-    blurb: "Counts the times you give in, and drops by one every week.",
-    unit: "times a day, at most", step: 1, toInput: (v) => v, fromInput: (v) => Math.round(v),
+    key: "puffs", icon: "💨", name: "Puffs",
+    blurb: "Count them as you go. The ceiling drops a tenth every week, until it reaches zero.",
+    unit: "puffs a day, at most", step: 5, toInput: (v) => v, fromInput: (v) => Math.round(v),
     fields: {
-      metric: METRIC.URGES, direction: AT_MOST, target: 8,
+      metric: METRIC.PUFFS, direction: AT_MOST, target: 80,
       aggregate: AGGREGATE.SUM, visibility: VISIBILITY.PROGRESS,
-      taper: { amount: 1, everyDays: 7, floor: 0 },
+      taper: { percent: 10, everyDays: 7, floor: 0 },
     },
   },
 ];

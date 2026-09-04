@@ -23,7 +23,9 @@ import { seasonTally, categoryBreakdown } from "./season.js";
 import { AT_MOST, PERIOD } from "./schema.js";
 import * as fmt from "./ui/format.js";
 
-export const SUMMARY_VERSION = 2;
+// 3 adds the bonus fields. Additive only: an older shell ignores what it does not know, and a
+// newer one reads a missing bonus as zero, so three phones on three builds all stay readable.
+export const SUMMARY_VERSION = 3;
 
 /** How many days of history the shell gets. A week is what its screens actually draw. */
 const WINDOW_DAYS = 7;
@@ -107,6 +109,13 @@ export function buildSummary(state, me, today, memberIds = null) {
     // Out of 100 for today, and the categories behind it. Labels come pre-written for the same
     // reason the values do: the shell has no table of what a category is called.
     today_pct: scored.pct,
+    // The second currency, kept separate from the percentage on purpose — the day is still worth
+    // exactly a hundred, and this is what beating the targets earned on top of it.
+    today_bonus: scored.bonus,
+    // Why it is zero when it is zero. A penalty nobody can see is indistinguishable from a bug,
+    // and "you would have earned 12" is the sentence that makes it a reason to log tomorrow.
+    bonus_held: !!scored.bonusForfeited,
+    bonus_withheld: scored.bonusWithheld || 0,
     categories: scored.categories
       .filter((c) => c.eligible)
       .map((c) => ({
@@ -118,6 +127,7 @@ export function buildSummary(state, me, today, memberIds = null) {
         pct: Math.round(Math.min(1, c.score) * 100),
         points: Math.round(c.points),
         share: Math.round(c.share),
+        bonus: Math.round(c.bonus || 0),
       })),
     week: categoryBreakdown(state, me, from, today).map((c) => ({
       key: c.category,
@@ -141,6 +151,8 @@ export function buildSummary(state, me, today, memberIds = null) {
           best: mySeason.best ? mySeason.best.pct : null,
           crownStreak: mySeason.crownStreak,
           bestCrownStreak: mySeason.bestCrownStreak,
+          // Of the points total, how much came from beating targets rather than meeting them.
+          bonus: mySeason.bonus,
         }
       : null,
     board: mine
@@ -154,6 +166,8 @@ export function buildSummary(state, me, today, memberIds = null) {
           eligible: mine.eligible,
           noData: mine.noData,
           streak: mine.streak,
+          bonus: mine.bonus || 0,
+          bonusWithheld: mine.bonusWithheld || 0,
         }
       : null,
   };

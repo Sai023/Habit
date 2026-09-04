@@ -27,6 +27,7 @@ import {
   T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY, AGGREGATE, SOURCE,
   HEALTH_METRICS, PAUSE_METRICS, isInterventionHabit,
   PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
+  LEGACY_METRIC,
 } from "./schema.js";
 
 export const HIT = "HIT";
@@ -221,6 +222,8 @@ export function sortEvents(list) {
 
 function normalizeHabit(p, createdDay) {
   const h = { ...HABIT_DEFAULTS, ...p, createdDay };
+  // A metric this build has retired becomes the one that replaced it. See LEGACY_METRIC.
+  if (h.metric && LEGACY_METRIC[h.metric]) h.metric = LEGACY_METRIC[h.metric];
   h.days = Array.isArray(h.days) && h.days.length ? h.days.map(Number) : HABIT_DEFAULTS.days;
   h.period = Object.values(PERIOD).includes(h.period) ? h.period : PERIOD.DAY;
   h.weight = Number(h.weight) > 0 ? Number(h.weight) : 1;
@@ -492,12 +495,204 @@ export function latestGoal(state, habitId, memberId) {
   return list && list.length ? list[list.length - 1] : null;
 }
 
-function taperedTarget(habit, day, base) {
+/**
+ * The day this member's taper starts counting from.
+ *
+ * Their own baseline, not the habit's birthday. The two are the same for whoever created the
+ * habit and wildly different for anybody who joins later: a vape habit six months old would hand
+ * a new member a target already tapered twenty-six steps down on the day they signed up, which is
+ * not a quit programme, it is a wall. A taper is a personal schedule and it starts when the person
+ * sets their number.
+ *
+ * The first goal is the baseline by construction — replay gives a member's FIRST goal `from` the
+ * day it was authored, and only later edits start the day after. Falling back to the habit's
+ * creation keeps every habit that predates personal goals scoring exactly as it did.
+ */
+function taperStartDay(state, habit, memberId) {
+  const list = state && state.goals && state.goals.get(memberId + "|" + habit.habitId);
+  if (list && list.length && list[0].from) return list[0].from;
+  return habit.createdDay;
+}
+
+/**
+ * The target after the taper has stepped it, for a schedule that began on [startDay].
+ *
+ * Two shapes, because they answer different commitments:
+ *
+ *   amount   subtract a fixed number every period. Right for a habit with a small ceiling, where
+ *            a percentage would round to nothing.
+ *   percent  subtract a share of the ORIGINAL baseline every period — linear, not compounding.
+ *            Eighty puffs at ten per cent is eight a week and reaches zero in ten, which is a quit
+ *            programme with a date on it. Compounding would take the same eighty to twenty-eight
+ *            after ten weeks and never reach zero at all, which is a reduction plan pretending to
+ *            be a quit plan.
+ *
+ * The reduction is rounded once, at the end, rather than per step: rounding each step and adding
+ * them up drifts, and a target that lands on 71 one week and 63 the next for no visible reason is
+ * a target nobody trusts.
+ */
+function taperedTarget(habit, day, base, startDay = habit.createdDay, stepsOverride = null) {
   if (!habit.taper) return base;
-  const { amount = 1, everyDays = 7, floor = 0 } = habit.taper;
-  const elapsed = Math.max(0, daysBetween(habit.createdDay, day));
-  const steps = Math.floor(elapsed / Math.max(1, everyDays)) * amount;
-  return habit.direction === AT_MOST ? Math.max(floor, base - steps) : base + steps;
+  const everyDays = Math.max(1, habit.taper.everyDays || 7);
+  const elapsed = Math.max(0, daysBetween(startDay, day));
+  const steps = stepsOverride === null ? Math.floor(elapsed / everyDays) : stepsOverride;
+  return applyTaperSteps(habit, base, steps);
+}
+
+/** The arithmetic alone, once a number of steps has been decided. */
+function applyTaperSteps(habit, base, steps) {
+  const { amount = 1, percent = 0, floor = 0 } = habit.taper;
+  const shift = percent > 0 ? Math.round(base * (percent / 100) * steps) : steps * amount;
+  return habit.direction === AT_MOST ? Math.max(floor, base - shift) : base + shift;
+}
+
+/**
+ * How many days in a taper week may be missed before the next one stops coming down.
+ *
+ * Three of seven. Below that the schedule marches on and a bad day costs you the day; at three it
+ * stops asking more of somebody who is not managing what it already asked.
+ */
+export const TAPER_MISS_LIMIT = 3;
+
+/** This member's untapered number on a given day: their own goal, else the group's. */
+function baselineOn(state, habit, memberId, day) {
+  const goal = goalOn(state, habit.habitId, memberId, day);
+  return goal && Number.isFinite(goal.target) && goal.target > 0
+    ? goal.target
+    : baseTargetOn(habit, day);
+}
+
+/**
+ * Was this day a miss, judged against a target we have ALREADY worked out?
+ *
+ * A deliberate near-duplicate of the tail of [rawPeriodStatus], and the duplication is the point:
+ * that function ends by calling targetFor, and the taper schedule is what targetFor is trying to
+ * compute. Going through it would recurse forever. Everything before the comparison — opting out,
+ * exemptions, weekday scheduling, and what silence means — is asked here in the same order and
+ * answered the same way, because a taper that disagreed with the board about what a miss is would
+ * be the worst of both.
+ *
+ * Grace tokens are deliberately NOT consulted. They are earned by clean running and spent to
+ * protect a STREAK, which is a different currency from a quit programme: if somebody genuinely
+ * went over on three days, their body had three days over the limit whether or not a token kept a
+ * number on a card intact. Consulting them would also mean calling walk(), which calls
+ * rawPeriodStatus, which is the recursion again.
+ */
+function dayIsMissAgainst(state, habit, memberId, day, target) {
+  if (!isTracking(state, habit, memberId, day)) return false;   // opted out is not failure
+  if (exemptReason(state, habit, memberId, day)) return false;  // travel, or a planned rest
+  if (!habit.days.includes(isoDayOfWeek(day))) return false;    // not a day it runs on
+
+  const value = valueOn(state, habit, memberId, day);
+  if (value === null) {
+    // A quiet sensor is a broken pipeline; a manual habit nobody logged is a real miss. The vape
+    // is manual, so this is the branch that matters: the puff count exists whether or not it was
+    // entered, and entering it is part of what was agreed to.
+    return !AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId));
+  }
+  return habit.direction === AT_MOST ? value > target : value < target;
+}
+
+/**
+ * The taper schedule for one member, worked out week by week.
+ *
+ * ---- Why this cannot be a formula ----
+ *
+ * A plain taper is a function of elapsed time and nothing else. Holding it when somebody misses
+ * three days makes it depend on their own history, so week five's target can only be known once
+ * weeks one to four have been judged — and each of those was judged against a target the same
+ * process produced. It is a recurrence, and it has to be walked forwards.
+ *
+ * It terminates because week N depends only on the weeks BEFORE it, and every one of those is
+ * complete relative to the day being asked about. No partial week ever votes on a hold, so the
+ * answer for a given day does not change as that day goes on.
+ *
+ * ---- The cache ----
+ *
+ * Walking is O(weeks x 7), and targetFor is called for every habit, every day, every member, across
+ * a whole season — so the same walk would otherwise be repeated tens of thousands of times. Keyed
+ * on the STATE object, which replay produces afresh whenever an event arrives: a backfilled log
+ * yields a new state and therefore a new cache, so a stale plan cannot outlive new information.
+ */
+const TAPER_PLANS = new WeakMap();
+
+function taperPlan(state, habit, memberId, throughWeek) {
+  let byMember = TAPER_PLANS.get(state);
+  if (!byMember) { byMember = new Map(); TAPER_PLANS.set(state, byMember); }
+
+  const key = habit.habitId + "|" + memberId;
+  let plan = byMember.get(key);
+  // holdsBefore[n] is how many weeks had been held BEFORE week n began.
+  //
+  // Per week, not a single running total, and that distinction is the whole correctness of this
+  // cache. A total is only right for the furthest week ever asked about: once the walk had reached
+  // week fifty, asking again about week three would be handed fifty weeks of holds, the step count
+  // would go NEGATIVE, and a ceiling meant to fall to zero would climb instead. It also made the
+  // engine answer-order dependent — the same season scored twice on the same log came out
+  // differently the second time, because the first pass had warmed the cache.
+  //
+  // Days are not asked for in order. scoreOver walks a range forwards, categoryOver walks it again,
+  // and the season re-walks every week from the start; earlier weeks are revisited constantly.
+  if (!plan) { plan = { holdsBefore: [0], held: new Set(), done: -1 }; byMember.set(key, plan); }
+  if (plan.done >= throughWeek) return plan;
+
+  const everyDays = Math.max(1, habit.taper.everyDays || 7);
+  const startDay = taperStartDay(state, habit, memberId);
+
+  for (let n = plan.done + 1; n <= throughWeek; n += 1) {
+    const holds = plan.holdsBefore[n];
+    const weekStart = addDays(startDay, n * everyDays);
+    // The target in force DURING week n: its own baseline, stepped by however many steps had
+    // actually landed by then — which is n, less every week held before it.
+    const target = taperedTarget(
+      habit, weekStart, baselineOn(state, habit, memberId, weekStart), startDay, n - holds,
+    );
+
+    let misses = 0;
+    for (let d = 0; d < everyDays; d += 1) {
+      if (dayIsMissAgainst(state, habit, memberId, addDays(weekStart, d), target)) misses += 1;
+    }
+    const triggered = misses >= TAPER_MISS_LIMIT;
+    if (triggered) plan.held.add(n + 1); // the week that pays for it
+    plan.holdsBefore[n + 1] = holds + (triggered ? 1 : 0);
+    plan.done = n;
+  }
+  return plan;
+}
+
+/** How many of this member's taper weeks had been held before [week] began. */
+function holdsBeforeWeek(state, habit, memberId, week) {
+  if (week <= 0) return 0;
+  return taperPlan(state, habit, memberId, week - 1).holdsBefore[week] || 0;
+}
+
+/** Which taper week a day falls in, counting from this member's baseline. */
+function taperWeekOf(state, habit, memberId, day) {
+  const everyDays = Math.max(1, habit.taper.everyDays || 7);
+  const elapsed = Math.max(0, daysBetween(taperStartDay(state, habit, memberId), day));
+  return Math.floor(elapsed / everyDays);
+}
+
+/**
+ * Is this member's taper holding on this day — and therefore is their bonus forfeit?
+ *
+ * Exported because the forfeit is CROSS-HABIT. Missing three days of the vape costs the bonus on
+ * steps and savings too, and that is what stops a hold from being a reward: without it the cheapest
+ * way to keep a comfortable ceiling for ever is to miss three days a week, every week.
+ */
+export function isTaperHeld(state, habit, memberId, day) {
+  if (!habit.taper || habit.period !== PERIOD.DAY) return false;
+  const week = taperWeekOf(state, habit, memberId, day);
+  if (week <= 0) return false;
+  return taperPlan(state, habit, memberId, week - 1).held.has(week);
+}
+
+/** Is ANY of this member's tapering habits holding today? Then no bonus is earned at all. */
+export function bonusForfeited(state, memberId, day) {
+  for (const habit of state.habits.values()) {
+    if (isTaperHeld(state, habit, memberId, day)) return true;
+  }
+  return false;
 }
 
 /**
@@ -516,7 +711,15 @@ export function targetFor(state, habit, memberId, day, goalDay = day) {
   const goal = goalOn(state, habit.habitId, memberId, goalDay);
   const fallback = baseTargetOn(habit, goalDay);
   const base = goal && Number.isFinite(goal.target) && goal.target > 0 ? goal.target : fallback;
-  return taperedTarget(habit, day, base);
+  if (!habit.taper) return base;
+
+  const startDay = taperStartDay(state, habit, memberId);
+  // Only daily habits can hold: "three days of seven" says nothing about a monthly commitment.
+  if (habit.period !== PERIOD.DAY) return taperedTarget(habit, day, base, startDay);
+
+  // Weeks held by earlier misses are weeks whose step never landed.
+  const week = taperWeekOf(state, habit, memberId, day);
+  return taperedTarget(habit, day, base, startDay, week - holdsBeforeWeek(state, habit, memberId, week));
 }
 
 /**

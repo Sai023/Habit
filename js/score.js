@@ -33,7 +33,7 @@
 
 import {
   valueForPeriod, targetFor, isTracking, rawPeriodStatus, walk, progressFor, periodsBetween,
-  periodKey, periodStart, periodEnd, isoDayOfWeek, daysInPeriod, addDays,
+  periodKey, periodStart, periodEnd, isoDayOfWeek, daysInPeriod, addDays, bonusForfeited,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
 import { METRIC, PERIOD, AT_MOST } from "./schema.js";
@@ -57,7 +57,9 @@ export const CATEGORY_LABEL = {
   [CATEGORY.FITNESS]: "Core fitness",
   [CATEGORY.DISCIPLINE]: "Discipline",
   [CATEGORY.REST]: "Rest & recovery",
-  [CATEGORY.MONEY]: "Money",
+  // The label only. CATEGORY.MONEY stays "money" because that string is written into habit_def
+  // rows in the shared log — renaming the KEY would orphan every habit already filed under it.
+  [CATEGORY.MONEY]: "Savings",
 };
 
 export const CATEGORY_ICON = {
@@ -86,6 +88,18 @@ export const CATEGORY_ORDER = [
  */
 export const BONUS_CAP = 1.15;
 
+/**
+ * Where overachievement can earn bonus POINTS, as opposed to merely buying buffer inside its own
+ * category.
+ *
+ * Rest & recovery is deliberately absent. The others are things you can decide to do more of —
+ * walk further, spend less, hold the ceiling — and paying for that is the point. Sleeping fifteen
+ * per cent past your target is not an achievement to reward; on most nights it is a lie-in, and on
+ * the rest it is a number a watch happened to report. Paying for it would make the easiest way up
+ * the board "set a low sleep goal", which is the exploit the fixed category weights exist to close.
+ */
+export const BONUS_CATEGORIES = new Set([CATEGORY.FITNESS, CATEGORY.DISCIPLINE, CATEGORY.MONEY]);
+
 /** Where a habit sits when nobody has said. */
 const METRIC_CATEGORY = {
   [METRIC.STEPS]: CATEGORY.FITNESS,
@@ -94,7 +108,6 @@ const METRIC_CATEGORY = {
   [METRIC.SCREEN_MINUTES]: CATEGORY.DISCIPLINE,
   [METRIC.APP_OPENS]: CATEGORY.DISCIPLINE,
   [METRIC.PUFFS]: CATEGORY.DISCIPLINE,
-  [METRIC.URGES]: CATEGORY.DISCIPLINE,
   [METRIC.SLEEP]: CATEGORY.REST,
   [METRIC.AMOUNT]: CATEGORY.MONEY,
 };
@@ -161,6 +174,12 @@ export function habitScore(state, habit, memberId, day, today = null) {
   // A sensor that said nothing is not a person who did nothing — except where the absence IS the
   // answer. A weekly or monthly commitment is graded against a pace, and a pace race in which not
   // starting means not being scored is not a race at all, so those are always judged.
+  //
+  // This makes a watch outage cut two ways, and that asymmetry is deliberate. A silent day of STEPS
+  // is excused, because nobody can reconstruct a step count by hand. A silent WEEK of workouts is
+  // not, because you can always log a workout yourself — the shape of a session is "I went", which
+  // is a thing a person knows and can type in. Excusing it would mean a broken watch quietly
+  // exempted somebody from the one habit they could most easily have reported.
   const paced = habit.period !== PERIOD.DAY;
   if (status === NO_DATA && !paced) return out;
 
@@ -228,14 +247,18 @@ export function habitScore(state, habit, memberId, day, today = null) {
   const settled = day === lastDay || (today !== null && today > lastDay);
   out.expected = target;
 
-  // Untouched and the month is still running: NOT JUDGED, rather than judged generously.
+  // The month is still running: NOT JUDGED AT ALL, rather than judged on progress so far.
   //
-  // This is the honest version of "no penalty before payday". Handing out full marks for a goal
-  // nobody has started is a free fifteen per cent — a month with nothing saved scored perfectly on
-  // twenty-seven days and failed on one, so missing the target entirely cost a single day. Not
-  // being eligible is the neutral state this whole design already has, and it is what "you cannot
-  // be behind on something you have not been paid for yet" actually means.
-  if (!settled && got <= 0) { out.eligible = false; return out; }
+  // Judging progress created a cliff that punished honesty. A month with nothing saved was not
+  // eligible and cost nothing, but logging the first 500 of a 2000 target made it eligible at 25%
+  // and dropped the day from 100 to 80 — so the cheapest thing to do with an early deposit was to
+  // not report it until the total looked respectable. A tracker that pays you to withhold data is
+  // worse than one that ignores the category.
+  //
+  // Nothing is lost by waiting. Once the month closes, [settled] is true for EVERY day in it, so
+  // the outcome colours the whole month at once — which is what a monthly goal always meant. And
+  // hitting the target early is still paid immediately, by the early-finish branch above.
+  if (!settled) { out.eligible = false; return out; }
 
   out.score = Math.min(BONUS_CAP, got / target);
   return out;
@@ -305,17 +328,48 @@ export function dayScore(state, memberId, day, today = null) {
         // pay for a blown screen-time day and the four weights would be decorative — which is the
         // thing the categories exist to prevent.
         points: share * Math.min(1, bucket.score),
+        // What the cap on the line above threw away, kept as a SEPARATE currency.
+        //
+        // The day still tops out at a hundred and always will — that invariant is what makes the
+        // percentage mean anything. But the effort above the line is real, and discarding it left
+        // somebody who had been perfect for a fortnight with no way to gain ground on somebody
+        // ahead of them. So it is banked here instead of inflating the percentage: a second,
+        // smaller number that answers "how much more than asked did you do".
+        bonus: bucket.eligible && BONUS_CATEGORIES.has(c)
+          ? share * (Math.min(BONUS_CAP, bucket.score) - Math.min(1, bucket.score))
+          : 0,
         habits: bucket.habits,
       };
     });
 
   const raw = categories.reduce((sum, c) => sum + c.points, 0);
+  const rawBonus = categories.reduce((sum, c) => sum + c.bonus, 0);
+
+  // A week whose taper is being held earns no bonus AT ALL, on any habit.
+  //
+  // This is the price of the hold, and it is what stops holding from being a reward. Missing three
+  // days of the vape pauses the ceiling coming down, which is easier than not missing them — so
+  // without a cost the strongest play would be to miss three days a week for ever and keep the
+  // opening allowance. The forfeit reaches across every category deliberately: a penalty confined
+  // to the habit you were already failing is no penalty at all.
+  const forfeited = total > 0 && bonusForfeited(state, memberId, day);
+  const earnedBonus = total > 0 ? Math.round(rawBonus) : 0;
+
   return {
     day,
     // Capped at 100: the buffer is insurance against a shortfall somewhere else, not a way past
     // the ceiling. Uncapped, a day of nothing but overachievement would be worth more than a
     // perfect one, and "out of 100" would stop meaning anything.
     pct: total > 0 ? Math.round(Math.min(100, raw)) : null,
+    // Never more than fifteen, and not by a clamp: the shares of the categories in play sum to a
+    // hundred, each can exceed its ceiling by at most fifteen per cent, so the most this can reach
+    // is fifteen — and less than that for anybody whose day is partly Rest, which earns none.
+    bonus: forfeited ? 0 : earnedBonus,
+    // Kept rather than discarded, so the forfeit can be EXPLAINED. A penalty nobody can see is
+    // indistinguishable from a bug, and "you would have earned 12 this week" is the sentence that
+    // turns it back into a reason to log tomorrow.
+    bonusForfeited: forfeited,
+    bonusWithheld: forfeited ? earnedBonus : 0,
     scored: total > 0,
     categories,
   };
@@ -337,7 +391,19 @@ export function scoreOver(state, memberId, from, to, addDaysFn, today = null) {
   const pct = daily.length
     ? Math.round(daily.reduce((sum, d) => sum + d.pct, 0) / daily.length)
     : null;
-  return { pct, days: daily.length, daily };
+  // AVERAGED, exactly like the percentage beside it, and that is the whole reason this is not a
+  // sum. A week's pct is a mean of daily hundreds; a summed bonus would run to a hundred and five
+  // over seven days and be worth more than the entire base score it was meant to garnish. Averaged,
+  // a week reads as pct + bonus out of 115 — fifteen per cent more available for beating targets,
+  // which is what the cap was always supposed to mean.
+  const bonus = daily.length
+    ? Math.round(daily.reduce((sum, d) => sum + d.bonus, 0) / daily.length)
+    : 0;
+  // What a hold cost over this range, on the same averaged scale as the bonus itself.
+  const withheld = daily.length
+    ? Math.round(daily.reduce((sum, d) => sum + d.bonusWithheld, 0) / daily.length)
+    : 0;
+  return { pct, bonus, withheld, days: daily.length, daily };
 }
 
 /**
@@ -434,6 +500,8 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
       hits, eligible, noData, spentTokens, perHabit,
       streak: bestStreak,
       pct: earned.pct,
+      bonus: earned.bonus,
+      bonusWithheld: earned.withheld,
       scoredDays: earned.days,
     };
   });

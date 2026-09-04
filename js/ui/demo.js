@@ -49,7 +49,7 @@ export function demoState(now = Date.now()) {
       tz: TZ, dayStartHour: DAY_START, source: SOURCE.MANUAL, visibility: VISIBILITY.FULL,
     }), t0),
     E(ev.habit("urges", {
-      name: "Vape urges", icon: "💨", metric: METRIC.URGES, direction: AT_MOST, target: 8,
+      name: "Vape puffs", icon: "💨", metric: METRIC.PUFFS, direction: AT_MOST, target: 8,
       aggregate: AGGREGATE.SUM, tz: TZ, dayStartHour: DAY_START, source: SOURCE.PAUSE,
       visibility: VISIBILITY.PROGRESS,
       taper: { amount: 1, everyDays: 7, floor: 0 },

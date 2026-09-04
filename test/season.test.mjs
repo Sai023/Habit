@@ -94,7 +94,10 @@ test("points accumulate and cannot be dented by one bad week", () => {
   // Two perfect weeks plus a bad one: still well ahead of nothing.
   assert.ok(alice.points > 200);
   assert.equal(alice.avg, Math.round(alice.points / alice.weeks));
-  assert.equal(alice.best.pct, 100);
+  // 115, not 100, and earned rather than inflated: she walks 12,000 against a 10,000 target every
+  // day, which is 120% of it — clipped to the 1.15 ceiling. Steps are her only category, so the
+  // whole hundred-point share sits in Core Fitness and the overshoot pays the full fifteen.
+  assert.equal(alice.best.pct, 115, "a hundred for the day, fifteen for beating it");
 });
 
 test("a crown streak breaks when the crown does, and remembers its best", () => {
@@ -126,7 +129,7 @@ test("a week the WATCH could not answer for is not a week they lost", () => {
   ]);
   const { rows } = seasonTally(s, ["a"], TODAY);
   assert.equal(rows[0].weeks, 1, "one week played, not three");
-  assert.equal(rows[0].avg, 100, "and the average is of what was played");
+  assert.equal(rows[0].avg, 115, "and the average is of what was played, bonus included");
 });
 
 test("but a week they simply did not log IS a week they lost", () => {
@@ -141,12 +144,20 @@ test("but a week they simply did not log IS a week they lost", () => {
   ]);
   const { rows } = seasonTally(s, ["a"], TODAY);
   assert.equal(rows[0].weeks, 3, "three weeks played, two of them badly");
-  assert.equal(rows[0].avg, 33);
+  // (115 + 0 + 0) / 3. The bonus rides on the week that was played and cannot rescue the two
+  // that were not — which is the point: beating a target is worth something, and it is worth
+  // much less than turning up.
+  assert.equal(rows[0].avg, 38);
 });
 
-test("the standing is ranked on crowns, and points only break the tie", () => {
-  // Crowns are the game. A season of seconds is a real achievement and should not lose to a coin
-  // toss, so points decide equal crowns — and the name decides last, so two phones always agree.
+test("the standing is ranked on points, and crowns only break the tie", () => {
+  // This was the other way round, and the change is deliberate. Crowns are all-or-nothing, so
+  // three near-misses counted exactly as much as three terrible weeks and the season was decided
+  // by a handful of Sundays — with nothing to play for once one person was clear. Points accrue
+  // every week, so a strong run always closes ground.
+  //
+  // Crowns survive as the tie-break: a season of wins should still beat a season of seconds on
+  // equal points, and the name decides last so two phones always agree on the order.
   const { rows } = seasonTally(season(), ["a", "b"], TODAY);
   assert.deepEqual(rows.map((r) => r.name), ["Alice", "Bob"]);
   assert.deepEqual(rows.map((r) => r.rank), [1, 2]);

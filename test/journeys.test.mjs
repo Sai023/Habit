@@ -222,7 +222,7 @@ test("but a binding that makes sense is believed, including Pause on an urge", (
   const urges = replay([
     E(ev.member("m1", "Me")),
     E(ev.habit("h", {
-      name: "Vape urges", metric: METRIC.URGES, direction: AT_MOST, target: 5,
+      name: "Vape puffs", metric: METRIC.PUFFS, direction: AT_MOST, target: 5,
       aggregate: AGGREGATE.SUM, tz: TZ, dayStartHour: 0,
     })),
     E(ev.bind("m1", "h", SOURCE.PAUSE)),

@@ -75,6 +75,10 @@ export function seasonTally(state, memberIds, today) {
     crowns: 0,
     weeks: 0,
     points: 0,
+    // Kept apart from `points` as well as folded into it, because they answer different questions.
+    // The total is where you stand; this is how much of it you earned by beating targets rather
+    // than meeting them, which is the part somebody behind can actually use to close a gap.
+    bonus: 0,
     best: null,
     avg: null,
     // Weeks in a row with a crown. The thing worth protecting, and the thing that makes losing one
@@ -96,8 +100,14 @@ export function seasonTally(state, memberIds, today) {
         continue;
       }
       t.weeks += 1;
-      t.points += row.pct;
-      if (!t.best || row.pct > t.best.pct) t.best = { week, pct: row.pct };
+      // Base plus bonus. A week is worth its percentage and up to fifteen more for beating the
+      // targets rather than merely meeting them — which is what makes a season winnable from
+      // behind by somebody having an exceptional month, without ever letting a single day be
+      // worth more than a hundred.
+      const earned = row.pct + (row.bonus || 0);
+      t.points += earned;
+      t.bonus += row.bonus || 0;
+      if (!t.best || earned > t.best.pct) t.best = { week, pct: earned };
       if (row.crown) {
         t.crowns += 1;
         t.crownStreak += 1;
@@ -113,12 +123,19 @@ export function seasonTally(state, memberIds, today) {
     avg: t.weeks ? Math.round(t.points / t.weeks) : null,
   }));
 
-  // Ranked on crowns, because that is the game being played. Points break the tie, since a season
-  // of seconds is a real achievement and should not lose to a coin toss — and the name only ever
-  // decides it last, so two devices always agree on the order.
+  // Ranked on POINTS, which is a change of game and worth saying so plainly.
+  //
+  // It used to rank on crowns, and crowns are all-or-nothing: three near-misses were worth exactly
+  // as much as three terrible weeks, so the season was decided by a handful of Sundays and there
+  // was nothing to play for the moment one person was clear. Points accrue every week, so a strong
+  // run always closes ground — and bonus points, which only come from beating a target rather than
+  // meeting it, are what let somebody behind close it faster than the leader coasting.
+  //
+  // Crowns stay, as the tie-break and as the thing to be proud of. A season of seconds should not
+  // beat a season of wins on equal points, and the name decides it last so two devices agree.
   rows.sort((a, b) => {
-    if (a.crowns !== b.crowns) return b.crowns - a.crowns;
     if (a.points !== b.points) return b.points - a.points;
+    if (a.crowns !== b.crowns) return b.crowns - a.crowns;
     return a.name.localeCompare(b.name);
   });
   rows.forEach((r, i) => { r.rank = i + 1; });
