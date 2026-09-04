@@ -43,7 +43,7 @@ export function remaining(habit, used, target) {
 const SOURCE_LABEL = {
   [SOURCE.HEALTH_CONNECT]: { icon: "⌚", label: "auto" },
   [SOURCE.STRAVA]: { icon: "🔗", label: "Strava" },
-  [SOURCE.PAUSE]: { icon: "🫁", label: "Pause" },
+  [SOURCE.PAUSE]: { icon: "📱", label: "on this phone" },
   [SOURCE.MANUAL]: { icon: "✋", label: "manual" },
 };
 

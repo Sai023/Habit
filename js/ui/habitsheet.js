@@ -56,7 +56,7 @@ export function openHabitsSheet(
     // than a missing one.
     embedded && onOpenSettings
       ? el("button.link", { onclick: () => handOffTo(() => onOpenSettings()) },
-          "Pause settings — sync, reminders, permissions →")
+          "App settings — sync, reminders, permissions →")
       : null,
   );
 

@@ -42,7 +42,7 @@ export function openInviteSheet(host, { groupCode, onClosed } = {}) {
       el("div.sheet-head", el("span.sheet-title", "Invite someone")),
 
       el("p.sheet-now",
-        "Send them this. They open Pause, tap Set up habits, paste it in and join as themselves."),
+        "Send them this. They open Goal Buddy, tap Set up habits, paste it in and join as themselves."),
 
       el("div.codebox",
         el("div.codebox-label", "Invite"),

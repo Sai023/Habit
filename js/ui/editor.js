@@ -171,7 +171,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
   /** What the metric is, before anyone chooses how to feed it. */
   function metricNote(type) {
     if (type.metric === null) return "Anything you want to count. You'll set the units by name.";
-    if (PAUSE_METRICS.has(type.metric)) return "Pause counts this on the phone it's installed on.";
+    if (PAUSE_METRICS.has(type.metric)) return "Goal Buddy counts this on the phone it's installed on.";
     if (HEALTH_METRICS.has(type.metric)) return "A watch or phone can read this through Health Connect.";
     return "No sensor can read this one — it's yours to log.";
   }
@@ -197,7 +197,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
       el("button.chip" + (form.tracked ? ".on" : ""), {
         disabled: !can,
         onclick: () => { if (can) { form.tracked = true; paint(); } },
-      }, PAUSE_METRICS.has(type.metric) ? "Pause counts it" : "My watch"),
+      }, PAUSE_METRICS.has(type.metric) ? "Goal Buddy counts it" : "My watch"),
       el("button.chip" + (!form.tracked ? ".on" : ""), {
         onclick: () => { form.tracked = false; paint(); },
       }, "I log it myself"),
@@ -208,7 +208,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
   function trackingNote(type) {
     if (couldBeAutomatic(type.metric) && !canTrackAutomatically(type)) {
       return PAUSE_METRICS.has(type.metric)
-        ? "Only Pause on your phone can count this, and you're not in it right now — so this one "
+        ? "Only Goal Buddy on your phone can count this, and you're not in it right now — so this one "
           + "is yours to log here."
         : "This device can't read health data, so this one is yours to log here. On a phone with "
           + "Health Connect you can switch it over.";
@@ -334,7 +334,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         ) : null,
         el("p.note-inline", form.remindAt == null
           ? "Nothing will nudge you about this one."
-          : "Pause raises this on your phone, so it arrives whether or not the app is open."),
+          : "Goal Buddy raises this on your phone, so it arrives whether or not the app is open."),
 
         el("h2.sec-title", "Where it counts"),
         el("div.chips", CATEGORY_ORDER.map((c) => el("button.chip" + (

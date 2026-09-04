@@ -126,7 +126,7 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           el("button.chip" + (r.tracked ? ".on" : ""), {
             disabled: !canAuto,
             onclick: () => { if (canAuto) { r.tracked = true; paint(); } },
-          }, PAUSE_METRICS.has(habit.metric) ? "Pause counts it" : "My watch"),
+          }, PAUSE_METRICS.has(habit.metric) ? "Goal Buddy counts it" : "My watch"),
           el("button.chip" + (!r.tracked ? ".on" : ""), {
             onclick: () => { r.tracked = false; paint(); },
           }, "I log it"),
@@ -141,7 +141,7 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
     if (!couldBeAutomatic(habit.metric)) return "You log this one yourself.";
     if (!canAuto) {
       return PAUSE_METRICS.has(habit.metric)
-        ? "Only Pause on your phone can count this \u2014 here, you log it."
+        ? "Only Goal Buddy on your phone can count this \u2014 here, you log it."
         : "This device can't read health data, so you log it here.";
     }
     if (r.tracked) return "Quiet days show as no data rather than a miss.";

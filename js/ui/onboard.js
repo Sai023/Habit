@@ -209,7 +209,7 @@ export function renderOnboard(root, { onComplete }) {
     // Somebody will eventually forward the wrong one of the two codes. Say which is which rather
     // than reporting a shape error about a string that is perfectly valid for something else.
     if (raw.toUpperCase().startsWith("HS1.")) {
-      state.error = "That's a setup code — it connects Pause to a phone. The invite is the short one starting with HABIT-.";
+      state.error = "That's a setup code — it connects Goal Buddy to a phone. The invite is the short one starting with HABIT-.";
       return paint();
     }
 
@@ -251,11 +251,11 @@ export function renderOnboard(root, { onComplete }) {
       el("p.lede", "Two codes, and they do different jobs."),
 
       el("div.codebox.private",
-        el("div.codebox-label", "① Set up Pause on this phone"),
+        el("div.codebox-label", "① Set up Goal Buddy on this phone"),
         el("div.codebox-value small", state.setup || "—"),
         el("p.codebox-note",
           el("b", "Keep this one to yourself. "),
-          "It carries your identity, so anyone who pastes it would post as you. Open Pause → Habits → paste it in."),
+          "It carries your identity, so anyone who pastes it would post as you. Open Goal Buddy → Habits → paste it in."),
         copyButton(state.setup, "Copy setup code", "tap"),
       ),
 
@@ -264,7 +264,7 @@ export function renderOnboard(root, { onComplete }) {
         el("div.codebox-value", state.code),
         el("p.codebox-note",
           "The invite. Anyone with it can join and see the group. ",
-          el("b", "This is not the one Pause wants.")),
+          el("b", "This is not the one Goal Buddy wants.")),
         copyButton(state.code, "Copy invite code", "ghost"),
       ),
 

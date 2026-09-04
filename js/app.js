@@ -143,7 +143,7 @@ if (typeof window !== "undefined") {
 const onOpenSettings = guard("settings", async () => {
   const { openSettings } = await import("./bridge.js");
   if (!openSettings()) {
-    showProblem("Couldn't open Pause's settings from here. Open the Pause app directly.");
+    showProblem("Couldn't open settings from here. Open Goal Buddy directly.");
   }
 });
 
@@ -310,9 +310,9 @@ function onFixSync(row) {
   const who = row.memberId === ctx?.me ? "Your" : (row.name || "Their") + "'s";
   showProblem(
     who + " phone hasn't reported this week. "
-    + "On that phone, in Pause: open the group settings and read what the delivery card says. "
+    + "On that phone, in Goal Buddy: open the group settings and read what the delivery card says. "
     + "It is usually battery optimisation putting the app to sleep \u2014 on Samsung, check "
-    + "Settings \u2192 Battery \u2192 Background usage limits and make sure Pause is not sleeping.",
+    + "Settings \u2192 Battery \u2192 Background usage limits and make sure Goal Buddy is not sleeping.",
   );
 }
 

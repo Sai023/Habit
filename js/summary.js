@@ -36,8 +36,8 @@ const WINDOW_DAYS = 7;
  *
  * Values arrive pre-formatted as strings. The shell has no metric table, no notion that sleep is
  * stored in minutes and spoken in hours, and giving it one would be the second implementation this
- * whole design exists to avoid — a number that reads "450" in Pause and "7h 30m" in Goal Buddy is
- * two different numbers to the person holding the phone.
+ * whole design exists to avoid — a number that reads "450" on one screen and "7h 30m" on the next
+ * is two different numbers to the person holding the phone.
  */
 function habitSummary(state, habit, me, today) {
   const key = periodKey(today, habit.period);
