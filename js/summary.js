@@ -147,7 +147,16 @@ export function buildSummary(state, me, today, memberIds = null) {
     // Already-worded things the shell should consider posting, each with a stable id it dedupes
     // on. The shell never learns why any of them is here — deciding that means knowing what a
     // streak is, and that answer exists once, in the engine.
-    notices: noticesFor(state, me, today, streak),
+    // Everybody's streak, not just this phone's — the shell fires a notification for a friend
+    // reaching fifty days, which in a group tracker is the point of there being a group.
+    //
+    // Computed here rather than inside noticesFor because it needs the scorer, and that module is
+    // deliberately kept unable to see it.
+    notices: noticesFor(state, me, today, streak, members.map((id) => ({
+      memberId: id,
+      name: state.members.get(id)?.name || "",
+      streak: id === me ? streak : onGoalStreak(state, id, today),
+    }))),
     // The long game. Weeks won, and a points total that only ever goes up.
     season: mySeason
       ? {

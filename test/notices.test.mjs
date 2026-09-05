@@ -56,16 +56,19 @@ const kindsOf = (list) => list.map((n) => n.kind);
 
 test("a milestone is announced on the day it is crossed", () => {
   const s = world();
-  const notices = noticesFor(s, "me", day(10), 30);
+  const notices = noticesFor(s, "me", day(10), 20);
   assert.equal(kindsOf(notices).filter((k) => k === "milestone").length, 1);
-  assert.ok(notices[0].body.includes("30"));
+  assert.ok(notices[0].body.includes("20"));
+  // The badge is named in the notice, because "20 days" and "Silver" are the same news and
+  // only one of them is worth showing somebody.
+  assert.ok(notices[0].title.includes("Silver"), notices[0].title);
 });
 
 test("and on no other day, however long the run gets", () => {
   // The id would be enough to stop a repeat, but the notice should not exist at all on day 31 —
   // otherwise a phone that misses one day of syncing announces yesterday's milestone as today's.
   const s = world();
-  for (const streak of [29, 31, 45, 99]) {
+  for (const streak of [19, 21, 45, 99]) {
     assert.equal(
       kindsOf(noticesFor(s, "me", day(10), streak)).includes("milestone"), false,
       "no milestone at " + streak,
@@ -75,14 +78,74 @@ test("and on no other day, however long the run gets", () => {
 
 test("only the lengths worth saying out loud", () => {
   const s = world();
-  assert.deepEqual(MILESTONES, [7, 30, 100, 365]);
+  assert.deepEqual(MILESTONES, [7, 20, 50, 100]);
   for (const streak of MILESTONES) {
     assert.ok(kindsOf(noticesFor(s, "me", day(10), streak)).includes("milestone"), String(streak));
   }
   // A nudge at every round number is one nobody reads by the third.
-  for (const streak of [10, 14, 20, 50, 60, 200]) {
+  for (const streak of [10, 14, 30, 60, 200, 365]) {
     assert.equal(kindsOf(noticesFor(s, "me", day(10), streak)).includes("milestone"), false);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Somebody else's milestone
+// ---------------------------------------------------------------------------
+
+const other = (memberId, name, streak) => ({ memberId, name, streak });
+
+test("a friend reaching a milestone is worth telling you about", () => {
+  // The half of a group tracker that was missing. Until this, the app only ever talked to you
+  // about you — in an app whose whole premise is three people watching each other.
+  const s = world();
+  const out = noticesFor(s, "me", day(10), 3, [
+    other("me", "Me", 3),
+    other("thabo", "Thabo", 20),
+  ]);
+  const mine = out.filter((n) => n.kind === "milestone");
+  assert.equal(mine.length, 1);
+  assert.ok(mine[0].title.includes("Thabo"), mine[0].title);
+  assert.ok(mine[0].title.includes("20"), mine[0].title);
+  assert.ok(mine[0].body.includes("Silver"), mine[0].body);
+});
+
+test("you are never told about your own streak twice", () => {
+  // `others` carries everybody, this member included, because the caller has no reason to filter.
+  // Announcing it from both branches would post the same day twice with two different wordings.
+  const s = world();
+  const out = noticesFor(s, "me", day(10), 20, [other("me", "Me", 20)]);
+  assert.equal(out.filter((n) => n.kind === "milestone").length, 1);
+  assert.ok(!out[0].title.includes("Me hit"), out[0].title);
+});
+
+test("two people crossing on the same day both get said", () => {
+  const s = world();
+  const out = noticesFor(s, "me", day(10), 3, [
+    other("thabo", "Thabo", 7),
+    other("lerato", "Lerato", 7),
+  ]);
+  const said = out.filter((n) => n.kind === "milestone");
+  assert.equal(said.length, 2);
+  // Distinct ids, or the shell fires one and swallows the other.
+  assert.equal(new Set(said.map((n) => n.id)).size, 2);
+});
+
+test("only on the day they cross it", () => {
+  const s = world();
+  for (const streak of [6, 8, 19, 21, 99, 101]) {
+    const out = noticesFor(s, "me", day(10), 3, [other("thabo", "Thabo", streak)]);
+    assert.equal(
+      out.filter((n) => n.kind === "milestone").length, 0,
+      "nothing at " + streak,
+    );
+  }
+});
+
+test("a friend with no name still reads as a sentence", () => {
+  // Members arrive over sync, and a row can exist before its name event has landed.
+  const s = world();
+  const out = noticesFor(s, "me", day(10), 3, [other("x", "", 50)]);
+  assert.ok(out[0].title.startsWith("Someone hit"), out[0].title);
 });
 
 test("a rebuilt streak is worth saying again, and carries a different id", () => {
@@ -97,7 +160,7 @@ test("a rebuilt streak is worth saying again, and carries a different id", () =>
 
 test("the same day asked twice gives the same id, so it is posted once", () => {
   const s = world();
-  assert.deepEqual(idsOf(noticesFor(s, "me", day(10), 30)), idsOf(noticesFor(s, "me", day(10), 30)));
+  assert.deepEqual(idsOf(noticesFor(s, "me", day(10), 20)), idsOf(noticesFor(s, "me", day(10), 20)));
 });
 
 test("no streak at all is not an occasion", () => {

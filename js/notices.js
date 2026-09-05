@@ -24,23 +24,23 @@
 
 import { taperWeekStart, targetFor, isTaperHeld, addDays } from "./habits.js";
 import { AT_MOST } from "./schema.js";
+import { MILESTONES, tierFor } from "./milestones.js";
 
-/**
- * The streak lengths worth saying something about.
- *
- * Sparse on purpose. A nudge at every round number is a nudge nobody reads by the third one, and
- * the whole value of a milestone is that it is rare enough to feel like something.
- */
-export const MILESTONES = [7, 30, 100, 365];
+// The four live in milestones.js with the badges they earn, so the thing that fires the
+// notification and the thing that draws the award can never disagree about what counts.
+export { MILESTONES };
 
 /**
  * Everything worth telling this member today.
  *
- * `streak` is the whole-app on-goal streak — the number the Home screen leads with — rather than a
- * per-habit one. With four habits and three people, per-habit milestones would fire often enough
- * to become wallpaper; "every habit, on goal, for thirty days" happens rarely and means something.
+ * `streak` is the whole-app on-goal streak — the number the day hero leads with — rather than a
+ * per-habit one. With six habits and three people, per-habit milestones would fire often enough to
+ * become wallpaper; "every habit, on goal, for fifty days" happens rarely and means something.
+ *
+ * `others` is the same number for everybody else, as `{ memberId, name, streak }`. Computing it is
+ * the caller's job because it needs the scorer, and this module deliberately cannot see it.
  */
-export function noticesFor(state, memberId, today, streak) {
+export function noticesFor(state, memberId, today, streak, others = []) {
   const out = [];
 
   // ---- A milestone reached ----
@@ -52,10 +52,34 @@ export function noticesFor(state, memberId, today, streak) {
     out.push({
       id: "milestone|" + streak + "|" + today,
       kind: "milestone",
-      title: streak + " days",
+      title: streak + " days" + (tierFor(streak) ? " · " + tierFor(streak).name : ""),
       body: streak === 7
-        ? "A full week with every habit on goal. That is the hard part done."
-        : "Every habit, on goal, " + streak + " days running.",
+        ? "A full week with every habit on goal. That is the hard part done — and Bronze is yours."
+        : "Every habit, on goal, " + streak + " days running. "
+          + (tierFor(streak) ? tierFor(streak).name + " is yours." : ""),
+    });
+  }
+
+  // ---- Somebody else got there ----
+  //
+  // The half of a group tracker that was missing. Until now the app only ever told you about you,
+  // in an app whose entire premise is three people watching each other — a friend reaching fifty
+  // days is more use to somebody's own streak than any nudge this app could invent about theirs.
+  //
+  // Same crossing rule as above, so it fires on the one day it is true. Keyed by member as well as
+  // by number, because two people can cross the same milestone on the same day and both deserve
+  // saying.
+  for (const other of others) {
+    if (other.memberId === memberId) continue;
+    if (!MILESTONES.includes(other.streak)) continue;
+    const tier = tierFor(other.streak);
+    out.push({
+      id: "milestone|" + other.memberId + "|" + other.streak + "|" + today,
+      kind: "milestone",
+      title: (other.name || "Someone") + " hit " + other.streak + " days",
+      body: tier
+        ? "Every habit, on goal, " + other.streak + " days running — that is " + tier.name + "."
+        : "Every habit, on goal, " + other.streak + " days running.",
     });
   }
 

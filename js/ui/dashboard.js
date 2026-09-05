@@ -15,6 +15,7 @@ import {
 } from "../score.js";
 import { seasonTally, categoryBreakdown } from "../season.js";
 import { onGoalStreak } from "../summary.js";
+import { tierFor, nextTier } from "../milestones.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -311,13 +312,16 @@ function dayHero(ctx) {
   return el("section.sec",
     el("div.hero",
       el("div.hero-head",
-        el("div.hero-mark" + (streak > 0 ? ".is-lit" : ""), streak > 0 ? "🔥" : "·"),
+        // The badge replaces the flame once there is one. A flame beside a Gold badge is two
+        // decorations competing to say the same thing, and the badge says it better.
+        tierBadge(streak, "lg")
+          || el("div.hero-mark" + (streak > 0 ? ".is-lit" : ""), streak > 0 ? "🔥" : "·"),
         el("div.hero-run",
           streak > 0
             ? el("div.hero-streak", el("b", String(streak)), el("span", streak === 1 ? " day" : " days"))
             : el("div.hero-none", "Start your streak"),
           el("div.hero-sub", streak > 0
-            ? "every habit, on goal"
+            ? tierLine(streak)
             : "meet every goal today to begin"),
         ),
       ),
@@ -351,6 +355,21 @@ function dayHero(ctx) {
       categoryLines(scored),
     ),
   );
+}
+
+/**
+ * What the streak has earned, and what it is walking towards.
+ *
+ * "18 days" is a fact somebody already knows — they can see the number above it. "Two days to
+ * Silver" is the same fact with a reason to log tonight attached, which is the whole of what a
+ * milestone is for.
+ */
+function tierLine(streak) {
+  const held = tierFor(streak);
+  const next = nextTier(streak);
+  if (!next) return held ? held.name + " — every habit, on goal" : "every habit, on goal";
+  const away = next.away === 1 ? "1 day" : next.away + " days";
+  return (held ? held.name + " · " : "") + away + " to " + next.tier.name;
 }
 
 function categoryLines(scored) {
@@ -399,6 +418,30 @@ function monthlyLines(habit, value, target, ctx) {
         // Said plainly, because an empty bar on the 4th otherwise reads as a fortnight of failure.
         : (left === 1 ? "1 day left" : left + " days left") + " · counts when the month ends"),
   ];
+}
+
+/**
+ * The badge a streak has earned, or nothing.
+ *
+ * Drawn rather than emoji, for two reasons. A medal emoji renders as a different object on every
+ * phone in the group — which is the one place in this app three people must be looking at the same
+ * thing — and it cannot carry the number, so the badge would say "you have one" without saying
+ * which. This says both in about sixteen pixels.
+ *
+ * `size` is a class, not a measurement: the board row and the day hero want the same object at two
+ * scales, and passing pixels around is how those two drift apart.
+ */
+function tierBadge(streak, size = "") {
+  const tier = tierFor(streak);
+  if (!tier) return null;
+  // Three digits in a 22px hexagon is a smudge. The number keeps its own size rather than the
+  // badge growing, because a row of badges that are different widths stops reading as a set.
+  const wide = String(streak).length > 2 ? ".badge-wide" : "";
+  return el("span.badge.badge-" + tier.key + (size ? ".badge-" + size : "") + wide, {
+    title: tier.name + " — " + tier.earned + " with every habit on goal",
+  },
+    el("span.badge-n", String(streak)),
+  );
 }
 
 function progressBar(value, target) {
@@ -688,6 +731,9 @@ function boardRow(row, ctx) {
         row.crown ? el("span.tagemoji", { title: "Top of the board" }, "👑") : null,
         row.clown ? el("span.tagemoji", { title: "Bottom of the board" }, "🤡") : null,
         row.memberId === ctx.me ? "You" : row.name,
+        // Beside the name rather than in the meta line below it. A badge is about the person, and
+        // it is the one thing on this row worth seeing before the percentage.
+        tierBadge(onGoalStreak(ctx.state, row.memberId, ctx.today)),
       ),
       el("div.row-bar", el("i", { style: "width:" + (row.pct == null ? 0 : row.pct) + "%" })),
       el("div.row-meta",
