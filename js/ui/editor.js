@@ -12,10 +12,10 @@ import { saveHabit, deleteHabit, bindSource } from "../store.js";
 import { sourceFor } from "../habits.js";
 import { uuid } from "../id.js";
 import { caps } from "../bridge.js";
-import { categoryFor, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER } from "../score.js";
+import { categoryFor, CATEGORY_LABEL, CATEGORY_ICON } from "../score.js";
 import {
   METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD, PAUSE_METRICS,
-  HEALTH_METRICS, AUTOMATIC_SOURCES, sourceForDevice,
+  HEALTH_METRICS, AUTOMATIC_SOURCES, sourceForDevice, SCORED_METRICS,
 } from "../schema.js";
 
 /**
@@ -39,11 +39,6 @@ const TYPES = [
     toInput: (v) => Math.round((v / 60) * 100) / 100, fromInput: (v) => Math.round(v * 60),
   },
   {
-    key: "calories", label: "Active calories", icon: "🔥", metric: METRIC.ACTIVE_CALORIES,
-    direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "kcal", step: 50,
-    start: 400, period: PERIOD.DAY,
-  },
-  {
     // The number the vape itself keeps, read off and entered once a day. LAST, not SUM: it is a
     // running total like steps are, and adding today's reading to yesterday's would double it.
     // SUM, not LAST, because puffs are counted AS THEY HAPPEN — a tap at a time through the day,
@@ -62,11 +57,6 @@ const TYPES = [
     start: 120, period: PERIOD.DAY,
   },
   {
-    key: "opens", label: "App opens", icon: "🔓", metric: METRIC.APP_OPENS,
-    direction: AT_MOST, aggregate: AGGREGATE.LAST, unit: "times", step: 5,
-    start: 40, period: PERIOD.DAY,
-  },
-  {
     // Weekly, because that is how anybody actually says it. "Exercise three times a week" is not
     // "exercise 0.43 times a day", and a daily version marks every rest day a failure.
     key: "sessions", label: "Workouts", icon: "🏋", metric: METRIC.SESSIONS,
@@ -75,7 +65,7 @@ const TYPES = [
   },
   {
     // A savings target is one question asked at the end of the month, not a daily interrogation.
-    key: "amount", label: "Money saved", icon: "💰", metric: METRIC.AMOUNT,
+    key: "amount", label: "Savings", icon: "💰", metric: METRIC.AMOUNT,
     direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "", step: 100,
     start: 1000, period: PERIOD.MONTH,
   },
@@ -106,6 +96,14 @@ const CADENCES = [
   { period: PERIOD.MONTH, label: "Monthly", note: "One question, asked at the end of the month." },
 ];
 
+/** What the time field is promising, in the words of whichever cadence this is. */
+function remindDayNote(cadence, form) {
+  if (cadence.period !== PERIOD.DAY) {
+    return form.remindDays.length === 7 ? "every day" : "on the days above";
+  }
+  return form.days.length < 7 ? "on the days above" : "every day";
+}
+
 const typeOf = (habit) =>
   TYPES.find((t) => t.metric && t.metric === habit?.metric) || TYPES[TYPES.length - 1];
 
@@ -127,18 +125,15 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
     isNew: !existing,
     name: existing?.name || "",
     type: type0,
-    direction: existing?.direction || type0.direction,
+    // No `direction`, `period`, `category` or `scored` on the form any more. All four are facts
+    // about the KIND of habit rather than choices: a vape goal is a ceiling, workouts are counted
+    // by the week, screen time is Discipline. Asking produced combinations nobody wanted — "at
+    // least 20 puffs a day" was two taps away — and made the same habit score differently for two
+    // people. They are shown, from the type, and not offered.
     // The preset's own starting point. Every type used to share one, and it was 1 — so opening
     // the editor and pressing Add gave you a goal of one step a day, and picking "Screen time"
     // gave you a one-minute daily ceiling you would fail every day for the rest of your life.
     target: toInput(type0, existing?.target ?? type0.start),
-    period: existing?.period || type0.period,
-    category: existing ? categoryFor(existing) : null,
-    // Everything counts unless it is deliberately switched off — Discipline is thirty per cent of
-    // the day and it is made entirely of reduce habits, so defaulting them off emptied it.
-    scored: existing?.scored ?? true,
-    // Whether the person has overruled that. Until they do, it follows the direction they pick.
-    scoredTouched: existing != null,
     // Whether this habit is fed by a sensor or typed in. A CHOICE, not an inference: it decides
     // how every quiet day this member ever has is judged, and the leaderboard is built on that.
     //
@@ -151,6 +146,11 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
     taper: !!existing?.taper,
     days: Array.isArray(existing?.days) && existing.days.length ? [...existing.days] : [1, 2, 3, 4, 5, 6, 7],
     remindAt: existing?.remindAt ?? null,
+    // Which weekdays the reminder fires on, for a habit whose cadence is longer than a day.
+    // "Three workouts a week" says nothing about which three, so the engine ignores `days` for it
+    // and a reminder had nothing to go on but "every morning" — which is how a nudge becomes noise.
+    remindDays: Array.isArray(existing?.remindDays) && existing.remindDays.length
+      ? [...existing.remindDays] : [1, 3, 5],
     tz: existing?.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     dayStartHour: existing?.dayStartHour ?? 4,
     error: "",
@@ -217,14 +217,19 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
       return "Days it reports nothing count as \"no data\" rather than a miss, so a watch that "
         + "stops doesn't cost you the board.";
     }
-    return form.direction === AT_MOST
+    return form.type.direction === AT_MOST
       ? "A day you don't log counts as a miss \u2014 log a zero for a clean day."
       : "A day you don't log counts as a miss.";
   }
 
   function paint() {
+    // Everything structural is read off the type, every repaint. Nothing below can drift from it,
+    // because there is no second copy to drift.
     const t = form.type;
-    const reduce = form.direction === AT_MOST;
+    const reduce = t.direction === AT_MOST;
+    const cadence = CADENCES.find((c) => c.period === t.period);
+    const category = categoryFor({ metric: t.metric });
+    const counts = SCORED_METRICS.has(t.metric);
 
     sheet.paint(
       el("div.form",
@@ -246,11 +251,8 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
             // is how you end up with "at least 20 puffs a day", and keeping a daily cadence
             // against a savings target is how you get asked about it every morning.
             form.type = x;
-            form.direction = x.direction;
             form.target = toInput(x, x.start);
-            form.period = x.period;
             form.tracked = canTrackAutomatically(x);
-            if (!form.scoredTouched) form.scored = x.direction === AT_LEAST;
             paint();
           },
         }, x.icon + " " + x.label))),
@@ -261,14 +263,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         el("p.note-inline", trackingNote(t)),
 
         el("h2.sec-title", "Goal"),
-        el("div.chips",
-          el("button.chip" + (!reduce ? ".on" : ""), {
-            onclick: () => { form.direction = AT_LEAST; paint(); },
-          }, "Build — at least"),
-          el("button.chip" + (reduce ? ".on" : ""), {
-            onclick: () => { form.direction = AT_MOST; paint(); },
-          }, "Reduce — at most"),
-        ),
+        el("p.fact", reduce ? "Reduce — at most" : "Build — at least"),
         el("label.inline-field",
           el("input", {
             type: "number", step: t.step, min: "0", inputmode: "decimal",
@@ -286,16 +281,14 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         ) : null,
 
         el("h2.sec-title", "How often"),
-        el("div.chips", CADENCES.map((c) => el("button.chip" + (c.period === form.period ? ".on" : ""), {
-          onclick: () => { form.period = c.period; paint(); },
-        }, c.label))),
-        el("p.note-inline", CADENCES.find((c) => c.period === form.period).note),
+        el("p.fact", cadence.label),
+        el("p.note-inline", cadence.note),
 
         // Which days it applies to. Only for a daily habit, because that is the only place the
         // engine reads it: "three times a week" already says nothing about which three, and
         // printing Mon/Wed/Fri beside a weekly total would be a promise nothing keeps.
-        form.period === PERIOD.DAY ? el("h2.sec-title", "Which days") : null,
-        form.period === PERIOD.DAY ? el("div.chips.chips-days", WEEKDAYS.map(([n, label]) =>
+        cadence.period === PERIOD.DAY ? el("h2.sec-title", "Which days") : null,
+        cadence.period === PERIOD.DAY ? el("div.chips.chips-days", WEEKDAYS.map(([n, label]) =>
           el("button.chip.chip-day" + (form.days.includes(n) ? ".on" : ""), {
             "aria-label": "Day " + n,
             onclick: () => {
@@ -307,7 +300,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
               if (next.length) { form.days = next; paint(); }
             },
           }, label))) : null,
-        form.period === PERIOD.DAY && form.days.length < 7
+        cadence.period === PERIOD.DAY && form.days.length < 7
           ? el("p.note-inline", "The other days are rest days — they don't count against you.")
           : null,
 
@@ -320,6 +313,35 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
             onclick: () => { if (form.remindAt == null) { form.remindAt = 19 * 60; paint(); } },
           }, "On the day"),
         ),
+        // Which days to be nudged, for a habit judged over something longer than a day.
+        //
+        // "Three workouts a week" is deliberately silent about which three — that is the whole
+        // point of a weekly target, and the engine keeps it that way. But a reminder has to land
+        // on SOME day, and "every morning" for a thing you do three times is four wasted
+        // notifications a week, which is how somebody learns to swipe them away.
+        //
+        // So this asks, and it changes nothing but the reminder. Miss a Wednesday and the week is
+        // untouched; the total is still the only thing scored.
+        form.remindAt != null && cadence.period !== PERIOD.DAY
+          ? el("div.chips.chips-days", WEEKDAYS.map(([n, label]) =>
+              el("button.chip.chip-day" + (form.remindDays.includes(n) ? ".on" : ""), {
+                "aria-label": "Day " + n,
+                onclick: () => {
+                  const next = form.remindDays.includes(n)
+                    ? form.remindDays.filter((d) => d !== n)
+                    : [...form.remindDays, n].sort();
+                  // Never none: a reminder switched on that fires on no day is a setting that lies.
+                  if (next.length) { form.remindDays = next; paint(); }
+                },
+              }, label)))
+          : null,
+        // Said because the line above this section says the opposite about scoring, and the two
+        // sitting together without a word would read as a contradiction rather than a division of
+        // labour.
+        form.remindAt != null && cadence.period !== PERIOD.DAY
+          ? el("p.note-inline", "Which days to nudge you. The week is still judged on the total — "
+              + "a missed Wednesday costs nothing on its own.")
+          : null,
         form.remindAt != null ? el("label.inline-field",
           el("input", {
             type: "time",
@@ -329,38 +351,23 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
               if (m != null) form.remindAt = m;
             },
           }),
-          el("span", form.period === PERIOD.DAY && form.days.length < 7
-            ? "on the days above" : "every day"),
+          el("span", remindDayNote(cadence, form)),
         ) : null,
         el("p.note-inline", form.remindAt == null
           ? "Nothing will nudge you about this one."
           : "Goal Buddy raises this on your phone, so it arrives whether or not the app is open."),
 
         el("h2.sec-title", "Where it counts"),
-        el("div.chips", CATEGORY_ORDER.map((c) => el("button.chip" + (
-          (form.category || categoryFor({ metric: t.metric })) === c ? ".on" : ""
-        ), {
-          onclick: () => { form.category = c; paint(); },
-        }, CATEGORY_ICON[c] + " " + CATEGORY_LABEL[c]))),
-        // The four shares are the group's and live in code. What a habit is FOR is still a
-        // judgement — reading is rest, not fitness — so that part is asked, and only that part.
-        el("p.note-inline",
-          "Each day is worth 100, split 40 / 30 / 15 / 15 across the four. The split is the "
-          + "group's and is the same for everyone; only which one this belongs to is yours."),
-
-        el("h2.sec-title", "On the board"),
-        el("label.check",
-          el("input", {
-            type: "checkbox", checked: form.scored,
-            onchange: (e) => { form.scored = e.target.checked; form.scoredTouched = true; paint(); },
-          }),
-          el("span", "Count this towards the crown"),
-        ),
-        !form.scored
-          ? el("p.note-inline",
-              "Off the board entirely. It still shows on Today and still keeps its streak — it "
-              + "just does not count towards anyone's score.")
-          : null,
+        counts
+          ? el("p.fact", CATEGORY_ICON[category] + " " + CATEGORY_LABEL[category])
+          : el("p.fact.is-off", "Not on the board"),
+        el("p.note-inline", counts
+          ? "Each day is worth 100, split 40 / 30 / 15 / 15 across the four categories. The split "
+            + "is the group's and is the same for everyone."
+          // Said here rather than discovered later. Somebody adding a habit of their own is
+          // entitled to know before they set a goal against it that it is not part of the contest.
+          : "This one is yours alone. It shows on Today and keeps its streak, and it does not "
+            + "count towards anyone's score — the board is the six the group agreed on."),
 
 
         el("h2.sec-title", "What the group sees"),
@@ -394,16 +401,18 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         icon: t.icon,
         metric: t.metric,
         aggregate: t.aggregate,
-        direction: form.direction,
+        // Straight off the type. Stored rather than derived on read so that a habit keeps the
+        // shape it was created with even if a preset is ever retuned.
+        direction: t.direction,
         target: fromInput(t, raw),
-        period: form.period,
-        category: form.category || categoryFor({ metric: t.metric }),
-        scored: form.scored,
+        period: t.period,
+        category: categoryFor({ metric: t.metric }),
         visibility: form.visibility,
-        taper: form.direction === AT_MOST && form.taper
+        taper: t.direction === AT_MOST && form.taper
           ? { amount: 1, everyDays: 7, floor: 0 } : null,
-        days: form.period === PERIOD.DAY ? form.days : [1, 2, 3, 4, 5, 6, 7],
+        days: t.period === PERIOD.DAY ? form.days : [1, 2, 3, 4, 5, 6, 7],
         remindAt: form.remindAt,
+        remindDays: form.remindAt != null && t.period !== PERIOD.DAY ? form.remindDays : null,
         tz: form.tz,
         dayStartHour: form.dayStartHour,
         // The habit's own default is the BEST source the metric could ever have, because it is

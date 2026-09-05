@@ -11,7 +11,7 @@ import {
   replay, walk, streak, dayKey, addDays, daysBetween, isoDayOfWeek, rawDayStatus, valueOn, targetOn, publicValue, HIT, MISS, NO_DATA, EXEMPT,
 } from "../js/habits.js";
 import { leaderboard } from "../js/score.js";
-import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE, METRIC } from "../js/schema.js";
+import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE, METRIC, SCORED_METRICS } from "../js/schema.js";
 
 // ---------------------------------------------------------------------------
 // Tiny harness
@@ -55,7 +55,14 @@ function group({ habit, logs = [], extra = [] }) {
   return replay(events);
 }
 
-const manualHabit = { name: "Read", direction: AT_LEAST, target: 1, source: SOURCE.MANUAL };
+// Workouts rather than "Read", and the metric is load-bearing for the same reason it is on
+// autoHabit below: scoring is now decided by the metric, so a habit that names none of them is by
+// definition off the board. This fixture is used to test scoring, so it has to be something the
+// group actually scores — a manual one, which workouts are.
+const manualHabit = {
+  name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST, target: 1,
+  source: SOURCE.MANUAL,
+};
 // The metric is not decoration. A binding to Health Connect is only believed for a metric Health
 // Connect can actually read, so a habit called "Steps" that never says it measures steps is not a
 // watch-fed habit — it is the leftover this fixture used to accidentally describe.
@@ -416,21 +423,40 @@ test("a tie on percentage breaks on days completed, not on name", () => {
   assert.equal(rows[0].crown, true);
 });
 
-test("everything counts unless somebody switches it off", () => {
-  // Reduce habits used to opt OUT by default, on the reasoning that being bottom of a quitting
-  // metric produces hidden logs rather than quitting. That held when the board was one pooled
-  // ratio and the only thing a habit could do was drag you down it.
+test("what counts is decided by the metric, not by the habit", () => {
+  // It used to be a checkbox that defaulted to on, so every habit anybody invented took a share of
+  // the day. The four category weights are fixed and split across whatever is eligible, so one
+  // person adding a habit of their own re-weighted the day for THEMSELVES — two people running the
+  // same six habits, scored on different arithmetic, with nothing on screen saying so.
   //
-  // Categories changed the shape of the argument: Discipline is thirty per cent of the day and it
-  // is MADE of reduce habits, so defaulting them off did not protect anybody — it deleted the
-  // category, and a phone tracking steps, sleep and a vape was scored on two of the three without
-  // being told which.
-  const reduce = group({ habit: { ...manualHabit, direction: AT_MOST, target: 8 } });
-  assert.equal(reduce.habits.get("h1").scored, true);
+  // A competition needs the same events for everyone, so the list is the group's and lives in the
+  // schema.
+  for (const metric of SCORED_METRICS) {
+    const g = group({ habit: { ...manualHabit, metric, direction: AT_LEAST, target: 1 } });
+    assert.equal(g.habits.get("h1").scored, true, metric + " is on the list and must score");
+  }
 
-  // And the switch is still there for a habit somebody genuinely wants kept off the board.
-  const optedOut = group({ habit: { ...manualHabit, direction: AT_MOST, target: 8, scored: false } });
-  assert.equal(optedOut.habits.get("h1").scored, false);
+  // Measurable, and deliberately not on it. App opens is left off because "opens" and "screen
+  // time" side by side is a distinction nobody wants to draw.
+  for (const metric of [METRIC.ACTIVE_CALORIES, METRIC.APP_OPENS]) {
+    const g = group({ habit: { ...manualHabit, metric } });
+    assert.equal(g.habits.get("h1").scored, false, metric + " must not score");
+  }
+
+  // The personal one. Still tracked, still keeps a streak, never in the contest.
+  const custom = group({ habit: { name: "Read", direction: AT_LEAST, target: 1, source: SOURCE.MANUAL } });
+  assert.equal(custom.habits.get("h1").scored, false);
+});
+
+test("a stored scored flag cannot buy a habit onto the board", () => {
+  // Events written while the checkbox existed still carry it, and events are forever. Honouring
+  // one now would let an old device — or a hand-written event — put anything into the standings.
+  const smuggled = group({ habit: { name: "Read", direction: AT_LEAST, target: 1, scored: true } });
+  assert.equal(smuggled.habits.get("h1").scored, false);
+
+  // And the reverse: one of the six cannot be quietly excused from the board either.
+  const excused = group({ habit: { ...manualHabit, scored: false } });
+  assert.equal(excused.habits.get("h1").scored, true);
 });
 
 // ===========================================================================

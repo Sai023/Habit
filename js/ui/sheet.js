@@ -104,6 +104,7 @@ export function openSheet(host = document.body, { onClose } = {}) {
   const onKey = (e) => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
   host.append(layer);
+  attachDrag(layer, close);
 
   function close() {
     if (closed) return; // dismissing twice must not fire onClose twice
@@ -156,4 +157,125 @@ export function openSheet(host = document.body, { onClose } = {}) {
   }
 
   return { paint, close, layer };
+}
+
+// ---------------------------------------------------------------------------
+// Drag down to dismiss
+// ---------------------------------------------------------------------------
+
+/** Far enough down to mean it, or a flick fast enough to mean it sooner. */
+const DISMISS_PX = 96;
+const FLICK_VELOCITY = 0.5;   // px per ms
+const FLICK_MIN_PX = 28;
+
+/**
+ * Pull the sheet down to close it.
+ *
+ * ---- What this has to avoid ----
+ *
+ * The panel scrolls itself — `max-height: 88vh; overflow-y: auto` — so a downward drag is already
+ * a meaningful gesture inside it. Stealing every one of them would make a long sheet, which is
+ * most of them, impossible to read. So the drag only begins at the top of the scroll, which is the
+ * one place a downward pull cannot mean "scroll up".
+ *
+ * It is delegated from the layer rather than bound to the panel, because `paint()` replaces the
+ * panel wholesale on every repaint and a handler bound to the old one would go with it.
+ *
+ * The finger tracks 1:1 while dragging. Rubber-banding or easing the follow feels considered on a
+ * page and wrong here: this is a physical object being moved, and anything other than "it is where
+ * your thumb is" reads as lag.
+ */
+function attachDrag(layer, close) {
+  let panel = null;
+  let startY = 0;
+  let startAt = 0;
+  let dy = 0;
+  let dragging = false;
+
+  const panelAt = (target) => (target && target.closest ? target.closest(".sheet") : null);
+
+  layer.addEventListener("pointerdown", (e) => {
+    if (e.button != null && e.button !== 0) return;
+    const p = panelAt(e.target);
+    // Not on the panel is the backdrop's business, and it has its own tap handling.
+    if (!p) return;
+    // Mid-scroll. A pull from here means "show me what is above", not "put this away".
+    if (p.scrollTop > 0) return;
+    // A control that is about to be used. Dragging off a stepper or a time field would fight it.
+    if (e.target.closest("input, select, textarea")) return;
+    panel = p;
+    startY = e.clientY;
+    startAt = e.timeStamp;
+    dy = 0;
+    dragging = false;
+  });
+
+  layer.addEventListener("pointermove", (e) => {
+    if (!panel) return;
+    const delta = e.clientY - startY;
+
+    if (!dragging) {
+      // Upward, or not yet decisive. Let it be a scroll until it is clearly not one.
+      if (delta <= 6) { if (delta < -6) panel = null; return; }
+      dragging = true;
+      panel.style.transition = "none";
+      // Capture so the drag survives the finger leaving the panel — which it does on any dismiss
+      // that travels far enough to matter. Guarded because a pointer id that was never really
+      // captured throws, and losing the capture is a worse gesture rather than a broken one.
+      try { panel.setPointerCapture(e.pointerId); } catch { /* keep dragging without it */ }
+    }
+
+    dy = Math.max(0, delta);
+    panel.style.transform = "translateY(" + dy + "px)";
+    // The ground goes with it, so the sheet reads as lifting away rather than sliding off a
+    // backdrop that stays put.
+    layer.style.opacity = String(Math.max(0.35, 1 - dy / 520));
+    e.preventDefault();
+  }, { passive: false });
+
+  function release(e) {
+    if (!panel) return;
+    const p = panel;
+    const wasDragging = dragging;
+    panel = null;
+    dragging = false;
+    if (!wasDragging) return;
+
+    const velocity = dy / Math.max(1, e.timeStamp - startAt);
+    const go = dy > DISMISS_PX || (velocity > FLICK_VELOCITY && dy > FLICK_MIN_PX);
+
+    // A drag that ends on a button must not also press it.
+    const swallow = (click) => { click.stopPropagation(); click.preventDefault(); };
+    layer.addEventListener("click", swallow, { capture: true, once: true });
+    setTimeout(() => layer.removeEventListener("click", swallow, { capture: true }), 0);
+
+    p.style.transition = "transform 200ms cubic-bezier(0.32, 0.72, 0, 1)";
+    layer.style.transition = "opacity 200ms linear";
+
+    if (go) {
+      // Somebody who has asked for less motion gets the result, not the journey. The stylesheet
+      // kills the transition for them anyway, which would leave the code below waiting on a
+      // transitionend that never comes.
+      if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        close();
+        return;
+      }
+      // Out through the bottom, then gone. Closing on the spot leaves the sheet vanishing from
+      // wherever the thumb happened to stop, which reads as a glitch rather than a dismissal.
+      p.style.transform = "translateY(" + (p.offsetHeight + 40) + "px)";
+      layer.style.opacity = "0";
+      let done = false;
+      const finish = () => { if (!done) { done = true; close(); } };
+      p.addEventListener("transitionend", finish, { once: true });
+      // A transition that never fires — an interrupted animation, a hidden tab — would otherwise
+      // leave the sheet open and untouchable.
+      setTimeout(finish, 320);
+    } else {
+      p.style.transform = "";
+      layer.style.opacity = "";
+    }
+  }
+
+  layer.addEventListener("pointerup", release);
+  layer.addEventListener("pointercancel", release);
 }

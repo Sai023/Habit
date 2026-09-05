@@ -18,11 +18,12 @@ import { METRIC, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY } from "../schema.js";
  * starting value every week until it reaches zero — a quit plan with a date on it rather than an
  * open-ended diary.
  *
- * It IS scored, which it briefly was not. Keeping reduce habits off the board was meant to stop
- * "bottom of a quitting metric" producing hidden logs, but Discipline is thirty per cent of the
- * day and is made of reduce habits, so excusing them deleted the category rather than protecting
- * anybody. The protection lives where it belongs now: the clown is suppressed on a silent
- * pipeline, and a ceiling cannot be failed by a sensor going quiet.
+ * It IS scored, and no longer by anyone's choice — scoring is decided by the metric now, and puffs
+ * are one of the six. Keeping reduce habits off the board was meant to stop "bottom of a quitting
+ * metric" producing hidden logs, but Discipline is thirty per cent of the day and is made of
+ * reduce habits, so excusing them deleted the category rather than protecting anybody. The
+ * protection lives where it belongs: the clown is suppressed on a silent pipeline, and a ceiling
+ * cannot be failed by a sensor going quiet.
  */
 const STARTERS = [
   {

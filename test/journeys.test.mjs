@@ -19,6 +19,7 @@ import { leaderboard } from "../js/score.js";
 import {
   ev, SOURCE, METRIC, AT_LEAST, AT_MOST, AGGREGATE, PERIOD, AUTOMATIC_SOURCES, PAUSE_METRICS,
   HEALTH_METRICS, sourceForDevice, isInterventionHabit,
+  SCORED_METRICS,
 } from "../js/schema.js";
 
 let passed = 0;
@@ -127,12 +128,22 @@ test("direction and aggregation are never a combination that cannot work", () =>
   }
 });
 
-test("reduce presets stay off the board; build presets go on it", () => {
-  // A leaderboard that ranks people on how badly they are losing a thing they are quitting
-  // produces hidden logs, not quitting.
+test("what scores is decided by the metric, whatever the preset asked for", () => {
+  // This used to read "reduce presets stay off the board", on the reasoning that ranking people on
+  // how badly they are losing a thing they are quitting produces hidden logs rather than quitting.
+  //
+  // It had a consequence nobody had looked at: Discipline is thirty per cent of the day and is made
+  // of exactly the two reduce habits — the vape and screen time — so a group whose habits came from
+  // the New habit screen had a whole category that could not be earned. The protection it was after
+  // lives elsewhere now: the clown is suppressed on a silent pipeline, and a ceiling cannot be
+  // failed by a sensor going quiet.
   for (const [key, p] of Object.entries(PRESETS)) {
     const s = build(add(key));
-    assert.equal(s.habits.get("h").scored, p.direction === AT_LEAST, key);
+    assert.equal(
+      s.habits.get("h").scored,
+      SCORED_METRICS.has(p.metric),
+      key + " should score iff its metric is one of the six",
+    );
   }
 });
 
@@ -400,9 +411,20 @@ test("a habit is reduced to its own ratio before any weighting happens", () => {
   assert.equal(row.perHabit[0].ratio, 1);
 });
 
-test("an unscored habit never reaches the board at all", () => {
-  const s = build(add("puffs"), [[day(0), 50]]); // a bad day on a habit that opts out
+test("a habit off the list never reaches the board, however it is logged", () => {
+  // Custom habits are still tracked and still keep a streak; they are simply not in the contest.
+  // Nothing about how they are logged can talk their way onto it.
+  const s = build(add("custom"), [[day(0), 1], [day(1), 1], [day(2), 1]]);
   assert.equal(leaderboard(s, ["m1"], day(0), day(3), day(4))[0].pct, null);
+});
+
+test("a bad day on the vape now counts, because Discipline is made of it", () => {
+  // The inverse of the test above, and the bug it replaces: puffs used to opt out, which quietly
+  // emptied a category worth thirty per cent of the day.
+  const s = build(add("puffs"), [[day(0), 50]]); // over a ceiling of 20
+  const row = leaderboard(s, ["m1"], day(0), day(0), day(1))[0];
+  assert.ok(row.pct !== null, "the vape is on the board");
+  assert.ok(row.pct < 100, "and a day over the ceiling costs something: " + row.pct);
 });
 
 test("every preset survives a week of real use without a nonsense score", () => {
@@ -416,10 +438,15 @@ test("every preset survives a week of real use without a nonsense score", () => 
         ? sourceForDevice(p.metric, { pause: true, health: true }) : SOURCE.MANUAL;
       logs.push([day(n), p.direction === AT_MOST ? Math.max(0, p.start - 5) : p.start + 5, src]);
     }
-    const s = build(add(key, { over: { scored: true } }), logs);
+    const s = build(add(key), logs);
     const row = leaderboard(s, ["m1"], day(0), day(6), day(7))[0];
     assert.ok(row.pct === null || (row.pct >= 0 && row.pct <= 100), key + " scored " + row.pct);
-    assert.equal(row.pct, 100, key + " met its own target every day and did not score 100");
+    if (SCORED_METRICS.has(p.metric)) {
+      assert.equal(row.pct, 100, key + " met its own target every day and did not score 100");
+    } else {
+      // Perfect week, still not in the contest. That is the point of the list.
+      assert.equal(row.pct, null, key + " is off the list and must not reach the board");
+    }
   }
 });
 

@@ -28,6 +28,7 @@ import {
   HEALTH_METRICS, PAUSE_METRICS, isInterventionHabit,
   PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
   LEGACY_METRIC,
+  SCORED_METRICS,
 } from "./schema.js";
 
 export const HIT = "HIT";
@@ -251,9 +252,27 @@ function normalizeHabit(p, createdDay) {
   // sleep and a vape was being scored on two of the three and never told which.
   //
   // The protection it was reaching for still exists and lives where it belongs: the clown is
-  // suppressed on a silent pipeline, a ceiling cannot be failed by a sensor going quiet, and the
-  // checkbox is still there for a habit somebody genuinely wants kept off the board.
-  h.scored = p.scored == null ? true : Boolean(p.scored);
+  // suppressed on a silent pipeline, and a ceiling cannot be failed by a sensor going quiet.
+  //
+  // ---- Why this is derived and not stored ----
+  //
+  // It used to default to true and be a checkbox, which meant every habit anybody invented took a
+  // share of the day. The four category weights are fixed and split across whatever is eligible,
+  // so one person adding a habit of their own re-weighted the day for THEMSELVES against everyone
+  // else — two people running the same six habits, scored on different arithmetic, with nothing on
+  // screen saying so.
+  //
+  // A competition needs the same events for everyone, so the list is the group's and lives in the
+  // schema. Reading it from the metric rather than from the payload also means the answer is the
+  // same on every device and for every event ever written, including the ones recorded while the
+  // checkbox still existed.
+  h.scored = SCORED_METRICS.has(h.metric);
+
+  // See schema: null means "the days it is scored on", which for a daily habit is `days` and for
+  // anything longer is every day.
+  h.remindDays = Array.isArray(p.remindDays) && p.remindDays.length
+    ? p.remindDays.map(Number)
+    : null;
   return h;
 }
 

@@ -76,12 +76,15 @@ test("opting out is EXEMPT, not a miss", () => {
 test("an opted-out habit leaves the board score untouched rather than sinking it", () => {
   const s = group([
     E(ev.goal("m2", "steps", { active: false }), at("2026-03-01", 8)),
-    E(ev.habit("read", {
-      name: "Read", direction: AT_LEAST, target: 1, aggregate: AGGREGATE.SUM,
-      source: SOURCE.MANUAL, tz: TZ, dayStartHour: 4, scored: true,
+    // Workouts, not "Read", and the metric matters: scoring is decided by the metric now, so a
+    // habit naming none of the six is off the board by definition and could not carry this test.
+    // The rule being checked is about opting OUT of a habit, not about which habits exist.
+    E(ev.habit("workouts", {
+      name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST, target: 1,
+      aggregate: AGGREGATE.SUM, source: SOURCE.MANUAL, tz: TZ, dayStartHour: 4,
     }), at("2026-03-01", 7)),
-    E(ev.log("read", "m2", D0, 1, SOURCE.MANUAL), at(D0)),
-    E(ev.log("read", "m1", D0, 1, SOURCE.MANUAL), at(D0)),
+    E(ev.log("workouts", "m2", D0, 1, SOURCE.MANUAL), at(D0)),
+    E(ev.log("workouts", "m1", D0, 1, SOURCE.MANUAL), at(D0)),
     E(ev.log("steps", "m1", D0, 12000, SOURCE.MANUAL), at(D0)),
   ]);
   const rows = leaderboard(s, ["m1", "m2"], D0, D0, D0);

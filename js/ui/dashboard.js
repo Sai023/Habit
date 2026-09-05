@@ -460,8 +460,33 @@ function boardTab(ctx) {
     el("div.board", ranked.map((r) => boardRow(r, ctx))),
     el("p.sec-note", { style: "padding:0 2px" },
       "Rest days and days with no data are left out of the score — you're measured on the days you were actually asked to show up."),
+    offBoardNote(ctx),
     pointsExplainer(ctx),
   );
+}
+
+/**
+ * Which of your habits are not in this, and why.
+ *
+ * The board scores six things, and anything else somebody tracks is theirs alone. That is a
+ * reasonable rule and a terrible surprise: without this line, a habit kept faithfully for a month
+ * simply never appears in the standings, and the only available explanation is that the app is
+ * broken or the sync is.
+ *
+ * Only shown to somebody who actually has one, and it names them, because "some habits don't
+ * count" sends a person hunting through their own list to work out which.
+ */
+function offBoardNote(ctx) {
+  const mine = [...ctx.state.habits.values()]
+    .filter((h) => !h.scored && isTracking(ctx.state, h, ctx.me));
+  if (!mine.length) return null;
+
+  return el("p.sec-note", { style: "padding:0 2px" },
+    mine.map((h) => h.name).join(", ")
+    + (mine.length === 1 ? " isn't" : " aren't")
+    + " on the board — the board is the six the group agreed on. "
+    + (mine.length === 1 ? "It still counts" : "They still count")
+    + " on Today, and the streak is real.");
 }
 
 /**

@@ -62,6 +62,35 @@ export const METRIC = {
 export const PERIOD = { DAY: "day", WEEK: "week", MONTH: "month" };
 
 /**
+ * The six things the board is willing to score.
+ *
+ * ---- Why a fixed list ----
+ *
+ * Every habit used to count. `scored` defaulted to true, so anything anybody invented took a share
+ * of the day and a place in the standings — and because the four category weights are fixed and
+ * split between whatever is eligible, one person adding "read 20 pages" quietly re-weighted the
+ * day for themselves against everybody else. Two people in one group could be running the same
+ * habits and be scored on different arithmetic.
+ *
+ * A competition needs the same events for everyone. These are the six, and they are the ones the
+ * group agreed on rather than the ones the engine happens to understand: ACTIVE_CALORIES and
+ * APP_OPENS are both perfectly measurable and neither is on the list — app opens because "opens"
+ * and "screen time" sitting side by side is a distinction nobody wants to have to draw.
+ *
+ * Anything else is still worth tracking. It shows on Today, it keeps its streak, and it is simply
+ * not part of the contest — which the new-habit screen and the board both say out loud, because a
+ * habit that silently does not count is worse than one you cannot create.
+ */
+export const SCORED_METRICS = new Set([
+  METRIC.STEPS,
+  METRIC.SLEEP,
+  METRIC.SESSIONS,        // workouts
+  METRIC.AMOUNT,          // savings
+  METRIC.PUFFS,
+  METRIC.SCREEN_MINUTES,
+]);
+
+/**
  * Metrics that no longer exist, and what they became.
  *
  * `urges` counted "times you gave in" and was meant for single digits. In practice the group used
@@ -196,6 +225,16 @@ export const HABIT_DEFAULTS = {
   // The schedule runs from the MEMBER's baseline (their first goal), not the habit's birthday, so
   // somebody joining a six-month-old habit starts at the top of their own taper.
   taper: null,
+  // Which weekdays the REMINDER fires on, or null for "the same days it is scored".
+  //
+  // Separate from `days` on purpose. For a daily habit the two coincide and null says so — the
+  // days it nudges you are the days it judges you, which is the property `days` was given to
+  // preserve. A weekly habit is different: "three workouts a week" says nothing about which three,
+  // so the engine ignores `days` entirely for it, and a reminder had no choice but to fire every
+  // morning. Writing the answer into `days` instead would have been the cheap fix and a bad one —
+  // it is read by the taper's miss count, so "remind me Mon/Wed/Fri" would have started changing
+  // what counts as a missed day.
+  remindDays: null,
   // Minute of the day to be reminded, or null for no reminder. On the HABIT rather than in a
   // settings screen, so the days it nudges you are by construction the days it scores — a reminder
   // kept somewhere else drifts away from the commitment the moment either one is edited.
