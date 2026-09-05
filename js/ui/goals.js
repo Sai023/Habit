@@ -71,8 +71,8 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
       el("div.form",
         el("h1", firstRun ? "What are you in for?" : "Your goals"),
         el("p.lede", firstRun
-          ? "Your friends are tracking these. Pick the ones you're doing and set your own targets."
-          : "Your own targets. Everyone's are separate — the group only agrees on what's tracked."),
+          ? "Your friends are tracking these. Pick the ones you're doing and set your own goals."
+          : "Your own goals. Everyone's are separate — the group only agrees on what's tracked."),
 
         el("div.starters", rows.map(row)),
 
@@ -156,7 +156,7 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
       if (!r.active) continue;
       const n = Number(r.target);
       if (!Number.isFinite(n) || n <= 0) {
-        error = "Give " + (r.habit.name || "each habit") + " a target greater than zero.";
+        error = "Give " + (r.habit.name || "each habit") + " a goal greater than zero.";
         return paint();
       }
     }

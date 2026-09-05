@@ -51,12 +51,16 @@ export function openHabitsSheet(
       ? el("button.link", { onclick: () => handOffTo(() => onInvite()) }, "Invite someone →")
       : null,
 
-    // The shell's own settings — sync, reminders, Health Connect, the delivery diagnostic. Only
-    // when there IS a shell, because in a browser there is nothing to open and a dead row is worse
-    // than a missing one.
+    // One destination for everything that is about the person rather than about a habit: their
+    // name, their group, what this phone shares, the reminders, the permissions and the backup.
+    // Those used to be spread over two screens with different names, and the backup in particular
+    // sat under the screen-time limits, which it has nothing to do with.
+    //
+    // Only when there IS a shell, because in a browser there is nothing to open and a dead row is
+    // worse than a missing one.
     embedded && onOpenSettings
       ? el("button.link", { onclick: () => handOffTo(() => onOpenSettings()) },
-          "App settings — sync, reminders, permissions →")
+          "You — name, group, reminders, backup →")
       : null,
   );
 

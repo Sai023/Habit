@@ -91,7 +91,7 @@ function todayTab(ctx) {
   if (!habits.length) {
     return el("div.empty",
       el("h1", "Nothing picked yet"),
-      el("p", "The group is tracking " + all.length + " habit" + (all.length === 1 ? "" : "s") + ". Choose the ones you're in for and set your own targets."),
+      el("p", "The group is tracking " + all.length + " habit" + (all.length === 1 ? "" : "s") + ". Choose the ones you're in for and set your own goals."),
       el("button.tap", { onclick: () => ctx.onEditGoals() }, "Pick my habits"),
     );
   }
@@ -519,10 +519,10 @@ function pointsExplainer(ctx) {
         "Two fitness habits get half of Core fitness each. Tracking more never lowers your "
         + "ceiling; it just divides that category between them."),
 
-      rule("Beating a target pays a bonus, up to " + bonusMax + " more",
+      rule("Beating a goal pays a bonus, up to " + bonusMax + " more",
         "Kept separate from the 100 so the percentage keeps meaning what it says. It's shared out "
         + "by weight like everything else, and " + CATEGORY_LABEL[CATEGORY.REST] + " earns none — "
-        + "sleeping past your target isn't an achievement to pay for, and paying for it would make "
+        + "sleeping past your goal isn't an achievement to pay for, and paying for it would make "
         + "a low sleep goal the cheapest way up the board."),
 
       rule("A ceiling is pass or fail on the day",
@@ -540,7 +540,7 @@ function pointsExplainer(ctx) {
         + "task. Workouts are the exception: you can always type those in yourself."),
 
       rule("Monthly goals are judged when the month ends",
-        "A savings target isn't scored while the month can still be saved, so an early deposit "
+        "A savings goal isn't scored while the month can still be saved, so an early deposit "
         + "never drags your day down. When the month closes it colours all of its days at once. "
         + "Hitting it early is paid on the day."),
 
@@ -597,7 +597,7 @@ function seasonSection(ctx, members) {
         ))),
     weeks > 0 ? el("p.sec-note", { style: "padding:0 2px" },
       "Every week you play adds its score to your total, so the season is won on points rather "
-      + "than on a handful of Sundays — and bonus points, which only come from beating a target "
+      + "than on a handful of Sundays — and bonus points, which only come from beating a goal "
       + "rather than meeting it, are how somebody behind closes a gap. Crowns break a tie. "
       + weeks + (weeks === 1 ? " week" : " weeks") + " counted so far.") : null,
 

@@ -383,7 +383,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
     if (form.busy) return;
     const raw = Number(form.target);
     if (!Number.isFinite(raw) || raw <= 0) {
-      form.error = "Give it a target greater than zero.";
+      form.error = "Give it a goal greater than zero.";
       return paint();
     }
     form.busy = true; form.error = ""; paint();
