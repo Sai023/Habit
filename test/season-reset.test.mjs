@@ -17,7 +17,7 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays, walk, targetFor, valueOn, rawDayStatus, HIT } from "../js/habits.js";
-import { seasonStart, seasonTally, seasonWeeks } from "../js/season.js";
+import { seasonStart, seasonTally, seasonWeeks, pendingSeason} from "../js/season.js";
 import { ev, SOURCE, AT_LEAST, AGGREGATE, METRIC } from "../js/schema.js";
 
 let passed = 0;
@@ -167,6 +167,36 @@ test("weeks are counted from the line, not from the first habit", () => {
 });
 
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// The week between the tap and the Monday
+// ---------------------------------------------------------------------------
+
+test("a season booked for Monday does not clear the standings today", () => {
+  // The confirm sheet says, in as many words, "from Monday the 7th". Honouring the line the moment
+  // it is written made that a lie: everybody dropped to zero on the tap, and the week they were
+  // still playing vanished from under them with six days left in it.
+  const s = group([E(ev.meta({ seasonFrom: day(35) }), at(28))]);
+  assert.ok(day(35) > TODAY, "the fixture's line really is in the future");
+  assert.equal(seasonStart(s, TODAY), MON, "the old season is still the one running");
+  assert.ok(seasonTally(s, ["a", "b"], TODAY).weeks > 0, "and its weeks still count");
+});
+
+test("and clears them the day it arrives", () => {
+  const s = group([E(ev.meta({ seasonFrom: day(35) }), at(28))]);
+  assert.equal(seasonStart(s, day(35)), day(35));
+  assert.equal(seasonTally(s, ["a", "b"], day(35)).weeks, 0);
+});
+
+test("the pending season is nameable, so the board can say when", () => {
+  // A countdown nobody can see is indistinguishable from nothing happening, and the person who
+  // booked it is the one most likely to check whether the button worked.
+  const s = group([E(ev.meta({ seasonFrom: day(35) }), at(28))]);
+  assert.equal(pendingSeason(s, TODAY), day(35), "booked");
+  assert.equal(pendingSeason(s, day(35)), null, "arrived — nothing pending any more");
+  assert.equal(pendingSeason(s, day(40)), null, "and not afterwards");
+  assert.equal(pendingSeason(group(), TODAY), null, "none booked");
+});
 
 if (failures.length) {
   for (const f of failures) console.error("✗ " + f.name + "\n  " + f.err.message);

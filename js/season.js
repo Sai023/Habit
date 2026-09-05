@@ -44,7 +44,7 @@ import { PERIOD } from "./schema.js";
  * showing the whole season. That is the safe direction to be wrong in: it over-reports history
  * rather than inventing a reset nobody asked for.
  */
-export function seasonStart(state) {
+export function seasonStart(state, today = null) {
   let earliest = null;
   for (const habit of state.habits.values()) {
     if (!habit.createdDay) continue;
@@ -55,14 +55,38 @@ export function seasonStart(state) {
   // Only ever moves the start FORWARD. A line before the first habit describes weeks that never
   // existed, and one that arrives malformed must not blank the standings.
   if (typeof line === "string" && /^\d{4}-\d{2}-\d{2}$/.test(line)) {
+    // A line that has not arrived yet is not in force yet.
+    //
+    // A new season is always started FROM a Monday, so for up to six days the line sits in the
+    // future — and the confirm sheet says, in as many words, "from Monday the 7th". Honouring it
+    // the moment it is written made that a lie: the standings emptied on the tap, everybody dropped
+    // to zero points with no explanation, and the week people were still playing vanished from
+    // under them.
+    //
+    // `today` is optional so that asking what the line IS stays possible; every caller that renders
+    // a board passes it.
+    if (today && line > today) return earliest;
     if (earliest === null || line > earliest) return line;
   }
   return earliest;
 }
 
+/**
+ * The season that is coming but has not started, or null.
+ *
+ * Only ever set between somebody starting one and the Monday it begins on. The board says so for
+ * those few days, because a countdown nobody can see is indistinguishable from nothing happening —
+ * and the person who tapped it is the one most likely to check whether it worked.
+ */
+export function pendingSeason(state, today) {
+  const line = state.meta && state.meta.seasonFrom;
+  if (typeof line !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(line)) return null;
+  return today && line > today ? line : null;
+}
+
 /** Every week the season has touched, oldest first. */
 export function seasonWeeks(state, today) {
-  const start = seasonStart(state);
+  const start = seasonStart(state, today);
   if (!start) return [];
   return periodsBetween(start, today, PERIOD.WEEK);
 }

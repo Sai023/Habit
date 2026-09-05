@@ -13,7 +13,7 @@ import {
   CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
   CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES,
 } from "../score.js";
-import { seasonTally, categoryBreakdown } from "../season.js";
+import { seasonTally, categoryBreakdown, pendingSeason } from "../season.js";
 import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import {
@@ -719,6 +719,7 @@ function pointsExplainer(ctx) {
  * showing up over whoever had a single enormous fortnight.
  */
 function seasonSection(ctx, members) {
+  const pending = pendingSeason(ctx.state, ctx.today);
   const { weeks, rows } = seasonTally(ctx.state, members, ctx.today);
 
   return el("section.sec",
@@ -759,11 +760,21 @@ function seasonSection(ctx, members) {
       + "rather than meeting it, are how somebody behind closes a gap. Crowns break a tie. "
       + weeks + (weeks === 1 ? " week" : " weeks") + " counted so far.") : null,
 
-    // Offered here rather than buried in settings, because this is the screen you are looking at
-    // when you decide the standings are not worth keeping.
-    ctx.onNewSeason
-      ? el("button.link.sec-note", { onclick: () => ctx.onNewSeason() }, "Start a new season →")
-      : null,
+    // Between the tap and the Monday.
+    //
+    // A season always starts from a Monday, so for up to six days one is booked and not yet
+    // running. Saying nothing would leave the person who booked it looking at unchanged standings
+    // and wondering whether the button worked — and tapping it again, which is the one thing that
+    // should not be needed.
+    pending
+      ? el("p.sec-note", { style: "padding:0 2px" },
+          "A new season starts " + fmt.dayLabel(pending)
+          + ". These standings run until then, and reset that morning.")
+      // Offered here rather than buried in settings, because this is the screen you are looking at
+      // when you decide the standings are not worth keeping.
+      : ctx.onNewSeason
+        ? el("button.link.sec-note", { onclick: () => ctx.onNewSeason() }, "Start a new season →")
+        : null,
   );
 }
 
