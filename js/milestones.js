@@ -22,10 +22,25 @@
 
 /** Ordered ascending. `key` is the CSS class; `at` is the streak that earns it. */
 export const TIERS = [
-  { at: 7, key: "bronze", name: "Bronze", earned: "A full week" },
-  { at: 20, key: "silver", name: "Silver", earned: "Twenty days" },
-  { at: 50, key: "gold", name: "Gold", earned: "Fifty days" },
-  { at: 100, key: "diamond", name: "Diamond", earned: "One hundred days" },
+  {
+    at: 7, key: "bronze", name: "Bronze", earned: "A full week",
+    // Written to escalate. The first one reassures, because a week in is where most runs end; the
+    // last one states the size of the thing and gets out of the way, because a hundred days needs
+    // no help from an adjective.
+    line: "Seven days with every habit on goal. That is the hard part done.",
+  },
+  {
+    at: 20, key: "silver", name: "Silver", earned: "Twenty days",
+    line: "Twenty days. Three weeks where nothing slipped — that is not luck any more.",
+  },
+  {
+    at: 50, key: "gold", name: "Gold", earned: "Fifty days",
+    line: "Fifty days with every habit on goal. Fifty. Whatever you are doing, keep doing it.",
+  },
+  {
+    at: 100, key: "diamond", name: "Diamond", earned: "One hundred days",
+    line: "One hundred days. Every habit, every day, for over three months.",
+  },
 ];
 
 /** The streak lengths worth interrupting somebody for. Derived, so there is one list. */
@@ -78,10 +93,40 @@ export function nextTier(streak) {
  * months, four months of daily; a month, a quarter, half a year, a year of weekly.
  */
 export const HABIT_TIERS = {
-  day: [14, 30, 60, 120],
-  week: [4, 12, 26, 52],
-  month: [3, 6, 12, 24],
+  day: [
+    { at: 14, span: "a fortnight" },
+    { at: 30, span: "a month" },
+    { at: 60, span: "two months" },
+    { at: 120, span: "four months" },
+  ],
+  week: [
+    { at: 4, span: "a month" },
+    { at: 12, span: "three months" },
+    { at: 26, span: "half a year" },
+    { at: 52, span: "a year" },
+  ],
+  month: [
+    { at: 3, span: "three months" },
+    { at: 6, span: "half a year" },
+    { at: 12, span: "a year" },
+    { at: 24, span: "two years" },
+  ],
 };
+
+/** Just the numbers, for the level maths. */
+export const habitSteps = (period) => (HABIT_TIERS[period] || HABIT_TIERS.day).map((t) => t.at);
+
+/**
+ * What a count actually means in weeks and months.
+ *
+ * "60" is a number somebody has to convert before it means anything. "Two months" is the same fact
+ * already converted, and it is the half that makes a person stop and reread it — which is the
+ * entire job of the sentence it appears in.
+ */
+export function habitSpan(streak, period = "day") {
+  const step = (HABIT_TIERS[period] || HABIT_TIERS.day).find((t) => t.at === streak);
+  return step ? step.span : null;
+}
 
 /**
  * The level a single habit's streak has reached: 1..4, or 0 for none.
@@ -93,9 +138,8 @@ export const HABIT_TIERS = {
  * what it is worth.
  */
 export function habitLevel(streak, period = "day") {
-  const steps = HABIT_TIERS[period] || HABIT_TIERS.day;
   let level = 0;
-  for (const at of steps) {
+  for (const at of habitSteps(period)) {
     if ((streak || 0) >= at) level += 1;
   }
   return level;
@@ -106,6 +150,5 @@ export const LEVEL_KEY = ["", "bronze", "silver", "gold", "diamond"];
 
 /** Is this streak exactly on one of a habit's thresholds today? */
 export function habitCrossed(streak, period = "day") {
-  const steps = HABIT_TIERS[period] || HABIT_TIERS.day;
-  return steps.includes(streak);
+  return habitSteps(period).includes(streak);
 }

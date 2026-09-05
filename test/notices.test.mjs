@@ -58,10 +58,13 @@ test("a milestone is announced on the day it is crossed", () => {
   const s = world();
   const notices = noticesFor(s, "me", day(10), 20);
   assert.equal(kindsOf(notices).filter((k) => k === "milestone").length, 1);
-  assert.ok(notices[0].body.includes("20"));
-  // The badge is named in the notice, because "20 days" and "Silver" are the same news and
-  // only one of them is worth showing somebody.
+  // The number is in the title; the body is the sentence, and it spells the number out because
+  // "Twenty days" reads like a remark and "20 days" reads like a receipt.
+  assert.ok(notices[0].title.includes("20"), notices[0].title);
+  // The badge is named in both, because "20 days" and "Silver" are the same news and only one of
+  // them sounds like something.
   assert.ok(notices[0].title.includes("Silver"), notices[0].title);
+  assert.ok(notices[0].body.includes("Silver"), notices[0].body);
 });
 
 test("and on no other day, however long the run gets", () => {
@@ -92,7 +95,7 @@ test("only the lengths worth saying out loud", () => {
 // One habit, held on its own — the small ones, and yours alone
 // ---------------------------------------------------------------------------
 
-const habitOnes = (list) => list.filter((n) => n.id.startsWith("habit-streak|"));
+const habitOnes = (list) => list.filter((n) => n.id.startsWith("habit-streaks|"));
 
 test("thirty days of one habit is worth a quiet word", () => {
   const s = world();
@@ -111,6 +114,74 @@ test("and on no other day", () => {
   for (const n of [12, 14, 28, 30]) {
     assert.equal(habitOnes(noticesFor(s, "me", day(n), 3)).length, 0, "nothing on day " + n);
   }
+});
+
+/** Several daily habits, all logged cleanly from day zero, so their streaks move together. */
+function manyHabits(names = ["Steps", "Sleep", "Water"]) {
+  const events = [E(ev.member("me", "You"), at(0))];
+  names.forEach((name, i) => {
+    events.push(E(ev.habit("h" + i, {
+      name, metric: METRIC.STEPS, direction: AT_LEAST, target: 1,
+      aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL, tz: TZ, dayStartHour: 0,
+    }), at(0)));
+  });
+  for (let n = 0; n <= 40; n += 1) {
+    names.forEach((_, i) => events.push(E(ev.log("h" + i, "me", day(n), 5, SOURCE.MANUAL), at(n))));
+  }
+  return replay(events);
+}
+
+test("three streaks on one day arrive as one notification", () => {
+  // Three separate buzzes in the same minute is how a good day becomes an annoyance. The majors
+  // are the only ones that earn a notification to themselves.
+  const out = habitOnes(noticesFor(manyHabits(), "me", day(29), 3));
+  assert.equal(out.length, 1, "one notice, not three");
+  assert.equal(out[0].title, "Three streaks today");
+  for (const name of ["Steps", "Sleep", "Water"]) {
+    assert.ok(out[0].body.includes(name), name + " must be named: " + out[0].body);
+  }
+  assert.ok(out[0].body.includes("30 days"), out[0].body);
+});
+
+test("two reads as two, and one still reads as itself", () => {
+  // A batch of one must not say "1 streaks today". It is an achievement, not a count.
+  const two = habitOnes(noticesFor(manyHabits(["Steps", "Sleep"]), "me", day(29), 3));
+  assert.equal(two[0].title, "Two streaks today");
+  assert.ok(two[0].body.includes("Two at once"), two[0].body);
+
+  const one = habitOnes(noticesFor(manyHabits(["Steps"]), "me", day(29), 3));
+  assert.equal(one[0].title, "30 days of Steps");
+  assert.ok(one[0].body.includes("a month"), "the number is translated: " + one[0].body);
+});
+
+test("the longest run leads, because a lock screen truncates", () => {
+  // Different lengths on the same day: Steps at 30, and a habit started later crossing 14.
+  const events = [E(ev.member("me", "You"), at(0))];
+  for (const [id, name, from] of [["a", "Steps", 0], ["b", "Sleep", 16]]) {
+    events.push(E(ev.habit(id, {
+      name, metric: METRIC.STEPS, direction: AT_LEAST, target: 1,
+      aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL, tz: TZ, dayStartHour: 0,
+    }), at(from)));
+    for (let n = from; n <= 40; n += 1) {
+      events.push(E(ev.log(id, "me", day(n), 5, SOURCE.MANUAL), at(n)));
+    }
+  }
+  const out = habitOnes(noticesFor(replay(events), "me", day(29), 3));
+  assert.equal(out.length, 1);
+  assert.ok(
+    out[0].body.indexOf("Steps") < out[0].body.indexOf("Sleep"),
+    "30 days should be named before 14: " + out[0].body,
+  );
+});
+
+test("a major landing the same day still gets a notification to itself", () => {
+  // The whole point of the split. A hundred days of everything must never be one line inside a
+  // list of habit streaks.
+  const out = noticesFor(manyHabits(), "me", day(29), 20);
+  const majors = out.filter((n) => n.id.startsWith("milestone|"));
+  assert.equal(majors.length, 1);
+  assert.ok(majors[0].title.includes("Silver"), majors[0].title);
+  assert.equal(habitOnes(out).length, 1, "and the minors are still gathered into one");
 });
 
 test("these are yours alone — the group is never told", () => {

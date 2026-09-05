@@ -7,7 +7,8 @@
 
 import assert from "node:assert/strict";
 import {
-  TIERS, MILESTONES, tierFor, nextTier, HABIT_TIERS, habitLevel, habitCrossed, LEVEL_KEY,
+  TIERS, MILESTONES, tierFor, nextTier, HABIT_TIERS, habitSteps, habitSpan,
+  habitLevel, habitCrossed, LEVEL_KEY,
 } from "../js/milestones.js";
 
 let passed = 0;
@@ -97,17 +98,18 @@ test("a single habit is held to a higher count than all of them together", () =>
   // achievement and the majors would drown in them.
   for (const period of Object.keys(HABIT_TIERS)) {
     if (period !== "day") continue;
-    assert.ok(HABIT_TIERS[period][0] > MILESTONES[0], "day tier 1 must sit above Bronze");
+    assert.ok(habitSteps(period)[0] > MILESTONES[0], "day tier 1 must sit above Bronze");
   }
 });
 
 test("each cadence is measured in its own rhythm", () => {
   // A streak counts PERIODS. Fifty looks sensible until it is applied to savings and means fifty
   // months — so a weekly habit's first badge is a month of weeks, and a monthly one's is a quarter.
-  assert.deepEqual(HABIT_TIERS.day, [14, 30, 60, 120]);
-  assert.deepEqual(HABIT_TIERS.week, [4, 12, 26, 52]);
-  assert.deepEqual(HABIT_TIERS.month, [3, 6, 12, 24]);
-  for (const steps of Object.values(HABIT_TIERS)) {
+  assert.deepEqual(habitSteps("day"), [14, 30, 60, 120]);
+  assert.deepEqual(habitSteps("week"), [4, 12, 26, 52]);
+  assert.deepEqual(habitSteps("month"), [3, 6, 12, 24]);
+  for (const period of Object.keys(HABIT_TIERS)) {
+    const steps = habitSteps(period);
     for (let i = 1; i < steps.length; i += 1) assert.ok(steps[i] > steps[i - 1]);
   }
 });
@@ -144,6 +146,30 @@ test("every level has a colour, and they are the majors' colours", () => {
   assert.equal(LEVEL_KEY.length, 5);
   assert.equal(LEVEL_KEY[0], "");
   assert.deepEqual(LEVEL_KEY.slice(1), TIERS.map((t) => t.key));
+});
+
+test("every threshold knows what it means in weeks and months", () => {
+  // The number is the receipt; the span is the sentence. A threshold without one would print
+  // "60 days running." and leave the reader to do the conversion that makes it land.
+  for (const period of Object.keys(HABIT_TIERS)) {
+    for (const at of habitSteps(period)) {
+      assert.ok(habitSpan(at, period), period + " " + at + " needs a span");
+    }
+  }
+  assert.equal(habitSpan(30, "day"), "a month");
+  assert.equal(habitSpan(26, "week"), "half a year");
+  // Only on the thresholds. Nothing else is ever announced, so nothing else needs a phrase.
+  assert.equal(habitSpan(31, "day"), null);
+});
+
+test("the majors each carry their own line, and they escalate", () => {
+  for (const t of TIERS) {
+    assert.ok(t.line && t.line.length > 20, t.name + " needs a sentence of its own");
+  }
+  // Seven reassures — a week in is where most runs end. A hundred states the size of the thing and
+  // gets out of the way.
+  assert.ok(TIERS[0].line.includes("hard part"));
+  assert.ok(TIERS[3].line.includes("One hundred"));
 });
 
 if (failures.length) {

@@ -24,7 +24,7 @@
 
 import { taperWeekStart, targetFor, isTaperHeld, addDays, streak as habitStreak, isTracking } from "./habits.js";
 import { AT_MOST, PERIOD } from "./schema.js";
-import { MILESTONES, tierFor, habitCrossed } from "./milestones.js";
+import { MILESTONES, tierFor, habitCrossed, habitSpan } from "./milestones.js";
 
 /** What a streak counts in, for the habit it belongs to. */
 const UNIT = {
@@ -60,10 +60,11 @@ export function noticesFor(state, memberId, today, streak, others = []) {
       id: "milestone|" + streak + "|" + today,
       kind: "milestone",
       title: streak + " days" + (tierFor(streak) ? " · " + tierFor(streak).name : ""),
-      body: streak === 7
-        ? "A full week with every habit on goal. That is the hard part done — and Bronze is yours."
-        : "Every habit, on goal, " + streak + " days running. "
-          + (tierFor(streak) ? tierFor(streak).name + " is yours." : ""),
+      // The tier's own line, which escalates with it, plus the badge named at the end. Somebody
+      // reading this has done something rare and the sentence should sound like it knows that.
+      body: tierFor(streak)
+        ? tierFor(streak).line + " " + tierFor(streak).name + " is yours."
+        : "Every habit, on goal, " + streak + " days running.",
     });
   }
 
@@ -80,13 +81,17 @@ export function noticesFor(state, memberId, today, streak, others = []) {
     if (other.memberId === memberId) continue;
     if (!MILESTONES.includes(other.streak)) continue;
     const tier = tierFor(other.streak);
+    const who = other.name || "Someone";
     out.push({
       id: "milestone|" + other.memberId + "|" + other.streak + "|" + today,
       kind: "milestone",
-      title: (other.name || "Someone") + " hit " + other.streak + " days",
-      body: tier
-        ? "Every habit, on goal, " + other.streak + " days running — that is " + tier.name + "."
-        : "Every habit, on goal, " + other.streak + " days running.",
+      title: who + " hit " + other.streak + " days" + (tier ? " · " + tier.name : ""),
+      // Their achievement, then where the reader stands — because this is a group tracker and the
+      // second half is what makes the first half land. Only when the reader has a run of their own:
+      // "you are on 0" beneath somebody's fifty days is a taunt, not a nudge.
+      body: "Every habit, on goal, " + other.streak + " days running."
+        + (tier ? " That is " + tier.name + "." : "")
+        + (streak > 0 ? " You are on " + streak + "." : ""),
     });
   }
 
@@ -94,24 +99,44 @@ export function noticesFor(state, memberId, today, streak, others = []) {
   //
   // The small ones, and yours alone. A major milestone is every category met every day and the
   // whole group hears about it; this is thirty days of steps, which is a real thing to have done
-  // and nobody else's business — announcing it would turn the group feed into a ticker.
+  // and nobody else's business — announcing each would turn the group feed into a ticker.
   //
-  // Thresholds are per cadence, because a streak counts PERIODS: thirty of a daily habit is a
-  // month, thirty of a monthly one is nearly three years.
+  // Gathered into ONE notice rather than one each. Three of these landing together is a good day,
+  // and three separate buzzes in the same minute is how a good day becomes an annoyance — the
+  // majors are the only ones that earn a notification to themselves.
+  const crossed = [];
   for (const habit of state.habits.values()) {
     if (!isTracking(state, habit, memberId, today)) continue;
     const run = habitStreak(state, habit.habitId, memberId, today);
     if (!habitCrossed(run, habit.period)) continue;
-
     const [one, many] = UNIT[habit.period] || UNIT[PERIOD.DAY];
-    const unit = run === 1 ? one : many;
+    crossed.push({
+      habitId: habit.habitId,
+      name: habit.name || "it",
+      run,
+      unit: run === 1 ? one : many,
+      span: habitSpan(run, habit.period),
+      reduce: habit.direction === AT_MOST,
+    });
+  }
+
+  if (crossed.length) {
+    // Longest first: if only some of them fit on a lock screen, the biggest should be the one that
+    // does.
+    crossed.sort((a, b) => b.run - a.run);
     out.push({
-      id: "habit-streak|" + habit.habitId + "|" + run + "|" + today,
+      // Keyed on the SET, not on the day.
+      //
+      // A streak can cross mid-morning and another mid-evening, so the day's set grows. Keying on
+      // the day alone would fire once and silently swallow whatever crossed later — losing an
+      // achievement outright. Keying on the set means the evening one arrives carrying both, which
+      // repeats a line somebody already read. Repeating is the cheaper mistake by a distance.
+      id: "habit-streaks|" + today + "|" + crossed.map((c) => c.habitId + ":" + c.run).join(","),
       kind: "milestone",
-      title: run + " " + unit + " of " + (habit.name || "it"),
-      body: habit.direction === AT_MOST
-        ? "Under your limit " + run + " " + unit + " running."
-        : "On goal " + run + " " + unit + " running.",
+      title: crossed.length === 1
+        ? crossed[0].run + " " + crossed[0].unit + " of " + crossed[0].name
+        : countWord(crossed.length) + " streaks today",
+      body: crossed.length === 1 ? soloLine(crossed[0]) : manyLine(crossed),
     });
   }
 
@@ -151,4 +176,29 @@ export function noticesFor(state, memberId, today, streak, others = []) {
   }
 
   return out;
+}
+
+/**
+ * One habit's streak, said in a way somebody would want to read twice.
+ *
+ * Names the habit, then translates the number. "60" is a figure a person has to convert before it
+ * means anything; "two months" is the same fact already converted, and it is the half that makes
+ * them stop. A ceiling gets a different verb from a floor, because "on goal" for something you are
+ * quitting reads as nonsense.
+ */
+function soloLine(c) {
+  const held = c.reduce ? "Under your limit" : "On goal";
+  return held + " " + c.run + " " + c.unit + " running"
+    + (c.span ? " — that is " + c.span + " without a slip." : ".");
+}
+
+/** Small counts read as words. "3 at once" is a receipt; "Three at once" is a remark. */
+const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"];
+const countWord = (n) => COUNT_WORD[n] || String(n);
+
+/** Several at once, listed longest first, with the total said out loud because it is the point. */
+function manyLine(list) {
+  const parts = list.map((c) => c.name + " " + c.run + " " + c.unit);
+  const last = parts.pop();
+  return parts.join(", ") + " and " + last + ". " + countWord(list.length) + " at once is a good day.";
 }
