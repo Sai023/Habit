@@ -327,23 +327,19 @@ const onInvite = guard("invite", async () => {
  */
 const onNewSeason = guard("season", async () => {
   if (demoBlocked()) return;
-  const [{ confirmSheet }, { startNewSeason }, { periodStart, isoWeekKey, addDays }] =
+  const [{ seasonSheet }, { startNewSeason }, { periodStart, isoWeekKey, addDays }, { seasonTally }] =
     await Promise.all([
-      import("./ui/confirmsheet.js"), import("./store.js"), import("./habits.js"),
+      import("./ui/seasonsheet.js"), import("./store.js"), import("./habits.js"),
+      import("./season.js"),
     ]);
 
   const monday = addDays(periodStart(isoWeekKey(ctx.today), "week"), 7);
-  const sure = await confirmSheet(document.body, {
-    title: "Start a new season?",
-    body: "Crowns, points and weeks won go back to zero for everybody, from Monday " + monday + ". "
-      + "Nothing else changes — every habit, target, taper, logged number and streak stays exactly "
-      + "as it is. It only clears the scoreboard.",
-    confirmLabel: "Start it",
-    cancelLabel: "Keep the season",
-  });
-  if (!sure) return;
+  const { weeks } = seasonTally(ctx.state, [...ctx.state.members.keys()], ctx.today);
 
-  await startNewSeason(monday);
+  const from = await seasonSheet(document.body, { monday, today: ctx.today, weeks });
+  if (!from) return;
+
+  await startNewSeason(from);
   await refresh();
 });
 

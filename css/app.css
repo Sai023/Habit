@@ -939,3 +939,8 @@ button.hero-head:active { transform: scale(0.99); }
 /* Who's in. A board row shape, so the list of people reads the same as the list of habits. */
 .member-row { grid-template-columns: minmax(0, 1fr) auto; }
 .row-remove { align-self: center; margin: 0; font-size: var(--fs-small); }
+
+/* Two ways to start a season, each with the sentence that says which is which. Stacked rather than
+   side by side: they are not equivalent options and a row of two buttons would imply they are. */
+.season-choice { display: flex; flex-direction: column; gap: 6px; }
+.season-choice .note-inline { margin: 0; }

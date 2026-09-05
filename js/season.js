@@ -99,9 +99,16 @@ export function seasonWeeks(state, today) {
  * had a silent pipeline. A season built on a second opinion about who won would be a season nobody
  * believed.
  */
-export function weekStandings(state, memberIds, weekKey) {
-  const from = periodStart(weekKey, PERIOD.WEEK);
+export function weekStandings(state, memberIds, weekKey, notBefore = null) {
+  const weekOpens = periodStart(weekKey, PERIOD.WEEK);
   const to = periodEnd(weekKey, PERIOD.WEEK);
+  // A season that begins mid-week scores only the days it was actually running.
+  //
+  // Without this, week one reaches back to the Monday and counts days from BEFORE the line — the
+  // exact history somebody just asked to be rid of, folded into the first week of the thing meant
+  // to replace it. It is also the whole reason a season otherwise starts on a Monday: with the
+  // floor in place, starting one today is honest rather than merely allowed.
+  const from = notBefore && notBefore > weekOpens ? notBefore : weekOpens;
   return leaderboard(state, memberIds, from, to, to);
 }
 
@@ -113,6 +120,7 @@ export function weekStandings(state, memberIds, weekKey) {
  * something to refresh rather than something to build.
  */
 export function seasonTally(state, memberIds, today) {
+  const start = seasonStart(state, today);
   const weeks = seasonWeeks(state, today);
   const thisWeek = isoWeekKey(today);
   const done = weeks.filter((w) => w !== thisWeek);
@@ -136,7 +144,7 @@ export function seasonTally(state, memberIds, today) {
   }]));
 
   for (const week of done) {
-    const rows = weekStandings(state, memberIds, week);
+    const rows = weekStandings(state, memberIds, week, start);
     for (const row of rows) {
       const t = tally.get(row.memberId);
       if (!t) continue;

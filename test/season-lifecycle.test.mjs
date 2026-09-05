@@ -16,7 +16,7 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays, periodStart, isoWeekKey } from "../js/habits.js";
-import { seasonStart, seasonWeeks, seasonTally, pendingSeason } from "../js/season.js";
+import { seasonStart, seasonWeeks, seasonTally, pendingSeason, weekStandings } from "../js/season.js";
 import { ev, SOURCE, AT_LEAST, AGGREGATE, METRIC } from "../js/schema.js";
 
 let passed = 0;
@@ -244,6 +244,66 @@ test("a removal survives a replay in any order", () => {
   const late = E(ev.log("steps", RIVAL, day(41), 500, SOURCE.MANUAL), at(41));
   const s = season({ mine: MINE, theirs: THEIRS, extra: [removal, late] });
   assert.ok(!s.members.has(RIVAL), "still gone, even with a later log from them");
+});
+
+// ---------------------------------------------------------------------------
+// Starting one mid-week, which is what a short test season needs
+// ---------------------------------------------------------------------------
+
+/** One week where I win the first four days and they win the last three. */
+function splitWeek(extra = []) {
+  const events = [
+    E(ev.member(ME, "You"), at(0)),
+    E(ev.member(RIVAL, "Rival"), at(0)),
+    E(ev.habit("steps", {
+      name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 100,
+      aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL, tz: TZ, dayStartHour: 0,
+      grace: { earnEvery: 0, cap: 0 },
+    }), at(0)),
+  ];
+  for (let n = 0; n < 7; n += 1) {
+    events.push(E(ev.log("steps", ME, day(n), n < 4 ? 500 : 0, SOURCE.MANUAL), at(n)));
+    events.push(E(ev.log("steps", RIVAL, day(n), n >= 4 ? 500 : 0, SOURCE.MANUAL), at(n)));
+  }
+  return replay([...events, ...extra]);
+}
+
+test("a season that starts mid-week is scored from the line, not from the Monday", () => {
+  // The reason a season otherwise waits for a Monday, and the reason it no longer has to. Without
+  // the floor, week one reaches back and counts days from BEFORE the line — the exact history
+  // somebody just asked to be rid of, folded into the first week of the thing replacing it.
+  //
+  // Here I am perfect Monday to Thursday and they are perfect Friday to Sunday. A season starting
+  // on the Friday belongs to them.
+  const s = splitWeek([E(ev.meta({ seasonFrom: day(4) }), at(4))]);
+  const rows = seasonTally(s, BOTH, day(7)).rows;
+  assert.equal(rows[0].memberId, RIVAL, "the Friday-to-Sunday winner leads");
+  assert.equal(rows.find((r) => r.memberId === ME).points, 0, "and my Monday to Thursday is gone");
+});
+
+test("the same week, started on the Monday, belongs to the other one", () => {
+  // The control. Same logs, line a few days earlier, opposite result — which is what makes the
+  // test above a statement about the floor rather than about this fixture.
+  const s = splitWeek([E(ev.meta({ seasonFrom: day(0) }), at(0))]);
+  assert.equal(seasonTally(s, BOTH, day(7)).rows[0].memberId, ME);
+});
+
+test("a full week is unaffected by the floor", () => {
+  // The floor only ever clamps forward, so a season already running scores its weeks whole.
+  const s = splitWeek();
+  const whole = weekStandings(s, BOTH, isoWeekKey(day(0)));
+  const floored = weekStandings(s, BOTH, isoWeekKey(day(0)), day(0));
+  assert.deepEqual(floored.map((r) => r.pct), whole.map((r) => r.pct));
+});
+
+test("a season started today produces a crown on the next Monday", () => {
+  // What a few days of testing actually needs: start it now, and have something to look at when
+  // the week turns over rather than a week on Monday.
+  const s = splitWeek([E(ev.meta({ seasonFrom: day(4) }), at(4))]);
+  assert.equal(seasonTally(s, BOTH, day(5)).weeks, 0, "nothing while the week is still running");
+  const done = seasonTally(s, BOTH, day(7));
+  assert.equal(done.weeks, 1, "and one week the moment it finishes");
+  assert.equal(done.rows[0].crowns, 1);
 });
 
 if (failures.length) {
