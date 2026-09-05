@@ -837,17 +837,32 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 /* ---------- the case ---------- */
 
-/* The head of the hero is a button now. It has to stay looking like a hero rather than a control,
-   so it borrows nothing from .tap and only gains a press. */
-button.hero-head {
-  width: 100%;
-  padding: 0;
-  text-align: left;
-  background: none;
-  border: 0;
-  cursor: pointer;
+/* The board's three destinations. A segmented control rather than another row of the loose .chips
+   used for the category filter directly below it, because these are places you GO and that is a
+   filter you APPLY — two identical rows of pills would claim they were the same kind of thing. */
+.board-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
 }
-button.hero-head:active { transform: scale(0.99); }
+.board-tabs .chip {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px;
+  text-align: center;
+  background: none;
+  border-color: transparent;
+  color: var(--dim);
+}
+.board-tabs .chip.on {
+  background: var(--surface-hi);
+  border-color: var(--line);
+  color: var(--text);
+}
 
 .case-now { display: flex; align-items: center; gap: 14px; }
 .case-now-text { min-width: 0; }

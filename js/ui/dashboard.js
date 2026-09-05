@@ -16,6 +16,7 @@ import {
 import { seasonTally, categoryBreakdown, pendingSeason, seasonProgress } from "../season.js";
 import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
+import { awards } from "../awards.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -345,10 +346,7 @@ function dayHero(ctx) {
 
   return el("section.sec",
     el("div.hero",
-      // The whole head opens the case. The badge is the obvious thing to press and it is not always
-      // there — somebody with no streak has a flame and still deserves to find out what is on
-      // offer — so the target is the row rather than the badge.
-      el("button.hero-head", { onclick: () => ctx.onAwards(), "aria-label": "Achievements" },
+      el("div.hero-head",
         // The badge replaces the flame once there is one. A flame beside a Gold badge is two
         // decorations competing to say the same thing, and the badge says it better.
         tierBadge(streak, "lg")
@@ -584,13 +582,11 @@ function boardTab(ctx) {
         .map((r, i) => ({ ...r, rank: i + 1, crown: false, clown: false }))
     : rows;
 
-  if (ctx.boardSeason) return seasonSection(ctx, members);
+  if (ctx.boardView === "season") return seasonSection(ctx, members);
+  if (ctx.boardView === "awards") return awardsSection(ctx);
 
   return el("section.sec",
-    el("div.sec-hd",
-      el("h2.sec-title", "The board"),
-      el("button.link.sec-note", { onclick: () => ctx.onBoardSeason(true) }, "All time →"),
-    ),
+    boardTabs(ctx),
     live.length > 1 ? el("div.chips.chips-tight",
       el("button.chip" + (!filter ? ".on" : ""), {
         onclick: () => ctx.onBoardCategory(null),
@@ -813,12 +809,10 @@ function seasonSection(ctx, members) {
   const { weeks, rows } = seasonTally(ctx.state, members, ctx.today);
 
   return el("section.sec",
-    el("div.sec-hd",
-      el("h2.sec-title", "All time"),
-      el("button.link.sec-note", { onclick: () => ctx.onBoardSeason(false) }, "← This week"),
-    // The same strip, on the view it is actually about.
+    boardTabs(ctx),
+    // The same strip, on the view it is actually about. Full width now rather than squeezed beside
+    // a heading — the selected tab already says "All time", so the heading was saying it twice.
     seasonStrip(ctx),
-    ),
     weeks === 0
       ? el("p.sec-note", { style: "padding:0 2px" },
           "Nothing to tally yet — the first week has to finish. This week's board is still live.")
@@ -867,6 +861,96 @@ function seasonSection(ctx, members) {
       : ctx.onNewSeason
         ? el("button.link.sec-note", { onclick: () => ctx.onNewSeason() }, "Start a new season →")
         : null,
+  );
+}
+
+/**
+ * The board's three destinations, as one control.
+ *
+ * It used to be a single "All time →" link that turned into "← This week", which works for exactly
+ * two views and quietly stops working at three: a link that toggles cannot say where you ARE, only
+ * where it will take you. Chips say both.
+ *
+ * The case sits here rather than in a sheet because it belongs to the same question as the other
+ * two — how everybody is doing — and a sheet opened from somewhere else is a different room.
+ */
+function boardTabs(ctx) {
+  const views = [["week", "This week"], ["season", "All time"], ["awards", "Awards"]];
+  return el("div.board-tabs",
+    views.map(([id, label]) => el("button.chip" + (ctx.boardView === id ? ".on" : ""), {
+      onclick: () => ctx.onBoardView(id),
+    }, label)),
+  );
+}
+
+/**
+ * Everything that can be won, and how often it has been.
+ *
+ * Was a sheet. Moved here because it answers a board question and belongs beside the standings it
+ * is earned from — see awards.js for why these are counts rather than ticks.
+ */
+function awardsSection(ctx) {
+  const { major, habits, earned } = awards(ctx.state, ctx.me, ctx.today);
+  const streak = onGoalStreak(ctx.state, ctx.me, ctx.today);
+  const held = tierFor(streak);
+  const next = nextTier(streak);
+  const unit = { day: "days", week: "weeks", month: "months" };
+  const runLabel = (n, period) => {
+    const many = unit[period] || unit.day;
+    return n + " " + (n === 1 ? many.slice(0, -1) : many);
+  };
+
+  return el("section.sec",
+    boardTabs(ctx),
+
+    el("div.case-now",
+      held
+        ? el("span.badge.badge-lg.badge-" + held.key,
+            el("span.badge-face", el("span.badge-n", String(streak))))
+        : el("div.hero-mark", "·"),
+      el("div.case-now-text",
+        el("div.case-held", held ? held.name : "No badge yet"),
+        el("div.case-sub",
+          held
+            ? "Held for " + runLabel(streak, "day")
+              + (next ? " · " + next.away + " to " + next.tier.name : "")
+            : next ? next.away + " days of every habit on goal to reach " + next.tier.name : "",
+        ),
+      ),
+      earned ? el("span.case-tally", earned === 1 ? "1 won" : earned + " won") : null,
+    ),
+
+    earned === 0
+      ? el("p.case-count", "Nothing won yet. Every badge below is still on the table.")
+      : null,
+
+    el("h2.sec-title", "Every habit, on goal"),
+    el("div.case-major", major.map((t) => el("div.case-slot" + (t.times ? "" : ".is-locked"),
+      el("span.badge.badge-" + t.key, { title: t.name + " — " + t.earned },
+        el("span.badge-face", el("span.badge-n", String(t.at)))),
+      el("span.case-name", t.name),
+      t.times > 1 ? el("span.case-times", "×" + t.times) : null,
+    ))),
+    el("p.note-inline",
+      "Won by meeting every category you were asked about, every day. The group is told when you "
+      + "reach one."),
+
+    habits.length ? el("h2.sec-title", "One habit at a time") : null,
+    habits.map((h) => el("div.case-habit",
+      el("div.case-habit-head",
+        el("span.case-habit-icon", h.icon),
+        el("span.case-habit-name", h.name),
+        el("span.case-habit-run", h.streak ? runLabel(h.streak, h.period) : "no run"),
+      ),
+      el("div.case-pips", h.levels.map((l) => el("div.case-slot" + (l.times ? "" : ".is-locked"),
+        el("span.pip.pip-" + LEVEL_KEY[l.level], { title: runLabel(l.at, h.period) }, String(l.at)),
+        el("span.case-name", l.span),
+        l.times > 1 ? el("span.case-times", "×" + l.times) : null,
+      ))),
+    )),
+    habits.length
+      ? el("p.note-inline", "Yours alone — these are never announced to the group.")
+      : null,
   );
 }
 

@@ -24,6 +24,7 @@ const isDemo = params.get("demo") === "1";
 const ui = {
   tab: params.get("tab") || "today",
   sync: { state: "LOCAL_ONLY", queued: 0 },
+  boardView: "week",
   // A sync the person asked for, still running. Separate from sync.state, which describes the
   // page's own connection and knows nothing about the shell reading a sensor.
   syncing: false,
@@ -67,7 +68,7 @@ function paint() {
     manualSync: caps().manualSync,
     syncing: ui.syncing,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason,
-    onOpenSettings, onOpenFocus, onBoardCategory, onBoardSeason, onAwards, onSyncNow,
+    onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
   });
 }
 
@@ -214,19 +215,6 @@ const onRemoveMember = guard("member", async (memberId) => {
   if (await removeMember(memberId)) await refresh();
 });
 
-/** The case. Everything that can be won, and what has been. */
-const onAwards = guard("awards", async () => {
-  if (!ctx) return;
-  const { openAwardSheet } = await import("./ui/awardsheet.js");
-  const { onGoalStreak } = await import("./summary.js");
-  // On body, not on the app root: a sync landing while it is open repaints the root, and anything
-  // living inside it would vanish mid-read.
-  openAwardSheet(document.body, {
-    state: ctx.state, me: ctx.me, today: ctx.today,
-    streak: onGoalStreak(ctx.state, ctx.me, ctx.today),
-  });
-});
-
 /** Type a number in — the only way half these habits ever get a value. */
 async function onLog(habit) {
   if (demoBlocked()) return;
@@ -294,7 +282,6 @@ const onOpenHabits = guard("menu", async () => {
     onEditGoals,
     onOpenSettings,
     onInvite,
-    onAwards,
     onRemoveMember,
     onClosed: () => refresh(),
   });
@@ -349,9 +336,15 @@ function onBoardCategory(category) {
   paint();
 }
 
-/** This week, or the whole season. Kept in `ui` so a sync repaint does not bounce you back. */
-function onBoardSeason(on) {
-  ui.boardSeason = !!on;
+/**
+ * Which of the board's three views is showing: this week, all time, or the case.
+ *
+ * A string rather than the boolean it replaced, because there are three now — and a second boolean
+ * is how a two-way switch quietly becomes a state machine nobody meant to write. Kept in `ui` so a
+ * sync repaint does not bounce somebody back to the week.
+ */
+function onBoardView(view) {
+  ui.boardView = view;
   paint();
 }
 

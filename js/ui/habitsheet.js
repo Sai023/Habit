@@ -19,7 +19,7 @@ const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
 export function openHabitsSheet(
   host,
   {
-    state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite, onAwards,
+    state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite,
     onRemoveMember, embedded = false, onClosed,
   },
 ) {
@@ -73,13 +73,6 @@ export function openHabitsSheet(
     // after it was made, and the code to hand them has to be findable on that day.
     onInvite
       ? el("button.link", { onclick: () => handOffTo(() => onInvite()) }, "Invite someone →")
-      : null,
-
-    // Findable without a badge. The hero is the obvious way in and it only looks like a way in once
-    // there is something on it, which is exactly backwards for somebody deciding whether any of
-    // this is worth chasing.
-    onAwards
-      ? el("button.link", { onclick: () => handOffTo(() => onAwards()) }, "Achievements →")
       : null,
 
     // One destination for everything that is about the person rather than about a habit: their
