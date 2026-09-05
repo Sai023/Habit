@@ -296,6 +296,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .dots > i.spent { background: var(--danger); }
 
 .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-micro); color: var(--dim); }
+
+/* The second line of a monthly goal: the clock, not the number. Quieter than the shortfall above
+   it, because "counts when the month ends" is context rather than news. */
+.card-month { color: var(--dim); font-variant-numeric: tabular-nums; }
 .src { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
 .tap {

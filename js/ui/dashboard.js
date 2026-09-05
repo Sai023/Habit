@@ -239,10 +239,26 @@ function habitCard(habit, ctx) {
       // A paced habit says where the line is TONIGHT, not just where the week ends. "1 of 3" is a
       // number you can answer; "you are 0.43 behind" is not, and a pace nobody can picture is a
       // pace nobody runs.
-      habit.period !== PERIOD.DAY && !reduce
+      // Paced, for a habit that can actually be paced. "Three workouts a week, two by tonight" is a
+      // sentence somebody can act on this evening.
+      habit.period === PERIOD.WEEK && !reduce
         ? el("div.card-of",
             (value || 0) + " of " + fmt.value(habit.metric, target) + " " + cadence
             + " · " + expectedBy(habit, ctx.today) + " by tonight")
+        : null,
+
+      // A month is not paced, and saying it is contradicts the engine to the person's face.
+      //
+      // Money arrives as a payday lump, not a daily drip, so scoring refuses to judge a savings
+      // goal at all while the month can still be saved — no penalty, deliberately. The card was
+      // saying the opposite: "0 of 15 000 this month · 2000 by tonight", under an empty bar, on the
+      // fourth. That is a shortfall the engine does not believe in, reported to somebody who has
+      // done nothing wrong, three weeks before they get paid.
+      //
+      // What is true instead: how much is left, how long there is, and that nothing is being
+      // decided yet.
+      habit.period === PERIOD.MONTH && !reduce
+        ? monthlyLines(habit, value, target, ctx)
         : null,
       // The paced line above already said the target and the cadence, so this one would repeat it.
       habit.period !== PERIOD.DAY && !reduce ? null : el("div.card-of", reduce
@@ -357,6 +373,32 @@ function categoryLines(scored) {
       el("div.bar" + tone, { role: "presentation" }, el("i", { style: "width:" + reached + "%" })),
     );
   }));
+}
+
+/**
+ * What a monthly goal can honestly say mid-month.
+ *
+ * Two lines and no pace: the shortfall, and the fact that the month is still open. The second one
+ * is not reassurance, it is the actual scoring rule — a month still running is not judged, and a
+ * month that ends short is judged on every one of its days at once.
+ */
+function monthlyLines(habit, value, target, ctx) {
+  const short = Math.max(0, target - (value || 0));
+  const key = periodKey(ctx.today, habit.period);
+  const end = periodEnd(key, habit.period);
+  const left = Math.max(0, daysBetween(ctx.today, end));
+
+  return [
+    el("div.card-of",
+      short > 0
+        ? fmt.value(habit.metric, short) + " to go this month"
+        : "Done — " + fmt.value(habit.metric, value || 0) + " of " + fmt.value(habit.metric, target)),
+    el("div.card-foot.card-month",
+      left === 0 ? "Last day — counts tonight"
+        : short <= 0 ? (left === 1 ? "1 day left" : left + " days left")
+        // Said plainly, because an empty bar on the 4th otherwise reads as a fortnight of failure.
+        : (left === 1 ? "1 day left" : left + " days left") + " · counts when the month ends"),
+  ];
 }
 
 function progressBar(value, target) {
