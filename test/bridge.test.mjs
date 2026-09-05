@@ -34,7 +34,9 @@ function test(name, fn) {
  * separate repositories that cannot import from each other — which is the whole reason the drift
  * this file catches is possible in the first place.
  */
-const ANNOUNCED = ["version", "healthConnect", "alarms", "tile", "embedded", "focusSettings"];
+const ANNOUNCED = [
+  "version", "healthConnect", "alarms", "tile", "embedded", "focusSettings", "manualSync",
+];
 
 function fakeShell() {
   const calls = [];

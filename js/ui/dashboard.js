@@ -61,7 +61,12 @@ const SYNC_TEXT = {
 };
 
 function header(ctx) {
-  const [cls, text] = SYNC_TEXT[ctx.sync?.state] || SYNC_TEXT.LOCAL_ONLY;
+  // A manual sync spends most of its time in the shell — reading the sensor and pushing — before
+  // this page's own flush ever starts, so the pill has to say so for that whole stretch. Without
+  // it the tap produces nothing visible for several seconds and reads as a dead control.
+  const [cls, text] = ctx.syncing
+    ? SYNC_TEXT.SYNCING
+    : (SYNC_TEXT[ctx.sync?.state] || SYNC_TEXT.LOCAL_ONLY);
   const queued = ctx.sync?.queued || 0;
   return el("header.hdr",
     el("div",
@@ -69,7 +74,23 @@ function header(ctx) {
       el("div.hdr-sub", fmt.dayLabel(ctx.today), ctx.demo ? " · demo data" : ""),
     ),
     el("div.hdr-actions",
-      el("span.pill." + cls, el("i.dot"), queued ? text + " · " + queued : text),
+      // Tap it to force a sync.
+      //
+      // This is where somebody already looks when they doubt a number — a status that says "Synced"
+      // above a step count that is two thousand short is the exact moment they want to do something
+      // about it, and making them hunt through a settings sheet for a button called "Sync now" is
+      // asking them to already know the app.
+      //
+      // Only where the shell can actually be asked. In a browser there are no sensors to re-read
+      // and the pill stays what it always was: a status, not a control.
+      ctx.manualSync
+        ? el("button.pill.pill-btn." + cls, {
+            disabled: !!ctx.syncing,
+            onclick: () => ctx.onSyncNow(),
+            "aria-label": "Sync now",
+            title: "Tap to sync now",
+          }, el("i.dot"), queued ? text + " · " + queued : text)
+        : el("span.pill." + cls, el("i.dot"), queued ? text + " · " + queued : text),
       // One button, not two. There used to be a ☰ for the habit list and a ⚙ for the shell's
       // settings, which asked the reader to know which of two apps a given setting belonged to —
       // a distinction that is an implementation detail here and the whole point of merging them

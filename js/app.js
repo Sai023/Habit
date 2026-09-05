@@ -13,7 +13,7 @@ import { demoState } from "./ui/demo.js";
 import { dayKey } from "./habits.js";
 import { HABIT_DEFAULTS } from "./schema.js";
 import { installBridge, caps, isNative, setSyncConfig, openSettings, onAppResume } from "./bridge.js";
-import { showProblem } from "./ui/problem.js";
+import { showProblem, showNote } from "./ui/problem.js";
 import { watchForUpdates } from "./update.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
@@ -24,6 +24,9 @@ const isDemo = params.get("demo") === "1";
 const ui = {
   tab: params.get("tab") || "today",
   sync: { state: "LOCAL_ONLY", queued: 0 },
+  // A sync the person asked for, still running. Separate from sync.state, which describes the
+  // page's own connection and knows nothing about the shell reading a sensor.
+  syncing: false,
 };
 
 let ctx = null;
@@ -61,8 +64,10 @@ function paint() {
   renderApp(root, {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
     focusSettings: caps().focusSettings,
+    manualSync: caps().manualSync,
+    syncing: ui.syncing,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason,
-    onOpenSettings, onOpenFocus, onBoardCategory, onBoardSeason, onAwards,
+    onOpenSettings, onOpenFocus, onBoardCategory, onBoardSeason, onAwards, onSyncNow,
   });
 }
 
@@ -171,6 +176,35 @@ const onOpenFocus = guard("focus", async () => {
   const { openFocus } = await import("./bridge.js");
   if (!openFocus()) {
     showProblem("Couldn't open screen-time settings from here.");
+  }
+});
+
+/**
+ * Read the sensors and push, now.
+ *
+ * Two halves, and both are needed. The shell re-reads Health Connect and pushes to the room; this
+ * page then has to pull what was pushed, because a reading taken on this very device still travels
+ * out to the server and back before the card can show it. Doing only the first leaves somebody
+ * watching an unchanged number for the fifteen seconds until the next poll and concluding, fairly,
+ * that the button does nothing.
+ */
+const onSyncNow = guard("sync", async () => {
+  if (ui.syncing) return;
+  ui.syncing = true;
+  paint();
+  try {
+    const { requestSync } = await import("./bridge.js");
+    const message = await requestSync();
+    const sync = await import("./sync.js");
+    await sync.flush();
+    await refresh();
+    // The shell's own words, including the figure it just read off the sensor — which is the only
+    // thing that can settle whether a stale number is this app's fault or the watch's.
+    if (message) showNote(message);
+    else showProblem("Couldn't reach the app's sync from here.");
+  } finally {
+    ui.syncing = false;
+    paint();
   }
 });
 

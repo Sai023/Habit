@@ -889,3 +889,19 @@ button.hero-head:active { transform: scale(0.99); }
   color: var(--teal);
   font-variant-numeric: tabular-nums;
 }
+
+/* The status pill, when the shell can actually be asked to sync. Still a status first — it gains a
+   press and nothing else, because turning it into an obvious button would put a control where
+   people are used to reading a state. */
+.pill-btn { cursor: pointer; border: 0; font: inherit; }
+.pill-btn:active { transform: scale(0.96); }
+
+/* A banner that is not a failure. The problem bar is drawn in the danger colour, and answering
+   "here is what I just read off your watch" in red teaches somebody that success looks like an
+   error. */
+.problem.is-note {
+  background: var(--surface-hi);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}

@@ -24,11 +24,14 @@ let capabilities = {
   // Whether openFocus() goes anywhere. False on a shell where Focus is still a tab of its
   // own, so the control is simply not drawn rather than drawn and inert.
   focusSettings: false,
+  // Whether syncNow() goes anywhere. False on a shell that has no such method.
+  manualSync: false,
   // Hosted as a native tab rather than opened in a browser. Drives one thing only: the app stops
   // drawing its own bottom bar, because the shell is already drawing one.
   embedded: false,
 };
 const resumeListeners = new Set();
+let onSyncResult = null;
 let onChange = () => {};
 let onReady = () => {};
 let onNavigate = () => {};
@@ -108,10 +111,19 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
         // not name is silently dropped and reads as false forever — which is indistinguishable
         // from a shell too old to have the feature, and therefore invisible.
         focusSettings: !!info.focusSettings,
+        manualSync: !!info.manualSync,
         native: true,
       };
       onReady(info.setup || null);
       onChange();
+    },
+
+    /** What a manual sync found. Handed to whoever asked for one. */
+    onSyncResult(json) {
+      const { message } = safeParse(json) || {};
+      const fn = onSyncResult;
+      onSyncResult = null;   // one answer per request; a stale handler must not fire later
+      if (fn) fn(message || "");
     },
 
     /**
@@ -292,6 +304,24 @@ export function openSettings() {
  */
 export function openFocus() {
   return call("openFocus", {});
+}
+
+/**
+ * Ask the shell to read its sensors and push, now, whatever its throttles think.
+ *
+ * Resolves with what the shell found — including the figure it just read — because somebody taps
+ * this when a number looks wrong, and only the reading THIS DEVICE took can settle whether the
+ * fault is here or upstream in the watch.
+ *
+ * Resolves with null if the shell cannot be asked, so the caller can say so rather than spin.
+ */
+export function requestSync() {
+  return new Promise((resolve) => {
+    onSyncResult = resolve;
+    if (!call("syncNow", {})) { onSyncResult = null; resolve(null); return; }
+    // A shell that takes the call and never answers must not leave a spinner running for ever.
+    setTimeout(() => { if (onSyncResult === resolve) { onSyncResult = null; resolve(null); } }, 20000);
+  });
 }
 
 /** Show a notification now, with optional action buttons ("+1", "Resisted"). */
