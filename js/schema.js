@@ -132,9 +132,25 @@ export const SOURCE = {
   HEALTH_CONNECT: "health_connect",
   STRAVA:         "strava",
   PAUSE:          "pause",    // the intervention screen (urges resisted / given in)
+  // The phone worked it out from its own behaviour rather than reading a sensor: sleep, guessed
+  // from how long it was left alone overnight. Distinct from PAUSE, which means this app counted
+  // something it did itself — one is a measurement, the other an inference, and a person is
+  // entitled to know which they are being scored on.
+  PHONE:          "phone",
   MANUAL:         "manual",
 };
-export const AUTOMATIC_SOURCES = new Set([SOURCE.HEALTH_CONNECT, SOURCE.STRAVA, SOURCE.PAUSE]);
+export const AUTOMATIC_SOURCES = new Set([
+  SOURCE.HEALTH_CONNECT, SOURCE.STRAVA, SOURCE.PAUSE, SOURCE.PHONE,
+]);
+
+/**
+ * What the phone can work out on its own, without a watch.
+ *
+ * Only sleep, and only as a fallback. A watch answers it properly — but most people take theirs
+ * off at night, which is the one night it needed to be on, and the phone is on the bedside table
+ * whether or not anybody decided it should be.
+ */
+export const PHONE_ESTIMATED = new Set([METRIC.SLEEP]);
 
 /** What a watch can answer for, and what only the Pause shell can. */
 export const HEALTH_METRICS = new Set([
@@ -173,7 +189,15 @@ export function isInterventionHabit(habit) {
 
 export function sourceForDevice(metric, { pause = false, health = false } = {}) {
   if (PAUSE_METRICS.has(metric)) return pause ? SOURCE.PAUSE : SOURCE.MANUAL;
-  if (HEALTH_METRICS.has(metric)) return health ? SOURCE.HEALTH_CONNECT : SOURCE.MANUAL;
+  if (HEALTH_METRICS.has(metric)) {
+    if (health) return SOURCE.HEALTH_CONNECT;
+    // A real automatic source rather than a consolation prize, and only inside the shell — a
+    // browser tab cannot watch a screen go dark. The shell will not show its own habit screens
+    // until the accessibility service is on, so being embedded is the same statement as being able
+    // to observe this.
+    if (pause && PHONE_ESTIMATED.has(metric)) return SOURCE.PHONE;
+    return SOURCE.MANUAL;
+  }
   return SOURCE.MANUAL;
 }
 

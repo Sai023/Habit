@@ -44,6 +44,9 @@ const SOURCE_LABEL = {
   [SOURCE.HEALTH_CONNECT]: { icon: "⌚", label: "auto" },
   [SOURCE.STRAVA]: { icon: "🔗", label: "Strava" },
   [SOURCE.PAUSE]: { icon: "📱", label: "on this phone" },
+  // Named as a guess, every time it is shown. It is a good guess and it is still a guess, and a
+  // number that quietly claims more than it can deliver is one somebody stops believing entirely.
+  [SOURCE.PHONE]: { icon: "🛏", label: "estimated" },
   [SOURCE.MANUAL]: { icon: "✋", label: "manual" },
 };
 

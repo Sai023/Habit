@@ -15,7 +15,7 @@ import { caps } from "../bridge.js";
 import { categoryFor, CATEGORY_LABEL, CATEGORY_ICON } from "../score.js";
 import {
   METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD, PAUSE_METRICS,
-  HEALTH_METRICS, AUTOMATIC_SOURCES, sourceForDevice, SCORED_METRICS,
+  HEALTH_METRICS, AUTOMATIC_SOURCES, sourceForDevice, SCORED_METRICS, PHONE_ESTIMATED,
 } from "../schema.js";
 
 /**
@@ -197,7 +197,12 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
       el("button.chip" + (form.tracked ? ".on" : ""), {
         disabled: !can,
         onclick: () => { if (can) { form.tracked = true; paint(); } },
-      }, PAUSE_METRICS.has(type.metric) ? "Goal Buddy counts it" : "My watch"),
+      }, PAUSE_METRICS.has(type.metric) ? "Goal Buddy counts it"
+        // Named for what would actually answer it on THIS device. Offering "My watch" to somebody
+        // with no watch, and then quietly filling it in from the phone, is how a number nobody
+        // asked for turns up on the board.
+        : deviceSource(type) === SOURCE.PHONE ? "Estimate it for me"
+        : "My watch"),
       el("button.chip" + (!form.tracked ? ".on" : ""), {
         onclick: () => { form.tracked = false; paint(); },
       }, "I log it myself"),
@@ -212,6 +217,16 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
           + "is yours to log here."
         : "This device can't read health data, so this one is yours to log here. On a phone with "
           + "Health Connect you can switch it over.";
+    }
+    if (PHONE_ESTIMATED.has(type.metric) && deviceSource(type) === SOURCE.PHONE) {
+      return "No watch on this phone — but it can work this one out on its own.";
+    }
+    if (form.tracked && deviceSource(type) === SOURCE.PHONE) {
+      // Said in full, before anybody is scored on it. A guess presented as a measurement is the
+      // fastest way to lose somebody's trust in every other number on the screen.
+      return "From how long your phone is left alone overnight — the last time you put it down to "
+        + "the first time you unlock it. It's an estimate, and it's marked as one everywhere it "
+        + "appears. A night it can't read counts as \"no data\", never as a miss.";
     }
     if (form.tracked) {
       return "Days it reports nothing count as \"no data\" rather than a miss, so a watch that "

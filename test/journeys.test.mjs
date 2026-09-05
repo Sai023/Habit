@@ -151,6 +151,31 @@ test("what scores is decided by the metric, whatever the preset asked for", () =
 // Who feeds it — the choice, and what it costs to get wrong
 // ===========================================================================
 
+test("with no watch, sleep is estimated by the phone rather than typed in", () => {
+  // The one metric a phone can answer without a sensor, and the one people most often have no
+  // sensor for: a watch measures sleep properly and most people take theirs off at night.
+  const noWatch = { pause: true, health: false };
+  assert.equal(sourceForDevice(METRIC.SLEEP, noWatch), SOURCE.PHONE);
+
+  // A real reading still wins wherever there is one.
+  assert.equal(sourceForDevice(METRIC.SLEEP, { pause: true, health: true }), SOURCE.HEALTH_CONNECT);
+
+  // In a browser there is no screen to watch going dark, so it stays a manual habit.
+  assert.equal(sourceForDevice(METRIC.SLEEP, { pause: false, health: false }), SOURCE.MANUAL);
+
+  // And it is only sleep. Steps without a watch is somebody typing a number in, not the phone
+  // inventing one.
+  assert.equal(sourceForDevice(METRIC.STEPS, noWatch), SOURCE.MANUAL);
+  assert.equal(sourceForDevice(METRIC.ACTIVE_CALORIES, noWatch), SOURCE.MANUAL);
+});
+
+test("an estimated night is automatic, so a night it cannot read is not a miss", () => {
+  // The whole reason this is a source rather than a pre-filled manual entry. An automatic source
+  // going quiet is NO_DATA — a pipeline that said nothing — while a manual one going quiet is a
+  // failure. A phone taken to bed in another room must not cost somebody the board.
+  assert.ok(AUTOMATIC_SOURCES.has(SOURCE.PHONE));
+});
+
 test("on a full phone, the automatic presets bind to a sensor and the rest to the person", () => {
   const on = (key) => build(add(key)).bindings.get("m1|h");
   assert.equal(on("steps"), SOURCE.HEALTH_CONNECT);
