@@ -182,6 +182,20 @@ export function habitScore(state, habit, memberId, day, today = null, memo = nul
   const out = { habitId: habit.habitId, eligible: false, score: 0, value: null, target: 0, expected: null };
 
   if (!habit.scored) return remember(memo, memoKey, out);
+
+  // A habit cannot be failed on days before it existed.
+  //
+  // Without this, adding a habit re-scores the entire past: every day back to the beginning gains
+  // a category nobody was asked about and nobody logged, so it is a miss, and a person's finished
+  // weeks quietly drop. Completed weeks change, crowns move, and a season somebody is halfway
+  // through rearranges itself because a friend added a sixth habit on a Tuesday. The board's whole
+  // claim is that a finished week is finished.
+  //
+  // Scored from the period the habit was BORN in rather than from the day, which is the same rule
+  // walk() already uses for streaks — a weekly habit created on a Wednesday still owns that week.
+  // Only periods that had already ended are skipped.
+  if (periodEnd(key, habit.period) < habit.createdDay) return remember(memo, memoKey, out);
+
   if (!isTracking(state, habit, memberId, opensOn)) return remember(memo, memoKey, out);
 
   const status = rawPeriodStatus(state, habit, memberId, key);
