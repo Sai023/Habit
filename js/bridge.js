@@ -90,6 +90,11 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
         alarms: !!info.alarms,
         tile: !!info.tile,
         embedded: !!info.embedded,
+        // Every field the shell announces has to be read out HERE. This object is rebuilt whole on
+        // each announcement rather than merged, so a capability the shell sends and this line does
+        // not name is silently dropped and reads as false forever — which is indistinguishable
+        // from a shell too old to have the feature, and therefore invisible.
+        focusSettings: !!info.focusSettings,
         native: true,
       };
       onReady(info.setup || null);
