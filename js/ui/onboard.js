@@ -8,15 +8,24 @@
 import { el, render } from "../dom.js";
 import { createGroup, joinGroup, setupCode, ensureBindings } from "../store.js";
 import { normalizeGroupCode } from "../id.js";
-import { METRIC, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY } from "../schema.js";
+import { METRIC, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD } from "../schema.js";
 
 /**
- * The habits a new group starts with.
+ * The habits a new group starts with — all six the board scores.
  *
- * Two that a watch can fill in on its own, and one that it cannot. The third is the reason the
+ * It used to offer three, which made sense while the board scored anything anybody invented. It
+ * does not now: the six are the events of the competition, and a setup screen showing half of them
+ * leaves a joiner to discover the rest in an editor they have no reason to open. Somebody would be
+ * three weeks in before finding out they had never been scored on Discipline.
+ *
+ * All six start ticked, because they are what this group agreed to run and unticking is one tap.
+ * Each carries its own cadence: a workout target is a week's worth and a savings target is one
+ * question asked at the end of the month, and forcing either into a day makes it a lie.
+ *
+ * The vape is the reason the reduce direction exists: it counts DOWN from a ceiling, and the
  * reduce direction exists: it counts DOWN from a ceiling, and the ceiling drops a tenth of its
- * starting value every week until it reaches zero — a quit plan with a date on it rather than an
- * open-ended diary.
+ * ceiling drops a tenth of its starting value every week until it reaches zero — a quit plan with
+ * a date on it rather than an open-ended diary.
  *
  * It IS scored, and no longer by anyone's choice — scoring is decided by the metric now, and puffs
  * are one of the six. Keeping reduce habits off the board was meant to stop "bottom of a quitting
@@ -37,7 +46,9 @@ const STARTERS = [
   },
   {
     key: "sleep", icon: "😴", name: "Sleep",
-    blurb: "Read from your watch automatically.",
+    // Both halves of it, because on a phone with no watch this is the one that still works — and
+    // somebody who reads "from your watch" and owns none would reasonably skip it.
+    blurb: "From your watch, or estimated from how long your phone is left alone overnight.",
     unit: "hours a night", step: 0.25,
     toInput: (v) => Math.round((v / 60) * 100) / 100, fromInput: (v) => Math.round(v * 60),
     fields: {
@@ -53,6 +64,36 @@ const STARTERS = [
       metric: METRIC.PUFFS, direction: AT_MOST, target: 80,
       aggregate: AGGREGATE.SUM, visibility: VISIBILITY.PROGRESS,
       taper: { percent: 10, everyDays: 7, floor: 0 },
+    },
+  },
+  {
+    key: "sessions", icon: "🏋", name: "Workouts",
+    blurb: "Counted by the week, so a rest day is never a miss.",
+    unit: "times a week", step: 1, toInput: (v) => v, fromInput: (v) => Math.round(v),
+    fields: {
+      metric: METRIC.SESSIONS, direction: AT_LEAST, target: 3, period: PERIOD.WEEK,
+      aggregate: AGGREGATE.SUM, visibility: VISIBILITY.FULL,
+    },
+  },
+  {
+    key: "amount", icon: "💰", name: "Savings",
+    blurb: "One question, asked when the month ends — an early month is never held against you.",
+    unit: "a month", step: 100, toInput: (v) => v, fromInput: (v) => Math.round(v),
+    fields: {
+      metric: METRIC.AMOUNT, direction: AT_LEAST, target: 1000, period: PERIOD.MONTH,
+      // Progress rather than the figure. What everybody saved is a number friends can compare
+      // themselves against in a way steps are not, and defaulting to publishing it is a decision
+      // nobody was asked to make.
+      aggregate: AGGREGATE.LAST, visibility: VISIBILITY.PROGRESS,
+    },
+  },
+  {
+    key: "screen", icon: "📱", name: "Screen time",
+    blurb: "Counted by Goal Buddy on this phone, in the apps you ask it to slow down.",
+    unit: "minutes a day, at most", step: 15, toInput: (v) => v, fromInput: (v) => Math.round(v),
+    fields: {
+      metric: METRIC.SCREEN_MINUTES, direction: AT_MOST, target: 120, period: PERIOD.DAY,
+      aggregate: AGGREGATE.LAST, visibility: VISIBILITY.PROGRESS,
     },
   },
 ];
