@@ -12,7 +12,7 @@ import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
 import { dayKey } from "./habits.js";
 import { HABIT_DEFAULTS } from "./schema.js";
-import { installBridge, caps, isNative, setSyncConfig, openSettings } from "./bridge.js";
+import { installBridge, caps, isNative, setSyncConfig, openSettings, onAppResume } from "./bridge.js";
 import { showProblem } from "./ui/problem.js";
 import { watchForUpdates } from "./update.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
@@ -38,11 +38,22 @@ let onboarding = false;
 let bindOnNextSync = false;
 let pendingGoals = false;
 
-function todayKey(state) {
+/**
+ * Which habit day a moment falls in.
+ *
+ * The zone and the start hour come off the first habit, not off meta — habits carry a PINNED zone
+ * so that travel cannot move the boundary, and the day the group is judged on is the one their
+ * habits agree about.
+ */
+function dayKeyAt(state, at) {
   const first = [...state.habits.values()][0];
   const tz = first?.tz || HABIT_DEFAULTS.tz;
   const startHour = first?.dayStartHour ?? HABIT_DEFAULTS.dayStartHour;
-  return dayKey(Date.now(), tz, startHour);
+  return dayKey(at, tz, startHour);
+}
+
+function todayKey(state) {
+  return dayKeyAt(state, Date.now());
 }
 
 function paint() {
@@ -332,6 +343,81 @@ function onFixSync(row) {
   );
 }
 
+/**
+ * Keep what is on screen true, without being asked.
+ *
+ * ---- The two ways a screen goes stale ----
+ *
+ * `ctx.today` is worked out once, when the state is loaded. Leave the app open past the day
+ * boundary — which people do, because the boundary is four in the morning and the last thing many
+ * of them check is the vape count — and every card, the streak line and the time-left note all go
+ * on describing yesterday. Nothing looks broken. It is just quietly wrong, which is worse.
+ *
+ * The other is arriving with numbers that were fetched hours ago: opening the app is exactly the
+ * moment somebody looks at their step count, and it is the moment least likely to be covered by a
+ * background job Android may not be running at all.
+ *
+ * So: re-derive on the way back in, and hold a timer to the next boundary while the app is open.
+ * Both end in the same `refresh()`, which is cheap — a replay of the local log, no network.
+ */
+function watchTheClock() {
+  let timer = null;
+
+  function schedule() {
+    clearTimeout(timer);
+    if (!ctx) return;
+    const ms = msUntilDayChange(ctx.state);
+    // Recomputed after every fire rather than repeated, so a clock change, a flight or the end of
+    // daylight saving is absorbed instead of accumulating.
+    timer = setTimeout(tick, Math.min(ms, MAX_TIMER_MS));
+  }
+
+  // The wake is cheap on purpose. A long timer is not honoured reliably, so this one re-arms every
+  // half hour — and a full replay of the log on each of those, for an app somebody left open, is a
+  // cost with nothing to show for it. Comparing two day strings is not.
+  function tick() {
+    if (!ctx) return;
+    if (todayKey(ctx.state) !== ctx.today) refresh().catch(() => {});
+    else schedule();
+  }
+
+  function catchUp() {
+    // Cheap enough to run unconditionally: it is a replay of a log already in memory. Guarded only
+    // against running before the first load has finished.
+    if (ctx) refresh().catch(() => {});
+  }
+
+  onAppResume(catchUp);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") catchUp();
+  });
+
+  return { schedule };
+}
+
+/** A setTimeout longer than this is not reliably honoured, so the timer wakes and re-arms. */
+const MAX_TIMER_MS = 30 * 60 * 1000;
+
+/** Milliseconds until the habit day rolls over, by the group's timezone and start hour. */
+function msUntilDayChange(state) {
+  const now = Date.now();
+  const today = todayKey(state);
+  // Walk forward in coarse steps and then refine, rather than doing timezone arithmetic by hand:
+  // the boundary is a wall-clock hour in a named zone, and reconstructing that from an offset is
+  // exactly the sum that breaks twice a year.
+  let lo = 0;
+  let hi = 26 * 60 * 60 * 1000;
+  const changedBy = (ms) => dayKeyAt(state, now + ms) !== today;
+  if (!changedBy(hi)) return hi;
+  while (hi - lo > 30_000) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (changedBy(mid)) hi = mid; else lo = mid;
+  }
+  return Math.max(30_000, hi);
+}
+
+const clock = watchTheClock();
+
 async function refresh() {
   const { getState, identity } = await import("./store.js");
   const { db } = await import("./db.js");
@@ -342,6 +428,7 @@ async function refresh() {
   const state = await getState();
   ctx = { state, events: await db.allEvents(), me: memberId, today: todayKey(state), demo: false };
   paint();
+  clock.schedule();
   tellShell(state, memberId, code);
   tellShellSummary(state, memberId);
 }

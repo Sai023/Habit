@@ -25,6 +25,8 @@
 // exactly this window. Reloading promptly is what closes the window; those two stay as the floor
 // under the moments before the reload gets there.
 
+import { onAppResume } from "./bridge.js";
+
 /** How often a foreground is allowed to ask the network whether a new worker exists. */
 const CHECK_GAP_MS = 60_000;
 
@@ -66,9 +68,10 @@ export function watchForUpdates() {
     if (document.visibilityState === "visible") onForeground();
   });
 
-  // What the shell calls on ON_RESUME. See HabitWebHost.kt: the Activity's lifecycle is the
-  // dependable signal here, and visibilitychange above is the standalone-browser equivalent.
-  window.onShellResume = onForeground;
+  // The shell's own resume signal. See HabitWebHost.kt: the Activity's lifecycle is the dependable
+  // one here, and the visibilitychange above is the standalone-browser equivalent. Registered
+  // rather than assigned, because the day's numbers want this event too.
+  onAppResume(onForeground);
 }
 
 function registerNow() {

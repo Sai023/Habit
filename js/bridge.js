@@ -28,9 +28,22 @@ let capabilities = {
   // drawing its own bottom bar, because the shell is already drawing one.
   embedded: false,
 };
+const resumeListeners = new Set();
 let onChange = () => {};
 let onReady = () => {};
 let onNavigate = () => {};
+
+/**
+ * Run [fn] whenever the app is brought back to the front. Returns an unsubscribe.
+ *
+ * The signal is native — see HabitWebHost — because a retained WebView is not reliably told its
+ * page became hidden. In a plain browser nothing ever calls it, which is correct: there is no
+ * shell to be resumed, and visibilitychange is the equivalent the callers already use.
+ */
+export function onAppResume(fn) {
+  resumeListeners.add(fn);
+  return () => resumeListeners.delete(fn);
+}
 
 /** What the shell can actually do. Screens use this to hide controls that would do nothing. */
 export function caps() {
@@ -136,6 +149,19 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
         onChange();
       })().catch((err) => console.warn("[bridge] local event failed:", err));
     },
+  };
+
+  // The shell calls this every time the app is brought to the front.
+  //
+  // Fanned out rather than owned by one caller: two separate things want it — checking for a new
+  // build, and re-deriving today's numbers — and the first module to load would otherwise take the
+  // global and silently deny it to the second.
+  window.onShellResume = () => {
+    for (const fn of resumeListeners) {
+      // One bad listener must not stop the others. This runs on every app open, so a throw here
+      // would be a permanent and invisible loss of whatever was registered after it.
+      try { fn(); } catch (err) { console.warn("[bridge] resume listener failed:", err); }
+    }
   };
 
   // A shell that was already up before this script parsed needs a nudge to re-announce itself.
