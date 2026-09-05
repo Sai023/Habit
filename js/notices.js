@@ -22,9 +22,16 @@
 // is the shell's dedupe key and the reason this can stay a pure function of the log rather than
 // becoming a queue somebody has to drain.
 
-import { taperWeekStart, targetFor, isTaperHeld, addDays } from "./habits.js";
-import { AT_MOST } from "./schema.js";
-import { MILESTONES, tierFor } from "./milestones.js";
+import { taperWeekStart, targetFor, isTaperHeld, addDays, streak as habitStreak, isTracking } from "./habits.js";
+import { AT_MOST, PERIOD } from "./schema.js";
+import { MILESTONES, tierFor, habitCrossed } from "./milestones.js";
+
+/** What a streak counts in, for the habit it belongs to. */
+const UNIT = {
+  [PERIOD.DAY]: ["day", "days"],
+  [PERIOD.WEEK]: ["week", "weeks"],
+  [PERIOD.MONTH]: ["month", "months"],
+};
 
 // The four live in milestones.js with the badges they earn, so the thing that fires the
 // notification and the thing that draws the award can never disagree about what counts.
@@ -80,6 +87,31 @@ export function noticesFor(state, memberId, today, streak, others = []) {
       body: tier
         ? "Every habit, on goal, " + other.streak + " days running — that is " + tier.name + "."
         : "Every habit, on goal, " + other.streak + " days running.",
+    });
+  }
+
+  // ---- One habit held on its own ----
+  //
+  // The small ones, and yours alone. A major milestone is every category met every day and the
+  // whole group hears about it; this is thirty days of steps, which is a real thing to have done
+  // and nobody else's business — announcing it would turn the group feed into a ticker.
+  //
+  // Thresholds are per cadence, because a streak counts PERIODS: thirty of a daily habit is a
+  // month, thirty of a monthly one is nearly three years.
+  for (const habit of state.habits.values()) {
+    if (!isTracking(state, habit, memberId, today)) continue;
+    const run = habitStreak(state, habit.habitId, memberId, today);
+    if (!habitCrossed(run, habit.period)) continue;
+
+    const [one, many] = UNIT[habit.period] || UNIT[PERIOD.DAY];
+    const unit = run === 1 ? one : many;
+    out.push({
+      id: "habit-streak|" + habit.habitId + "|" + run + "|" + today,
+      kind: "milestone",
+      title: run + " " + unit + " of " + (habit.name || "it"),
+      body: habit.direction === AT_MOST
+        ? "Under your limit " + run + " " + unit + " running."
+        : "On goal " + run + " " + unit + " running.",
     });
   }
 

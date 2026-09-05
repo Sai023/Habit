@@ -89,6 +89,54 @@ test("only the lengths worth saying out loud", () => {
 });
 
 // ---------------------------------------------------------------------------
+// One habit, held on its own — the small ones, and yours alone
+// ---------------------------------------------------------------------------
+
+const habitOnes = (list) => list.filter((n) => n.id.startsWith("habit-streak|"));
+
+test("thirty days of one habit is worth a quiet word", () => {
+  const s = world();
+  // The fixture logs cleanly from day 0, so the streak on day n is n + 1.
+  const out = habitOnes(noticesFor(s, "me", day(29), 3));
+  assert.equal(out.length, 1, "one notice at a threshold");
+  assert.ok(out[0].title.includes("30 days"), out[0].title);
+  assert.ok(out[0].title.includes("Puffs"), out[0].title);
+  // A ceiling is not "on goal", it is under a limit, and saying it the other way reads as nonsense
+  // for something you are quitting.
+  assert.ok(out[0].body.includes("Under your limit"), out[0].body);
+});
+
+test("and on no other day", () => {
+  const s = world();
+  for (const n of [12, 14, 28, 30]) {
+    assert.equal(habitOnes(noticesFor(s, "me", day(n), 3)).length, 0, "nothing on day " + n);
+  }
+});
+
+test("these are yours alone — the group is never told", () => {
+  // A major milestone is every category met every day and the whole group hears it. This is thirty
+  // days of one habit, which is a real thing to have done and nobody else's business; announcing
+  // every one of them would turn the group feed into a ticker.
+  const s = world();
+  const out = noticesFor(s, "me", day(29), 3, [
+    { memberId: "thabo", name: "Thabo", streak: 3 },
+  ]);
+  assert.equal(habitOnes(out).length, 1);
+  for (const n of out) {
+    assert.ok(!n.title.includes("Thabo"), "no habit streak is ever attributed to somebody else");
+  }
+});
+
+test("the id is stable for the day and different for the next threshold", () => {
+  const s = world();
+  const a = habitOnes(noticesFor(s, "me", day(29), 3))[0];
+  const b = habitOnes(noticesFor(s, "me", day(29), 3))[0];
+  const later = habitOnes(noticesFor(s, "me", day(59), 3))[0];
+  assert.equal(a.id, b.id, "asked twice on one day, posted once");
+  assert.ok(later && later.id !== a.id, "sixty days is a new one");
+});
+
+// ---------------------------------------------------------------------------
 // Somebody else's milestone
 // ---------------------------------------------------------------------------
 

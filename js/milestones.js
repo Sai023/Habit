@@ -56,3 +56,56 @@ export function nextTier(streak) {
   const next = TIERS.find((t) => n < t.at);
   return next ? { tier: next, away: next.at - n } : null;
 }
+
+// ============================================================================
+// Minor — one habit, held on its own
+// ============================================================================
+
+/**
+ * The per-habit streaks worth a quiet word, by the period that habit is judged in.
+ *
+ * ---- Why these are not the same four numbers ----
+ *
+ * A single habit is far easier than all of them. Seven days of steps is a good week; seven days of
+ * EVERY category is the thing the major badges exist for. Reusing 7/20/50/100 here would fire six
+ * times as often for a sixth of the achievement, and the major ones would drown in it.
+ *
+ * ---- Why they are keyed on period ----
+ *
+ * A streak counts PERIODS, not days: weeks for a weekly habit, months for a monthly one. Fifty of
+ * anything looks like a sensible number until it is applied to savings and means fifty months. So
+ * each cadence gets thresholds that are a real span in its own rhythm — a fortnight, a month, two
+ * months, four months of daily; a month, a quarter, half a year, a year of weekly.
+ */
+export const HABIT_TIERS = {
+  day: [14, 30, 60, 120],
+  week: [4, 12, 26, 52],
+  month: [3, 6, 12, 24],
+};
+
+/**
+ * The level a single habit's streak has reached: 1..4, or 0 for none.
+ *
+ * A LEVEL rather than a named tier, deliberately. The four majors are called Bronze through
+ * Diamond and get announced by name; if a habit badge claimed the same words, "Gold" would mean
+ * fifty days of everything in one place and sixty days of steps in another. The minor badge shows
+ * its number and its colour and stays quiet about rank, which is also the honest description of
+ * what it is worth.
+ */
+export function habitLevel(streak, period = "day") {
+  const steps = HABIT_TIERS[period] || HABIT_TIERS.day;
+  let level = 0;
+  for (const at of steps) {
+    if ((streak || 0) >= at) level += 1;
+  }
+  return level;
+}
+
+/** The colour key for a level, shared with the major badges so the two read as one family. */
+export const LEVEL_KEY = ["", "bronze", "silver", "gold", "diamond"];
+
+/** Is this streak exactly on one of a habit's thresholds today? */
+export function habitCrossed(streak, period = "day") {
+  const steps = HABIT_TIERS[period] || HABIT_TIERS.day;
+  return steps.includes(streak);
+}

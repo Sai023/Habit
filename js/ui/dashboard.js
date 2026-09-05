@@ -6,7 +6,7 @@
 
 import { el, render } from "../dom.js";
 import {
-  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
+  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, streak as habitStreak, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
 } from "../habits.js";
 import {
   leaderboard, categoryOver, dayScore, expectedBy, categoryFor as categoryOf,
@@ -15,7 +15,7 @@ import {
 } from "../score.js";
 import { seasonTally, categoryBreakdown } from "../season.js";
 import { onGoalStreak } from "../summary.js";
-import { tierFor, nextTier } from "../milestones.js";
+import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -271,6 +271,8 @@ function habitCard(habit, ctx) {
     el("div.card-foot",
       el("span.src", src.icon, " ", src.label),
       status === HIT ? el("span", "✓") : null,
+      // Pushed to the right of the row, so a card with one and a card without still line up.
+      habitPip(habitStreak(ctx.state, habit.habitId, ctx.me, ctx.today), habit),
     ),
     // One way in, named for what it actually asks for. A puff count is read off the device and
     // typed, so "Enter today's count" is the instruction; a watch metric is already filled in and
@@ -431,6 +433,26 @@ function monthlyLines(habit, value, target, ctx) {
  * `size` is a class, not a measurement: the board row and the day hero want the same object at two
  * scales, and passing pixels around is how those two drift apart.
  */
+/**
+ * One habit's own streak, as a pip on its card.
+ *
+ * Deliberately the lesser object. It shares the four colours with the major badges so the two read
+ * as one system, and differs in every other way: a flat disc rather than struck metal, a ring
+ * rather than a gradient, sixteen pixels rather than twenty-two, and no name. Somebody glancing at
+ * a board row and a habit card should never have to work out which of the two is the bigger deal.
+ *
+ * It stays quiet about rank on purpose. The majors are called Bronze through Diamond and get
+ * announced by name; a habit pip claiming the same words would mean "Gold" was fifty days of
+ * everything in one place and sixty days of steps in another.
+ */
+function habitPip(run, habit) {
+  const level = habitLevel(run, habit.period);
+  if (!level) return null;
+  return el("span.pip.pip-" + LEVEL_KEY[level], {
+    title: run + " in a row — " + (habit.name || "this habit"),
+  }, String(run));
+}
+
 function tierBadge(streak, size = "") {
   const tier = tierFor(streak);
   if (!tier) return null;

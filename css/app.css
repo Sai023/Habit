@@ -750,3 +750,28 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   100% { transform: scale(1) rotate(0);         opacity: 1; }
 }
 .badge-lg { animation: badge-strike 420ms cubic-bezier(0.34, 1.4, 0.5, 1) both; }
+
+/* One habit's own streak. The lesser object of the two on purpose: it shares the four colours with
+   the major badges so they read as one system, and differs in every other way — a flat disc rather
+   than struck metal, a ring rather than a gradient, and no name. Somebody glancing between a board
+   row and a habit card should never have to work out which is the bigger deal. */
+.pip {
+  margin-left: auto;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.pip-bronze  { color: #C97B3C; }
+.pip-silver  { color: #B9C2D0; }
+.pip-gold    { color: var(--amber); }
+.pip-diamond { color: var(--teal); border-color: var(--teal); background: rgba(62, 224, 196, 0.10); }
