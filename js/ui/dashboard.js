@@ -465,7 +465,9 @@ function tierBadge(streak, size = "") {
   return el("span.badge.badge-" + tier.key + (size ? ".badge-" + size : "") + wide, {
     title: tier.name + " — " + tier.earned + " with every habit on goal",
   },
-    el("span.badge-n", String(streak)),
+    // The face is a second element because a clipped box cannot take a border, and the rim is what
+    // separates a struck medal from a coloured shape. See the badge rules in app.css.
+    el("span.badge-face", el("span.badge-n", String(streak))),
   );
 }
 

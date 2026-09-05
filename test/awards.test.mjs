@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import { awards, majorAwards, habitAwards } from "../js/awards.js";
 import { ev, SOURCE, AT_LEAST, AGGREGATE, METRIC, PERIOD } from "../js/schema.js";
+import { dayScore } from "../js/score.js";
 
 let passed = 0;
 const failures = [];
@@ -128,6 +129,76 @@ test("a group with no history does not throw and wins nothing", () => {
   assert.equal(all.earned, 0);
   assert.equal(all.habits.length, 0);
   assert.equal(all.major.length, 4);
+});
+
+// ---------------------------------------------------------------------------
+// A habit you are not doing
+// ---------------------------------------------------------------------------
+
+test("a habit you opted out of is not in your case, and never earns you anything", () => {
+  // The bug this replaces was not cosmetic. A day somebody has opted out of is EXEMPT, and EXEMPT
+  // PRESERVES a streak rather than breaking it — right when it means a rest day, badly wrong when
+  // it means "not doing this one". So declining a habit quietly accrued a run on it and the case
+  // handed out badges for it: the group tracks six, you signed up for three, and the screen
+  // congratulated you on the other three.
+  //
+  // Every other screen filters before it draws, which is why it had never surfaced anywhere else.
+  const events = [E(ev.member("me", "You"), at(0))];
+  for (const [id, name] of [["mine", "Steps"], ["theirs", "Vape puffs"]]) {
+    events.push(E(ev.habit(id, {
+      name, metric: METRIC.STEPS, direction: AT_LEAST, target: 10,
+      aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL, tz: TZ, dayStartHour: 0,
+    }), at(0)));
+  }
+  events.push(E(ev.goal("me", "theirs", { active: false }), at(0)));
+  for (let n = 0; n < 20; n += 1) {
+    events.push(E(ev.log("mine", "me", day(n), 50, SOURCE.MANUAL), at(n)));
+  }
+
+  const s = replay(events);
+  const mine = habitAwards(s, "me", day(20));
+  assert.deepEqual(mine.map((h) => h.name), ["Steps"], "only what this person is running");
+  assert.equal(mine.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// The walk's memo
+// ---------------------------------------------------------------------------
+
+test("a memoised score is the same score, asked in any order", () => {
+  // A habit's score belongs to its PERIOD, not to the day you asked on, so a long walk can reuse
+  // one answer for every day of a month instead of deriving it thirty times. That is only safe if
+  // it is exact — and the last cache in this engine was not: it kept one running total, so asking
+  // about an earlier week after a later one returned the later count and a ceiling walked UP.
+  //
+  // Hence both directions. A memo that is right forwards and wrong backwards is the exact shape of
+  // that bug, and it would show up as a streak that depended on which screen you opened first.
+  const s = world({ days: 60 });
+  const today = day(60);
+
+  const forward = new Map();
+  const back = new Map();
+  const plain = [];
+  const memoF = [];
+  for (let n = 0; n <= 60; n += 1) {
+    plain.push(dayScore(s, "me", day(n), today).pct);
+    memoF.push(dayScore(s, "me", day(n), today, forward).pct);
+  }
+  const memoB = [];
+  for (let n = 60; n >= 0; n -= 1) memoB.unshift(dayScore(s, "me", day(n), today, back).pct);
+
+  assert.deepEqual(memoF, plain, "forward");
+  assert.deepEqual(memoB, plain, "reversed");
+});
+
+test("asking the same day twice through one memo gives the same answer", () => {
+  const s = world({ days: 40 });
+  const today = day(40);
+  const memo = new Map();
+  const first = dayScore(s, "me", day(12), today, memo).pct;
+  const second = dayScore(s, "me", day(12), today, memo).pct;
+  assert.equal(first, second);
+  assert.equal(first, dayScore(s, "me", day(12), today).pct);
 });
 
 if (failures.length) {

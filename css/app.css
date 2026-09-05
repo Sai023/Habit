@@ -695,55 +695,80 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 /* ---------- milestone badges ---------- */
 
-/* Drawn rather than emoji: a medal glyph renders as a different object on every phone in the
-   group, and the one place three people must be looking at the same thing is the board.
+/* Drawn rather than emoji: a medal glyph renders as a different object on every phone in the group,
+   and the one place three people must be looking at the same thing is the board.
 
-   A hexagon, because at sixteen pixels a circle reads as an avatar and a shield reads as mud. The
-   metal is a two-stop gradient with a lighter rim, which is the cheapest thing that reads as
-   struck rather than printed. */
+   A hexagon, because at sixteen pixels a circle reads as an avatar and a shield reads as mud.
+
+   ---- Why there are two elements ----
+
+   A struck medal is a rim catching the light and a face below it, and clip-path cannot take a
+   border — a border would be drawn on the box and then cut into straight segments by the hexagon.
+   So the outer element IS the rim: its background is the bright metal, and its padding is the rim's
+   thickness. The face sits inside, clipped to the same hexagon, carrying the darker roll of the
+   gradient. Two elements, and the difference between a coloured shape and something struck. */
 .badge {
+  --rim: #FFFFFF;
+  --lit: #FFFFFF;
+  --mid: #CCCCCC;
+  --dark: #888888;
+
   flex: none;
   display: inline-grid;
-  place-items: center;
+  place-items: stretch;
   width: 22px;
   height: 22px;
+  padding: 1.5px;
   clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  background: linear-gradient(150deg, var(--rim) 0%, var(--mid) 55%, var(--dark) 100%);
+}
+
+.badge-face {
+  display: grid;
+  place-items: center;
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  /* The sweep first, the metal under it. Three stops rather than two, because a real medal has a
+     bright edge, a body and a shadow — and it is the roll between them that reads as curved. */
+  background-image:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.06) 38%, rgba(0, 0, 0, 0.12) 100%),
+    linear-gradient(150deg, var(--lit) 0%, var(--mid) 46%, var(--dark) 100%);
   font-variant-numeric: tabular-nums;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1;
-  /* The number sits on the metal, so it takes the ground's colour rather than the text colour. */
-  color: #14100A;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+  /* Struck into the metal rather than printed on it: dark glyph, light edge below. */
+  color: #17130C;
+  text-shadow: 0 0.5px 0 rgba(255, 255, 255, 0.45);
 }
+
 .badge-n { transform: translateY(0.5px); }
-.badge-wide { font-size: 8.5px; letter-spacing: -0.06em; }
-.badge-lg.badge-wide { font-size: 15px; }
+.badge-wide .badge-face { font-size: 8.5px; letter-spacing: -0.06em; }
+.badge-lg.badge-wide .badge-face { font-size: 15px; }
 
-.badge-bronze  { background: linear-gradient(158deg, #E2A06A 0%, #C97B3C 45%, #8A4F24 100%); }
-.badge-silver  { background: linear-gradient(158deg, #F2F5FA 0%, #D8DEE9 45%, #98A2B3 100%); }
-.badge-gold    { background: linear-gradient(158deg, #FFD97A 0%, #F0B429 45%, #B07D12 100%); }
-/* The top tier is the app's own teal rather than a fifth metal. It is the colour everything good
-   in here is already drawn in, and arriving at it is the point. */
+.badge-bronze  { --rim: #F6C79A; --lit: #E8AC79; --mid: #C97B3C; --dark: #7C441E; }
+.badge-silver  { --rim: #FFFFFF; --lit: #F7FAFF; --mid: #CBD3E0; --dark: #838D9E; }
+.badge-gold    { --rim: #FFEFBC; --lit: #FFD97A; --mid: #F0B429; --dark: #9A6A0A; }
+
+/* The top tier is the app's own teal rather than a fifth metal. It is the colour everything good in
+   here is already drawn in, and arriving at it is the point.
+
+   drop-shadow, not box-shadow. A box-shadow is painted on the box and then cut away by the
+   clip-path — this glow was in the stylesheet from the first version and had never once appeared on
+   screen. A filter applies after clipping, so it follows the hexagon's actual silhouette. */
 .badge-diamond {
-  background: linear-gradient(158deg, #CFFFF6 0%, #7BF0DC 40%, #3EE0C4 100%);
-  box-shadow: 0 0 0 1px rgba(62, 224, 196, 0.35), 0 0 12px rgba(62, 224, 196, 0.45);
+  --rim: #EAFFFA; --lit: #CFFFF6; --mid: #6BEAD4; --dark: #219E88;
+  filter: drop-shadow(0 0 5px rgba(62, 224, 196, 0.5));
 }
 
-/* The hero's copy. Big enough to be the object you look at first, which is the one place in the
-   app where that is the right thing to be looking at. */
-.badge-lg {
-  width: 44px;
-  height: 44px;
-  font-size: 17px;
-}
-.badge-lg.badge-diamond {
-  box-shadow: 0 0 0 1px rgba(62, 224, 196, 0.4), 0 0 22px rgba(62, 224, 196, 0.5);
-}
+/* The hero's copy. Big enough to be the object you look at first, which is the one place in the app
+   where that is the right thing to be looking at. */
+.badge-lg { width: 44px; height: 44px; padding: 2.5px; }
+.badge-lg .badge-face { font-size: 17px; }
+.badge-lg.badge-diamond { filter: drop-shadow(0 0 11px rgba(62, 224, 196, 0.55)); }
 
-/* Earned once, then still. It arrives with the page and settles — a badge that pulses forever is
-   an ornament, and this is meant to read as a fact about the person. */
+/* Earned once, then still. It arrives with the page and settles — a badge that pulses forever is an
+   ornament, and this is meant to read as a fact about the person. */
 @keyframes badge-strike {
   0%   { transform: scale(0.72) rotate(-14deg); opacity: 0; }
   60%  { transform: scale(1.06) rotate(2deg);   opacity: 1; }
@@ -765,7 +790,11 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   padding: 0 4px;
   border-radius: 999px;
   border: 1px solid currentColor;
-  background: rgba(255, 255, 255, 0.04);
+  /* A hint of its own colour under the ring, so it reads as belonging to the same set as the metals
+     without ever being mistaken for one. */
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 60%),
+    rgba(255, 255, 255, 0.04);
   font-size: 9.5px;
   font-weight: 800;
   line-height: 1;
@@ -819,15 +848,34 @@ button.hero-head:active { transform: scale(0.99); }
   font-variant-numeric: tabular-nums;
 }
 
-/* Not yet won. Drained of colour rather than hidden, and it keeps its number — "60" under a dark
-   disc is a target, where a padlock is a shrug. */
-.case-slot.is-locked .badge,
-.case-slot.is-locked .pip {
-  filter: grayscale(1) brightness(0.5);
-  box-shadow: none;
-  opacity: 0.55;
+/* Not yet won.
+   An empty SOCKET rather than a faded medal. Draining the colour out of a struck badge looks like
+   the badge is broken; a dark recess with a faint rim looks like a place something goes, which is
+   the honest description and the more wanted one.
+   It keeps its number — "60" under a dark disc is a target, where a padlock is a shrug. */
+.case-slot.is-locked .badge {
+  --rim: rgba(255, 255, 255, 0.13);
+  --lit: #10152C;
+  --mid: #141B3A;
+  --dark: #0D1226;
+  filter: none;
 }
-.case-slot.is-locked .case-name { opacity: 0.5; }
+.case-slot.is-locked .badge-face {
+  background-image: linear-gradient(150deg, var(--lit) 0%, var(--mid) 46%, var(--dark) 100%);
+  color: var(--dim);
+  text-shadow: none;
+  opacity: 0.75;
+}
+/* Drained, not merely dimmed. Keeping the tier's colour at low opacity made earned and unearned
+   differ only in brightness — a dim orange 14 beside a bright orange 14 — so telling them apart
+   meant comparing two pips rather than reading one. The majors go properly dark; these follow. */
+.case-slot.is-locked .pip {
+  color: var(--dim);
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+  opacity: 0.6;
+}
+.case-slot.is-locked .case-name { opacity: 0.45; }
 
 .case-habit { display: flex; flex-direction: column; gap: 9px; }
 .case-habit-head { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-small); }

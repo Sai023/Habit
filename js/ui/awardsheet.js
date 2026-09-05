@@ -49,7 +49,8 @@ export function openAwardSheet(host, { state, me, today, streak }) {
     // What is true right now, before the case. Somebody opening this wants the headline first.
     el("div.case-now",
       held
-        ? el("span.badge.badge-lg.badge-" + held.key, el("span.badge-n", String(streak)))
+        ? el("span.badge.badge-lg.badge-" + held.key,
+            el("span.badge-face", el("span.badge-n", String(streak))))
         : el("div.hero-mark", "·"),
       el("div.case-now-text",
         el("div.case-held", held ? held.name : "No badge yet"),
@@ -70,7 +71,7 @@ export function openAwardSheet(host, { state, me, today, streak }) {
     el("h2.sec-title", "Every habit, on goal"),
     el("div.case-major", major.map((t) => el("div.case-slot" + (t.times ? "" : ".is-locked"),
       el("span.badge.badge-" + t.key, { title: t.name + " — " + t.earned },
-        el("span.badge-n", String(t.at))),
+        el("span.badge-face", el("span.badge-n", String(t.at)))),
       el("span.case-name", t.name),
       // The count only when it is more than one. "x1" on everything turns a case into a receipt.
       t.times > 1 ? el("span.case-times", "×" + t.times) : null,

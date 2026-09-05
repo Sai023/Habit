@@ -155,16 +155,37 @@ export function expectedBy(habit, day) {
  * Returns `{ eligible, score, value, target, expected }`. An ineligible habit is not a zero — it is
  * a habit that is not being asked about today, and it leaves the day's arithmetic entirely.
  */
-export function habitScore(state, habit, memberId, day, today = null) {
+/** Store and return, so a memoised path and an unmemoised one cannot drift. */
+function remember(memo, key, value) {
+  if (memo) memo.set(key, value);
+  return value;
+}
+
+export function habitScore(state, habit, memberId, day, today = null, memo = null) {
   const key = periodKey(day, habit.period);
+
+  // A habit's score is a fact about its PERIOD, not about the day you asked on. Every day of a
+  // month returns the same answer for a monthly habit — same key, same target, same value, same
+  // status — so walking a streak backwards re-derived one savings figure thirty times, and a
+  // weekly one seven.
+  //
+  // That is most of what a long walk costs: six habits over two hundred days went from 11ms with
+  // everything daily to 69ms with a weekly and a monthly in the mix, which is the shape of every
+  // real group here.
+  //
+  // The memo is the caller's and lives for one walk, so it cannot go stale against a changed log —
+  // there is no state in which it survives long enough to be wrong. `today` is fixed for the walk,
+  // which is the other half of why the key does not need to mention it.
+  const memoKey = memo && habit.habitId + "|" + memberId + "|" + key;
+  if (memo && memo.has(memoKey)) return memo.get(memoKey);
   const opensOn = periodStart(key, habit.period);
   const out = { habitId: habit.habitId, eligible: false, score: 0, value: null, target: 0, expected: null };
 
-  if (!habit.scored) return out;
-  if (!isTracking(state, habit, memberId, opensOn)) return out;
+  if (!habit.scored) return remember(memo, memoKey, out);
+  if (!isTracking(state, habit, memberId, opensOn)) return remember(memo, memoKey, out);
 
   const status = rawPeriodStatus(state, habit, memberId, key);
-  if (status === EXEMPT) return out;
+  if (status === EXEMPT) return remember(memo, memoKey, out);
 
   const target = targetFor(state, habit, memberId, periodEnd(key, habit.period), opensOn);
   const value = valueForPeriod(state, habit, memberId, key);
@@ -208,13 +229,13 @@ export function habitScore(state, habit, memberId, day, today = null) {
     //   nothing at all   → the full bonus
     if (got > target) { out.score = 0; return out; }
     out.score = 1 + (BONUS_CAP - 1) * (1 - got / target);
-    return out;
+    return remember(memo, memoKey, out);
   }
 
   if (!paced) {
     // A daily floor: steps, sleep, a checkbox. Straight proportion, and over-delivery buys buffer.
     out.score = Math.min(BONUS_CAP, got / target);
-    return out;
+    return remember(memo, memoKey, out);
   }
 
   // Finished the period early? Hold the maximum for the rest of it. Three workouts done by
@@ -228,7 +249,7 @@ export function habitScore(state, habit, memberId, day, today = null) {
     const expected = expectedBy(habit, day);
     out.expected = expected;
     out.score = expected <= 0 ? 1 : Math.min(BONUS_CAP, got / expected);
-    return out;
+    return remember(memo, memoKey, out);
   }
 
   // Monthly: judged on whether the target is still REACHABLE, not on a straight line.
@@ -261,7 +282,7 @@ export function habitScore(state, habit, memberId, day, today = null) {
   if (!settled) { out.eligible = false; return out; }
 
   out.score = Math.min(BONUS_CAP, got / target);
-  return out;
+  return remember(memo, memoKey, out);
 }
 
 /**
@@ -270,11 +291,11 @@ export function habitScore(state, habit, memberId, day, today = null) {
  * A category with nothing being asked of it is not in the result. That is what makes the day add
  * up to a hundred rather than to "a hundred minus whatever you do not happen to track".
  */
-export function categoryScores(state, memberId, day, today = null) {
+export function categoryScores(state, memberId, day, today = null, memo = null) {
   const buckets = new Map();
 
   for (const habit of state.habits.values()) {
-    const scored = habitScore(state, habit, memberId, day, today);
+    const scored = habitScore(state, habit, memberId, day, today, memo);
     const category = categoryFor(habit);
     if (!buckets.has(category)) buckets.set(category, { category, habits: [], score: 0, eligible: false });
     const bucket = buckets.get(category);
@@ -308,8 +329,8 @@ export function categoryScores(state, memberId, day, today = null) {
  * running four — and a rest day moves weight around without ever handing out points for resting,
  * because the categories that remain still have to be earned.
  */
-export function dayScore(state, memberId, day, today = null) {
-  const buckets = categoryScores(state, memberId, day, today);
+export function dayScore(state, memberId, day, today = null, memo = null) {
+  const buckets = categoryScores(state, memberId, day, today, memo);
   const live = [...buckets.values()].filter((b) => b.eligible);
   const total = live.reduce((sum, b) => sum + CATEGORY_WEIGHT[b.category], 0);
 

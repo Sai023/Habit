@@ -20,7 +20,7 @@
 // asked about a run older than that, and an unbounded loop over a corrupt log is how a screen
 // hangs on somebody's phone rather than on a test.
 
-import { addDays, daysBetween, walk, HIT, EXEMPT, NO_DATA } from "./habits.js";
+import { addDays, daysBetween, walk, isTracking, HIT, EXEMPT, NO_DATA } from "./habits.js";
 import { dayIsOnGoal } from "./summary.js";
 import { TIERS, habitSteps, habitSpan } from "./milestones.js";
 
@@ -38,8 +38,11 @@ export function majorAwards(state, me, today) {
 
   let day = earliestDay(state, today);
   let run = 0;
+  // See onGoalStreak: one memo for the walk, because a habit's score belongs to its period rather
+  // than to the day you asked on.
+  const memo = new Map();
   while (daysBetween(day, today) >= 0) {
-    const won = dayIsOnGoal(state, me, day, today);
+    const won = dayIsOnGoal(state, me, day, today, memo);
     // Nothing asked: neither a win nor a loss, and it must not break the run. A rest day in the
     // middle of a streak is not a failure, and the streak walk agrees.
     if (won === null) { day = addDays(day, 1); continue; }
@@ -66,6 +69,18 @@ export function habitAwards(state, me, today) {
   const out = [];
 
   for (const habit of state.habits.values()) {
+    // Only what this person is actually running.
+    //
+    // Not tidiness — correctness. A day somebody has opted out of is EXEMPT, and EXEMPT PRESERVES a
+    // streak rather than breaking it, which is right when it means a rest day and badly wrong when
+    // it means "not doing this one". Left in, a habit you declined quietly accrues a run and hands
+    // you badges for it: the group tracks six, you signed up for three, and the case congratulates
+    // you on the other three.
+    //
+    // Every other screen filters before it draws, which is why this had never surfaced. This was
+    // the first one that did not.
+    if (!isTracking(state, habit, me, today)) continue;
+
     const w = walk(state, habit.habitId, me, today);
     if (!w) continue;
 

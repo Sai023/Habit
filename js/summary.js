@@ -270,8 +270,8 @@ function riskContract(state, me, today) {
  * would be telling somebody two different things about the same day. Returns null for a day
  * nothing was asked on: neither a win nor a loss, and the difference matters when walking history.
  */
-export function dayIsOnGoal(state, me, day, today) {
-  const score = dayScore(state, me, day, today);
+export function dayIsOnGoal(state, me, day, today, memo = null) {
+  const score = dayScore(state, me, day, today, memo);
   const live = score.categories.filter((c) => c.eligible);
   if (!live.length) return null;
   return live.every((c) => c.score >= 1);
@@ -281,13 +281,17 @@ export function onGoalStreak(state, me, today) {
   let streak = 0;
   let day = today;
 
+  // One memo for this walk. A monthly habit answers the same for every day of its month, and
+  // without this the walk re-derives that answer thirty times over — see habitScore.
+  const memo = new Map();
+
   // Today counts only if it is already complete; otherwise start from yesterday, so a streak does
   // not appear to reset every morning.
-  if (dayIsOnGoal(state, me, today, today) !== true) day = shiftDay(today, -1);
+  if (dayIsOnGoal(state, me, today, today, memo) !== true) day = shiftDay(today, -1);
 
   // A year is further back than anybody will look, and stops a corrupt log spinning forever.
   for (let i = 0; i < 366; i += 1) {
-    const won = dayIsOnGoal(state, me, day, today);
+    const won = dayIsOnGoal(state, me, day, today, memo);
     if (won === null) {
       // Nothing was asked. Neither a win nor a loss — step over it.
       day = shiftDay(day, -1);
