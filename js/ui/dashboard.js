@@ -602,10 +602,44 @@ function boardTab(ctx) {
     filter ? el("p.sec-note", { style: "padding:0 2px" },
       CATEGORY_LABEL[filter] + " only — scored on its own terms, not as a share of the day.") : null,
     el("div.board", ranked.map((r) => boardRow(r, ctx))),
+    seasonBeacon(ctx),
     el("p.sec-note", { style: "padding:0 2px" },
       "Rest days and days with no data are left out of the score — you're measured on the days you were actually asked to show up."),
     offBoardNote(ctx),
     pointsExplainer(ctx),
+  );
+}
+
+/**
+ * The one thing worth doing before any of this counts, put where it can be seen.
+ *
+ * It lived two taps deep — Board, then All time, then a quiet link at the bottom — which is a fine
+ * place for it once a season is running and a terrible one before the first has ever started. "I
+ * don't see it on the leaderboard" is the correct reaction to a control nobody would find.
+ *
+ * ---- Why it retires itself ----
+ *
+ * It shows only until a season has been started, and never again. A permanently twinkling button
+ * that wipes the standings is an invitation to wipe them, and the sort of thing somebody presses on
+ * a Tuesday to see what it does. Once there is a line, the quiet link in the All-time view is the
+ * right home for it — the same control, in the place you go when you have decided the standings are
+ * not worth keeping.
+ *
+ * Nothing here is destructive on its own: it opens a sheet that asks when, and dismissing that
+ * sheet resolves to no. The animation is drawing an eye to a question, not to a trigger.
+ */
+function seasonBeacon(ctx) {
+  if (!ctx.onNewSeason) return null;
+  // Started once, gone for good. A malformed line still counts as "they have used this".
+  if (ctx.state.meta && ctx.state.meta.seasonFrom) return null;
+
+  return el("button.beacon", { onclick: () => ctx.onNewSeason() },
+    el("span.beacon-spark", "✨"),
+    el("span.beacon-text",
+      el("b", "Start the first season"),
+      el("span", "Sets everyone level and starts counting weeks."),
+    ),
+    el("span.beacon-go", "→"),
   );
 }
 

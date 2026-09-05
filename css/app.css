@@ -944,3 +944,68 @@ button.hero-head:active { transform: scale(0.99); }
    side by side: they are not equivalent options and a row of two buttons would imply they are. */
 .season-choice { display: flex; flex-direction: column; gap: 6px; }
 .season-choice .note-inline { margin: 0; }
+
+/* ---------- the season beacon ---------- */
+
+/* Meant to be found, once. It sits under the standings on the board, where somebody looking at a
+   scoreboard that has not started yet is already looking.
+
+   Two movements and no more. A sweep of light travels across it every few seconds, and the sparkle
+   breathes — that is enough to catch an eye in peripheral vision without becoming something you
+   have to look away from. The pauses between sweeps are the point: a continuous shimmer stops
+   reading as "notice me" and starts reading as a loading bar. */
+.beacon {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px var(--pad-card);
+  border-radius: var(--r);
+  border: 1px solid var(--teal-dim);
+  background: linear-gradient(140deg, rgba(62, 224, 196, 0.14), rgba(62, 224, 196, 0.04) 60%),
+    var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The sweep. A wide, soft band of light crossing left to right, then a long wait. */
+.beacon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.13) 48%,
+    transparent 66%
+  );
+  transform: translateX(-100%);
+  animation: beacon-sweep 4.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+@keyframes beacon-sweep {
+  0%   { transform: translateX(-100%); }
+  /* Across in the first fifth; the rest of the cycle is the wait. */
+  22%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+.beacon-spark {
+  flex: none;
+  font-size: var(--fs-head);
+  line-height: 1;
+  animation: beacon-twinkle 2.6s ease-in-out infinite;
+}
+@keyframes beacon-twinkle {
+  0%, 100% { opacity: 0.75; transform: scale(1) rotate(0deg); }
+  50%      { opacity: 1;    transform: scale(1.18) rotate(9deg); }
+}
+
+.beacon-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.beacon-text b { font-size: var(--fs-body); font-weight: 700; }
+.beacon-text span { font-size: var(--fs-small); color: var(--dim); }
+.beacon-go { margin-left: auto; flex: none; color: var(--teal); font-weight: 700; }
+.beacon:active { transform: scale(0.99); }
