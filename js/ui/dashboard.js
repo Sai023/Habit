@@ -13,7 +13,7 @@ import {
   CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
   CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES,
 } from "../score.js";
-import { seasonTally, categoryBreakdown, pendingSeason } from "../season.js";
+import { seasonTally, categoryBreakdown, pendingSeason, seasonProgress } from "../season.js";
 import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import {
@@ -601,6 +601,7 @@ function boardTab(ctx) {
     ) : null,
     filter ? el("p.sec-note", { style: "padding:0 2px" },
       CATEGORY_LABEL[filter] + " only — scored on its own terms, not as a share of the day.") : null,
+    seasonStrip(ctx),
     el("div.board", ranked.map((r) => boardRow(r, ctx))),
     seasonBeacon(ctx),
     el("p.sec-note", { style: "padding:0 2px" },
@@ -608,6 +609,50 @@ function boardTab(ctx) {
     offBoardNote(ctx),
     pointsExplainer(ctx),
   );
+}
+
+/**
+ * Where the season is, on the screen people actually look at.
+ *
+ * A leaderboard with no dates on it is a leaderboard measuring nothing in particular. The three
+ * facts that make it a contest — when it began, when it finishes, how long is left — were derivable
+ * and shown nowhere, so "how long have we got" had no answer.
+ *
+ * The bar moves by DAYS rather than by completed weeks. A bar that only advances on Mondays sits
+ * still for six days at a time, which reads as broken rather than as patient.
+ *
+ * Nothing at all for a season with no end: a countdown to nothing is worse than no countdown, and
+ * the dates alone would imply a finish line that does not exist.
+ */
+function seasonStrip(ctx) {
+  const p = seasonProgress(ctx.state, ctx.today);
+  if (!p || !p.end) return null;
+
+  return el("div.season-strip" + (p.ended ? ".is-over" : ""),
+    el("div.season-strip-top",
+      el("span.season-strip-dates", fmt.dayLabel(p.start), " → ", fmt.dayLabel(p.end)),
+      el("span.season-strip-left", countdown(p)),
+    ),
+    el("div.bar", { role: "presentation" },
+      el("i", { style: "width:" + p.pct + "%" })),
+  );
+}
+
+/**
+ * How long is left, in the largest unit that is still honest.
+ *
+ * "38 days" is a number somebody has to convert; "5 weeks" is the same fact already converted. It
+ * switches to days inside a fortnight, because that is the point at which the days start mattering
+ * individually — and to "today" on the last one, which is the only day the wording has to be
+ * exactly right.
+ */
+function countdown(p) {
+  if (p.ended) return "Season over";
+  if (p.daysLeft === 0) return "Ends today";
+  if (p.daysLeft === 1) return "1 day left";
+  if (p.daysLeft < 14) return p.daysLeft + " days left";
+  const weeks = Math.round(p.daysLeft / 7);
+  return weeks + " weeks left";
 }
 
 /**
@@ -771,6 +816,8 @@ function seasonSection(ctx, members) {
     el("div.sec-hd",
       el("h2.sec-title", "All time"),
       el("button.link.sec-note", { onclick: () => ctx.onBoardSeason(false) }, "← This week"),
+    // The same strip, on the view it is actually about.
+    seasonStrip(ctx),
     ),
     weeks === 0
       ? el("p.sec-note", { style: "padding:0 2px" },

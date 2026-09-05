@@ -940,10 +940,21 @@ button.hero-head:active { transform: scale(0.99); }
 .member-row { grid-template-columns: minmax(0, 1fr) auto; }
 .row-remove { align-self: center; margin: 0; font-size: var(--fs-small); }
 
-/* Two ways to start a season, each with the sentence that says which is which. Stacked rather than
-   side by side: they are not equivalent options and a row of two buttons would imply they are. */
-.season-choice { display: flex; flex-direction: column; gap: 6px; }
-.season-choice .note-inline { margin: 0; }
+/* What was just agreed to, in dates rather than in weeks. A length is a number somebody has to
+   convert before they know what they are signing up for; this is that conversion, done for them and
+   placed immediately above the button that commits it. */
+.season-dates {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 11px var(--pad-card);
+  border-radius: var(--r-sm);
+  background: var(--surface-hi);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.season-arrow { color: var(--teal); font-weight: 700; }
 
 /* ---------- the season beacon ---------- */
 
@@ -1009,3 +1020,28 @@ button.hero-head:active { transform: scale(0.99); }
 .beacon-text span { font-size: var(--fs-small); color: var(--dim); }
 .beacon-go { margin-left: auto; flex: none; color: var(--teal); font-weight: 700; }
 .beacon:active { transform: scale(0.99); }
+
+/* ---------- the season strip ---------- */
+
+/* When it started, when it ends, how long is left — the three facts that make a leaderboard a
+   contest rather than a running total. Quiet by design: it sits above the standings and must not
+   compete with them, so it is a line of text and a hairline bar rather than a card. */
+.season-strip { display: flex; flex-direction: column; gap: 6px; padding: 0 2px; }
+.season-strip-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--fs-small);
+}
+.season-strip-dates { color: var(--dim); font-variant-numeric: tabular-nums; }
+.season-strip-left { font-weight: 700; color: var(--teal); font-variant-numeric: tabular-nums; }
+
+/* The last stretch. Amber rather than red: the season ending is not a failure, and a countdown
+   that turns the colour of an error teaches people to dread the finish. */
+.season-strip .bar > i { background: var(--teal); }
+
+/* Over. The bar goes flat and the words go quiet — a finished season should read as settled rather
+   than as still asking for something. */
+.season-strip.is-over .season-strip-left { color: var(--dim); }
+.season-strip.is-over .bar > i { background: var(--line); }

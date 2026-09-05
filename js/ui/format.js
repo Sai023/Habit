@@ -80,3 +80,24 @@ export function dayLabel(day) {
     weekday: "short", day: "numeric", month: "short", timeZone: "UTC",
   });
 }
+
+/**
+ * Date arithmetic for screens, kept here rather than importing the engine into a sheet.
+ *
+ * The same maths habits.js does, and it has to stay the same: a sheet that computes an end date one
+ * day off from the one the board later shows is a sheet that lied at the moment of agreeing.
+ */
+export function addDaysISO(day, n) {
+  const [y, m, d] = day.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  t.setUTCDate(t.getUTCDate() + n);
+  return t.toISOString().slice(0, 10);
+}
+
+/** The Monday of the ISO week containing this day. */
+export function mondayOf(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  const iso = t.getUTCDay() === 0 ? 7 : t.getUTCDay();
+  return addDaysISO(day, 1 - iso);
+}

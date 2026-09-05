@@ -16,7 +16,10 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays, periodStart, isoWeekKey } from "../js/habits.js";
-import { seasonStart, seasonWeeks, seasonTally, pendingSeason, weekStandings } from "../js/season.js";
+import {
+  seasonStart, seasonWeeks, seasonTally, pendingSeason, weekStandings,
+  seasonLength, seasonEnd, seasonProgress,
+} from "../js/season.js";
 import { ev, SOURCE, AT_LEAST, AGGREGATE, METRIC } from "../js/schema.js";
 
 let passed = 0;
@@ -304,6 +307,74 @@ test("a season started today produces a crown on the next Monday", () => {
   const done = seasonTally(s, BOTH, day(7));
   assert.equal(done.weeks, 1, "and one week the moment it finishes");
   assert.equal(done.rows[0].crowns, 1);
+});
+
+// ---------------------------------------------------------------------------
+// A season with a finish line
+// ---------------------------------------------------------------------------
+
+test("no length means no end, which is the old behaviour and still the default", () => {
+  const s = season({ mine: MINE, theirs: THEIRS, extra: [E(ev.meta({ seasonFrom: MON }), at(0))] });
+  assert.equal(seasonLength(s), null);
+  assert.equal(seasonEnd(s, AFTER_SIX), null);
+  assert.equal(seasonProgress(s, AFTER_SIX).end, null, "and nothing to count down to");
+});
+
+test("a length gives it a last day, counted from the Monday of its first week", () => {
+  const s = season({
+    mine: MINE, theirs: THEIRS,
+    extra: [E(ev.meta({ seasonFrom: MON, seasonWeeks: 4 }), at(0))],
+  });
+  // Four whole weeks from the Monday: twenty-eight days, ending on a Sunday.
+  assert.equal(seasonEnd(s, AFTER_SIX), day(27));
+});
+
+test("a season started mid-week still ends on a Sunday", () => {
+  // Its first week only ever had a few days of season in it, so a length in weeks is counted from
+  // that week's Monday. Anything else ends the season mid-week, on a week nobody could win.
+  const s = season({
+    mine: MINE, theirs: THEIRS,
+    extra: [E(ev.meta({ seasonFrom: day(3), seasonWeeks: 1 }), at(3))],
+  });
+  assert.equal(seasonEnd(s, day(7)), day(6), "the Sunday of the week it began in");
+});
+
+test("a finished season stops counting", () => {
+  // Otherwise the standings keep growing after the final whistle, and "final" is the one thing they
+  // are not.
+  const s = season({
+    mine: MINE, theirs: THEIRS,
+    extra: [E(ev.meta({ seasonFrom: MON, seasonWeeks: 2 }), at(0))],
+  });
+  const atEnd = seasonTally(s, BOTH, day(14)).weeks;
+  assert.equal(atEnd, 2);
+  assert.equal(seasonTally(s, BOTH, day(42)).weeks, 2, "four weeks later, still two");
+  assert.equal(seasonTally(s, BOTH, day(365)).weeks, 2, "a year later, still two");
+});
+
+test("the countdown runs down and then says it is over", () => {
+  const s = season({
+    mine: MINE, theirs: THEIRS,
+    extra: [E(ev.meta({ seasonFrom: MON, seasonWeeks: 4 }), at(0))],
+  });
+  const on = (n) => seasonProgress(s, day(n));
+  assert.equal(on(0).daysLeft, 27);
+  assert.equal(on(26).daysLeft, 1);
+  assert.equal(on(27).daysLeft, 0, "the last day is not yet over");
+  assert.equal(on(27).ended, false);
+  assert.equal(on(28).ended, true, "the morning after");
+});
+
+test("the bar moves every day, not once a week", () => {
+  // A bar that only advances on Mondays sits still for six days at a time, which reads as broken
+  // rather than as patient.
+  const s = season({
+    mine: MINE, theirs: THEIRS,
+    extra: [E(ev.meta({ seasonFrom: MON, seasonWeeks: 4 }), at(0))],
+  });
+  const pcts = [0, 1, 2, 3].map((n) => seasonProgress(s, day(n)).pct);
+  assert.equal(new Set(pcts).size, 4, "four different days, four different figures: " + pcts);
+  assert.equal(seasonProgress(s, day(27)).pct, 100, "full on the last day");
 });
 
 if (failures.length) {

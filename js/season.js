@@ -17,7 +17,7 @@
 // Every figure below is computed from the same replayed log as everything else, so a late-arriving
 // Tuesday moves the season the moment it lands, backwards if that is what actually happened.
 
-import { periodsBetween, periodStart, periodEnd, addDays, isoWeekKey } from "./habits.js";
+import { periodsBetween, periodStart, periodEnd, addDays, daysBetween, isoWeekKey } from "./habits.js";
 import { leaderboard, categoryOver, CATEGORY_ORDER } from "./score.js";
 import { PERIOD } from "./schema.js";
 
@@ -84,11 +84,79 @@ export function pendingSeason(state, today) {
   return today && line > today ? line : null;
 }
 
+/**
+ * How long a season runs, in whole ISO weeks — or null for one that never ends.
+ *
+ * Null is the old behaviour and stays the default: a season with no length runs until somebody
+ * starts another one. A number gives it a finish line, which is the only way a board can show a
+ * countdown, and the only way "season two" means anything.
+ *
+ * Weeks rather than days, because a week is the unit the whole scoreboard is built on. A season
+ * measured in days would end mid-week and its last week would be a partial one nobody could win.
+ */
+export function seasonLength(state) {
+  const n = state.meta && state.meta.seasonWeeks;
+  return Number.isInteger(n) && n > 0 && n <= 104 ? n : null;
+}
+
+/**
+ * The last day of the season, or null if it has no end.
+ *
+ * Counted from the MONDAY of the week the season began in, so a season started mid-week still ends
+ * on a Sunday and its final week is a whole one. A four-week season started on a Saturday therefore
+ * runs three weeks and two days — which is the honest reading of "four weeks of scoring", because
+ * the week it started in only ever had two days of season in it.
+ */
+export function seasonEnd(state, today = null) {
+  const start = seasonStart(state, today);
+  const weeks = seasonLength(state);
+  if (!start || !weeks) return null;
+  return addDays(periodStart(isoWeekKey(start), PERIOD.WEEK), weeks * 7 - 1);
+}
+
+/**
+ * Where the season is: when it started, when it ends, how much is left.
+ *
+ * One call, because every one of these is useless on its own — "ends Sunday" means nothing without
+ * knowing whether that is this Sunday, and a progress bar with no dates is decoration.
+ */
+export function seasonProgress(state, today) {
+  const start = seasonStart(state, today);
+  if (!start) return null;
+
+  const end = seasonEnd(state, today);
+  const weeks = seasonLength(state);
+  const done = seasonTally(state, [], today).weeks;
+
+  if (!end) return { start, end: null, weeks: null, done, daysLeft: null, ended: false, pct: null };
+
+  const daysLeft = daysBetween(today, end);
+  return {
+    start,
+    end,
+    weeks,
+    done,
+    // Negative once it is over; the caller reads `ended` rather than the sign.
+    daysLeft,
+    ended: daysLeft < 0,
+    // How far through, by days rather than by completed weeks — a bar that only moves on Mondays
+    // reads as broken for the six days in between.
+    pct: Math.max(0, Math.min(100, Math.round(
+      ((daysBetween(start, today) + 1) / (daysBetween(start, end) + 1)) * 100,
+    ))),
+  };
+}
+
 /** Every week the season has touched, oldest first. */
 export function seasonWeeks(state, today) {
   const start = seasonStart(state, today);
   if (!start) return [];
-  return periodsBetween(start, today, PERIOD.WEEK);
+  // A season that has finished stops counting. Without this its standings would keep growing after
+  // the final whistle, and "final" would be the one thing they were not.
+  const end = seasonEnd(state, today);
+  const last = end && end < today ? end : today;
+  if (last < start) return [];
+  return periodsBetween(start, last, PERIOD.WEEK);
 }
 
 /**

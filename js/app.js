@@ -336,10 +336,10 @@ const onNewSeason = guard("season", async () => {
   const monday = addDays(periodStart(isoWeekKey(ctx.today), "week"), 7);
   const { weeks } = seasonTally(ctx.state, [...ctx.state.members.keys()], ctx.today);
 
-  const from = await seasonSheet(document.body, { monday, today: ctx.today, weeks });
-  if (!from) return;
+  const chosen = await seasonSheet(document.body, { monday, today: ctx.today, weeks });
+  if (!chosen) return;
 
-  await startNewSeason(from);
+  await startNewSeason(chosen.from, chosen.weeks);
   await refresh();
 });
 

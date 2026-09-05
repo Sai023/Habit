@@ -324,11 +324,15 @@ export async function saveHabit(habitId, fields) {
  * streak survive untouched — this writes one group setting and deletes nothing, because the season
  * is derived from the log rather than kept as a tally. See seasonStart().
  */
-export async function startNewSeason(fromDay) {
+export async function startNewSeason(fromDay, weeks = null) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fromDay || ""))) {
     throw new Error("A season has to start on a real day.");
   }
-  return commit(ev.meta({ seasonFrom: fromDay }));
+  // Written every time, null included. Meta is merged rather than replaced on replay, so leaving
+  // the key out would let the PREVIOUS season's length survive into a new one that was deliberately
+  // set to run without an end — the field has to be overwritten, not omitted.
+  const seasonWeeks = Number.isInteger(weeks) && weeks > 0 ? weeks : null;
+  return commit(ev.meta({ seasonFrom: fromDay, seasonWeeks }));
 }
 
 export async function deleteHabit(habitId) {
