@@ -107,6 +107,27 @@ export async function createGroup(name, myName, starters = []) {
  * you have not heard of yet. Without this a joiner has no binding at all, and every quiet day
  * falls back to the habit's default source rather than to what their device can really supply.
  */
+/**
+ * Take somebody off the board.
+ *
+ * For the case it exists for: one person, two member ids, one of which never reported anything.
+ * Not a punishment and not a way to settle an argument — it is how a mistake gets cleaned up
+ * before a season is played on top of it.
+ *
+ * Refuses to remove YOU. Doing so would leave this phone posting as a member the room no longer
+ * lists, which reads to everybody else as a silent pipeline and to you as an app that has stopped
+ * counting.
+ */
+export async function removeMember(memberId) {
+  const { memberId: me } = await identity();
+  if (!memberId || memberId === me) return false;
+  const state = await getState();
+  const member = state.members.get(memberId);
+  if (!member) return false;
+  await commit(ev.member(memberId, member.name, { removed: true }));
+  return true;
+}
+
 export async function ensureBindings(source = SOURCE.MANUAL) {
   const state = await getState();
   const { memberId } = await identity();

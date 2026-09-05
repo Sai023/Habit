@@ -935,3 +935,7 @@ button.hero-head:active { transform: scale(0.99); }
   border: 1px solid var(--line);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
+
+/* Who's in. A board row shape, so the list of people reads the same as the list of habits. */
+.member-row { grid-template-columns: minmax(0, 1fr) auto; }
+.row-remove { align-self: center; margin: 0; font-size: var(--fs-small); }

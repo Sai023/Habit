@@ -302,7 +302,19 @@ export function replay(events) {
         break;
 
       case T.MEMBER:
-        if (p.memberId) members.set(p.memberId, { memberId: p.memberId, name: p.name || p.memberId });
+        if (!p.memberId) break;
+        // Retiring somebody, which is what a duplicate identity needs.
+        //
+        // One person can end up with two member ids — a rejoin, a reinstall, the wrong code pasted
+        // once — and until now nothing could take the second one off the board. It sat at zero per
+        // cent for ever, dragged "nobody is the clown this week" out of the engine every week, and
+        // would have carried into every future season, because members were append-only.
+        //
+        // Their logs are left where they are. Nothing reads a non-member's numbers: every board,
+        // tally and summary is driven by the member list, so removing the row is enough and
+        // rewriting history would be the more dangerous half of the same job.
+        if (p.removed) members.delete(p.memberId);
+        else members.set(p.memberId, { memberId: p.memberId, name: p.name || p.memberId });
         break;
 
       case T.HABIT_DEF: {

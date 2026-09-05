@@ -208,6 +208,12 @@ const onSyncNow = guard("sync", async () => {
   }
 });
 
+/** Take a duplicate identity off the board. Confirmed by the sheet that offers it. */
+const onRemoveMember = guard("member", async (memberId) => {
+  const { removeMember } = await import("./store.js");
+  if (await removeMember(memberId)) await refresh();
+});
+
 /** The case. Everything that can be won, and what has been. */
 const onAwards = guard("awards", async () => {
   if (!ctx) return;
@@ -289,6 +295,7 @@ const onOpenHabits = guard("menu", async () => {
     onOpenSettings,
     onInvite,
     onAwards,
+    onRemoveMember,
     onClosed: () => refresh(),
   });
 });

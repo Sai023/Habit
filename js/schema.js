@@ -274,7 +274,12 @@ const p = (obj) => ({ v: SCHEMA_VERSION, ...obj });
 
 export const ev = {
   meta:      (fields) => ({ type: T.META,         payload: p(fields) }),
-  member:    (memberId, name) => ({ type: T.MEMBER, payload: p({ memberId, name }) }),
+  // `fields` carries { removed: true } to retire somebody. The name goes with it deliberately: a
+  // build too old to know about `removed` ignores it and keeps the row exactly as it was, rather
+  // than falling back to printing a raw member id. Wrong in the safe direction — an old phone shows
+  // one row too many, instead of a row nobody can identify.
+  member:    (memberId, name, fields = {}) =>
+    ({ type: T.MEMBER, payload: p({ memberId, name, ...fields }) }),
   habit:     (habitId, fields) => ({ type: T.HABIT_DEF, payload: p({ habitId, ...fields }) }),
   deleteHabit: (habitId) => ({ type: T.HABIT_DELETE, payload: p({ habitId }) }),
 
