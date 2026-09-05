@@ -263,27 +263,37 @@ function riskContract(state, me, today) {
  * the UI layer, and dashboard.js opens by promising there is only ever one answer to "what is my
  * streak" — so it comes from here rather than being worked out again over there.
  */
+/**
+ * Was this day won outright — every category that was asked about, met?
+ *
+ * The one definition, because two would eventually disagree about what a streak is and the app
+ * would be telling somebody two different things about the same day. Returns null for a day
+ * nothing was asked on: neither a win nor a loss, and the difference matters when walking history.
+ */
+export function dayIsOnGoal(state, me, day, today) {
+  const score = dayScore(state, me, day, today);
+  const live = score.categories.filter((c) => c.eligible);
+  if (!live.length) return null;
+  return live.every((c) => c.score >= 1);
+}
+
 export function onGoalStreak(state, me, today) {
   let streak = 0;
   let day = today;
 
   // Today counts only if it is already complete; otherwise start from yesterday, so a streak does
   // not appear to reset every morning.
-  const todayScore = dayScore(state, me, today, today);
-  const todayDone = todayScore.categories.some((c) => c.eligible)
-    && todayScore.categories.every((c) => !c.eligible || c.score >= 1);
-  if (!todayDone) day = shiftDay(today, -1);
+  if (dayIsOnGoal(state, me, today, today) !== true) day = shiftDay(today, -1);
 
   // A year is further back than anybody will look, and stops a corrupt log spinning forever.
   for (let i = 0; i < 366; i += 1) {
-    const score = dayScore(state, me, day, today);
-    const live = score.categories.filter((c) => c.eligible);
-    if (!live.length) {
+    const won = dayIsOnGoal(state, me, day, today);
+    if (won === null) {
       // Nothing was asked. Neither a win nor a loss — step over it.
       day = shiftDay(day, -1);
       continue;
     }
-    if (!live.every((c) => c.score >= 1)) break;
+    if (!won) break;
     streak += 1;
     day = shiftDay(day, -1);
   }

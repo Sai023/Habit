@@ -62,7 +62,7 @@ function paint() {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
     focusSettings: caps().focusSettings,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason,
-    onOpenSettings, onOpenFocus, onBoardCategory, onBoardSeason,
+    onOpenSettings, onOpenFocus, onBoardCategory, onBoardSeason, onAwards,
   });
 }
 
@@ -174,6 +174,19 @@ const onOpenFocus = guard("focus", async () => {
   }
 });
 
+/** The case. Everything that can be won, and what has been. */
+const onAwards = guard("awards", async () => {
+  if (!ctx) return;
+  const { openAwardSheet } = await import("./ui/awardsheet.js");
+  const { onGoalStreak } = await import("./summary.js");
+  // On body, not on the app root: a sync landing while it is open repaints the root, and anything
+  // living inside it would vanish mid-read.
+  openAwardSheet(document.body, {
+    state: ctx.state, me: ctx.me, today: ctx.today,
+    streak: onGoalStreak(ctx.state, ctx.me, ctx.today),
+  });
+});
+
 /** Type a number in — the only way half these habits ever get a value. */
 async function onLog(habit) {
   if (demoBlocked()) return;
@@ -241,6 +254,7 @@ const onOpenHabits = guard("menu", async () => {
     onEditGoals,
     onOpenSettings,
     onInvite,
+    onAwards,
     onClosed: () => refresh(),
   });
 });

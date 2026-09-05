@@ -775,3 +775,69 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .pip-silver  { color: #B9C2D0; }
 .pip-gold    { color: var(--amber); }
 .pip-diamond { color: var(--teal); border-color: var(--teal); background: rgba(62, 224, 196, 0.10); }
+
+/* ---------- the case ---------- */
+
+/* The head of the hero is a button now. It has to stay looking like a hero rather than a control,
+   so it borrows nothing from .tap and only gains a press. */
+button.hero-head {
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+button.hero-head:active { transform: scale(0.99); }
+
+.case-now { display: flex; align-items: center; gap: 14px; }
+.case-now-text { min-width: 0; }
+.case-held { font-size: var(--fs-title); font-weight: 800; letter-spacing: -0.02em; }
+.case-sub { font-size: var(--fs-small); color: var(--dim); margin-top: 2px; }
+.case-count { margin: 0; font-size: var(--fs-small); color: var(--dim); }
+
+.case-major { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.case-pips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+
+/* One slot, whichever kind of badge is in it, so a major row and a habit row line up. */
+.case-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  text-align: center;
+}
+.case-name {
+  font-size: var(--fs-micro);
+  color: var(--dim);
+  line-height: 1.2;
+}
+.case-times {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  color: var(--teal);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Not yet won. Drained of colour rather than hidden, and it keeps its number — "60" under a dark
+   disc is a target, where a padlock is a shrug. */
+.case-slot.is-locked .badge,
+.case-slot.is-locked .pip {
+  filter: grayscale(1) brightness(0.5);
+  box-shadow: none;
+  opacity: 0.55;
+}
+.case-slot.is-locked .case-name { opacity: 0.5; }
+
+.case-habit { display: flex; flex-direction: column; gap: 9px; }
+.case-habit-head { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-small); }
+.case-habit-icon { flex: none; }
+.case-habit-name { font-weight: 700; flex: 1; min-width: 0; }
+.case-habit-run { color: var(--dim); font-variant-numeric: tabular-nums; }
+.case-tally {
+  margin-left: auto;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--teal);
+  font-variant-numeric: tabular-nums;
+}

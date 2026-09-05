@@ -313,7 +313,10 @@ function dayHero(ctx) {
 
   return el("section.sec",
     el("div.hero",
-      el("div.hero-head",
+      // The whole head opens the case. The badge is the obvious thing to press and it is not always
+      // there — somebody with no streak has a flame and still deserves to find out what is on
+      // offer — so the target is the row rather than the badge.
+      el("button.hero-head", { onclick: () => ctx.onAwards(), "aria-label": "Achievements" },
         // The badge replaces the flame once there is one. A flame beside a Gold badge is two
         // decorations competing to say the same thing, and the badge says it better.
         tierBadge(streak, "lg")
