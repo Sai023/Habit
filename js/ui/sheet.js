@@ -116,6 +116,10 @@ export function openSheet(host = document.body, { onClose } = {}) {
 
   function paint(...children) {
     render(layer, el("div.sheet", el("div.sheet-grip"), ...children));
+    // Whether this sheet has anything to scroll decides who owns a vertical drag — see the
+    // touch-action rules in app.css. Measured after render rather than guessed, because the same
+    // sheet is short with three habits and long with six.
+    markScrollable(layer);
     verify();
   }
 
@@ -163,8 +167,15 @@ export function openSheet(host = document.body, { onClose } = {}) {
 // Drag down to dismiss
 // ---------------------------------------------------------------------------
 
-/** Far enough down to mean it, or a flick fast enough to mean it sooner. */
+/**
+ * Far enough down to mean it, or a flick fast enough to mean it sooner.
+ *
+ * A quarter of the sheet, capped. Ninety-six pixels is a reasonable pull on a full-height sheet and
+ * most of the way down a short one — the menu is about two hundred tall, so a fixed threshold asked
+ * for half of it before anything happened.
+ */
 const DISMISS_PX = 96;
+const dismissAt = (panel) => Math.min(DISMISS_PX, Math.max(48, panel.offsetHeight * 0.25));
 const FLICK_VELOCITY = 0.5;   // px per ms
 const FLICK_MIN_PX = 28;
 
@@ -242,7 +253,7 @@ function attachDrag(layer, close) {
     if (!wasDragging) return;
 
     const velocity = dy / Math.max(1, e.timeStamp - startAt);
-    const go = dy > DISMISS_PX || (velocity > FLICK_VELOCITY && dy > FLICK_MIN_PX);
+    const go = dy > dismissAt(p) || (velocity > FLICK_VELOCITY && dy > FLICK_MIN_PX);
 
     // A drag that ends on a button must not also press it.
     const swallow = (click) => { click.stopPropagation(); click.preventDefault(); };
@@ -278,4 +289,53 @@ function attachDrag(layer, close) {
 
   layer.addEventListener("pointerup", release);
   layer.addEventListener("pointercancel", release);
+
+  // The half that pointer events cannot do.
+  //
+  // A scrollable sheet keeps touch-action: pan-y so it can still be read, which tells the browser
+  // that vertical gestures are its business — and at the top of the sheet its business is an
+  // overscroll that rubber-bands and springs back. preventDefault on the touchmove is what takes
+  // the gesture back, and it only works from a NON-PASSIVE listener, which is why this exists
+  // separately from the pointermove above rather than being folded into it.
+  //
+  // Only once we have decided this is a dismiss. Before that the browser must stay free to scroll,
+  // or a long sheet becomes unreadable.
+  layer.addEventListener("touchmove", (e) => {
+    if (dragging && e.cancelable) e.preventDefault();
+  }, { passive: false });
+}
+
+/**
+ * Tell the stylesheet whether this sheet can scroll.
+ *
+ * A sheet that fits gets touch-action: none and drags anywhere. One that overflows keeps pan-y so
+ * it can be read, and is dragged by its grip or title row instead. Getting this backwards is what
+ * made the gesture look broken: with pan-y everywhere, the browser answered a downward drag with
+ * its own overscroll and cancelled our pointer stream a few pixels in.
+ */
+function markScrollable(layer) {
+  const panel = layer.querySelector(".sheet");
+  if (!panel) return;
+
+  const measure = () => {
+    if (!panel.isConnected) return;
+    panel.classList.toggle("is-scrollable", panel.scrollHeight > panel.clientHeight + 1);
+  };
+
+  // Measured repeatedly, not once.
+  //
+  // A single frame after render is too early and quietly wrong: the sheet is still animating in,
+  // web fonts may not have landed, and a panel that will overflow still reports that it fits. The
+  // class decides who owns a vertical drag, and it has to be right BEFORE a finger arrives — the
+  // browser reads touch-action when the gesture starts, not when it ends — so it cannot be worked
+  // out lazily at pointerdown.
+  requestAnimationFrame(measure);
+  // A resize observer catches the panel growing into its max-height, which is the exact moment
+  // "fits" becomes "overflows". Kept for the life of the sheet: content changes on every repaint.
+  if (typeof ResizeObserver === "function") {
+    const ro = new ResizeObserver(measure);
+    ro.observe(panel);
+  }
+  // And a late look, for anything neither of those sees — a font swapping in, an image settling.
+  setTimeout(measure, 250);
 }

@@ -17,7 +17,7 @@ import { seasonTally, categoryBreakdown, pendingSeason } from "../season.js";
 import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import {
-  AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, PAUSE_METRICS, AUTOMATIC_SOURCES,
+  AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
 } from "../schema.js";
 
@@ -235,6 +235,10 @@ function habitCard(habit, ctx) {
   // you. It no longer changes the card's SIZE, only how the card speaks: what the log button is
   // called, and whether the source badge is allowed to claim the number arrives on its own.
   const intervention = isInterventionHabit(habit);
+  // Sleep is measured, never typed — see the note by the log button. Unless somebody has
+  // deliberately bound it to themselves in the editor, in which case hiding the button would leave
+  // them with a habit they have no way to record.
+  const typedByHand = habit.metric !== METRIC.SLEEP || !AUTOMATIC_SOURCES.has(source);
   // Something fills this in already, so logging is an override rather than the way in. An
   // intervention habit is never "auto" whatever it is bound to: nothing anywhere reads a puff.
   const auto = AUTOMATIC_SOURCES.has(source) && !intervention;
@@ -298,10 +302,17 @@ function habitCard(habit, ctx) {
     // One way in, named for what it actually asks for. A puff count is read off the device and
     // typed, so "Enter today's count" is the instruction; a watch metric is already filled in and
     // only needs an override; everything else is just a log.
-    el("button.logbtn", { onclick: () => ctx.onLog(habit) },
-      intervention ? "Enter today's count"
-        : auto ? "Enter it manually"
-        : "＋ Log"),
+    //
+    // Sleep is the exception, and it has no button at all. Nobody knows how long they slept to the
+    // minute — that is the whole reason it is measured rather than asked — so an override here is a
+    // guess replacing a measurement, and a worse number wearing the same badge. It comes from the
+    // watch, or from how long the phone was left alone, or it says "waiting for data" and waits.
+    typedByHand
+      ? el("button.logbtn", { onclick: () => ctx.onLog(habit) },
+          intervention ? "Enter today's count"
+            : auto ? "Enter it manually"
+            : "＋ Log")
+      : null,
 
     // Screen time is measured by the shell, so the shell is where its dials are. They used to be a
     // tab, which put one habit's settings permanently in the navigation of an app that tracks

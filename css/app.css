@@ -579,12 +579,42 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
    rule at the bottom of this file turns both off. */
 @keyframes sheet-rise { from { transform: translateY(14%); } to { transform: translateY(0); } }
 .sheet { animation: sheet-rise 220ms cubic-bezier(0.32, 0.72, 0, 1); }
-/* Anywhere the finger can start a dismiss, the browser must not also claim the gesture for its
-   own overscroll or pull-to-refresh. */
-.sheet, .sheet-grip { touch-action: pan-y; }
-.sheet-grip { cursor: grab; }
+/* ---- Who owns a vertical drag: the browser, or us ----
 
-.sheet-grip { width: 38px; height: 4px; border-radius: 999px; background: var(--line); align-self: center; }
+   `touch-action: pan-y` was exactly backwards. It tells the browser "vertical gestures are yours",
+   so a drag down at the top of a sheet became the browser's own overscroll — the sheet rubber-banded
+   and sprang back, our pointer stream was cancelled a few pixels in, and the dismiss never ran. It
+   looked like a drag that did not work; it was a drag that never happened.
+
+   A sheet that FITS has nothing to scroll, so the browser is given nothing: the whole thing drags.
+   A sheet that overflows keeps pan-y so it can still be read, and the grip and the title row are
+   carved out of that — which is the part of a sheet people reach for to close it anyway.
+
+   overscroll-behavior stops a drag at the top of a long sheet turning into pull-to-refresh on the
+   page behind it. */
+.sheet {
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+.sheet.is-scrollable { touch-action: pan-y; }
+.sheet.is-scrollable .sheet-grip,
+.sheet.is-scrollable .sheet-head { touch-action: none; }
+
+
+
+/* A four-pixel bar is not a target. The padding makes the thumb's target eighteen pixels tall while
+   the bar it draws stays four — background-clip keeps the paint inside the content box. */
+.sheet-grip {
+  width: 38px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 7px 0;
+  border-radius: 999px;
+  background: var(--line);
+  background-clip: content-box;
+  align-self: center;
+  cursor: grab;
+}
 .sheet-head { display: flex; align-items: center; gap: 9px; }
 .sheet-title { font-size: var(--fs-head); font-weight: 700; }
 .sheet-now { margin: 0; font-size: var(--fs-small); color: var(--dim); }
