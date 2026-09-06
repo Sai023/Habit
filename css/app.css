@@ -472,6 +472,11 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   width: 100%;
 }
 .field input:focus, .inline-field input:focus { outline: none; border-color: var(--teal); }
+
+/* A time field carries its own picker icon, and the browser lays that out INSIDE the box. At the
+   shared 100% width the icon pushed the digits until "19:00" rendered as "19:0(" — the one field
+   on the screen where every character matters. Sized to its content instead. */
+.inline-field input[type="time"] { width: auto; min-width: 7.5em; }
 .field input::placeholder { color: #5B688C; }
 
 /* A habit is on or off, and its target only matters when it is on — so the target appears with
@@ -1060,3 +1065,54 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
    than as still asking for something. */
 .season-strip.is-over .season-strip-left { color: var(--dim); }
 .season-strip.is-over .bar > i { background: var(--line); }
+
+/* ---------- what a day is made of ---------- */
+
+/* Four categories, their weights, and which habits land in each. A diagram rather than a form:
+   the split is the group's and is not editable here, so this is answering a question. */
+.catmap { display: flex; flex-direction: column; gap: 12px; }
+
+.catrow {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+/* The one being edited. A border rather than a fill, so the bar underneath stays readable. */
+.catrow.is-mine { border-color: var(--teal-dim); background: var(--surface-hi); }
+
+.catrow-head { display: flex; align-items: baseline; gap: 8px; }
+.catrow-icon { font-size: var(--fs-body); }
+.catrow-name { font-size: var(--fs-small); font-weight: 700; flex: 1; min-width: 0; }
+/* The share of a day. Tabular so the four line up as a column of numbers. */
+.catrow-weight {
+  font-size: var(--fs-small); font-weight: 800; color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.catrow.is-mine .catrow-weight { color: var(--teal); }
+
+/* The weight, drawn. Four numbers in a row are four numbers; four bars are a shape. */
+.catbar {
+  height: 4px; margin: 7px 0 9px;
+  background: var(--bg); border-radius: 999px; overflow: hidden;
+}
+.catbar > i { display: block; height: 100%; background: var(--line); border-radius: 999px; }
+.catrow.is-mine .catbar > i { background: var(--teal); }
+
+.catrow-habits { display: flex; flex-wrap: wrap; gap: 5px; }
+.cattag {
+  font-size: var(--fs-micro); padding: 3px 8px; border-radius: 999px;
+  background: var(--bg); color: var(--dim); white-space: nowrap;
+}
+.cattag.on { background: var(--teal-dim); color: var(--text); font-weight: 700; }
+
+/* ---------- when to be nudged ---------- */
+
+/* On the goals sheet, beside the target and the source — the other two things about a habit that
+   are yours rather than the group's. It sat on the new-habit screen until reminders became
+   personal, where it was the only control on that screen that was never everybody's. */
+.remind {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--line);
+}

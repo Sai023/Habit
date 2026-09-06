@@ -348,8 +348,23 @@ export async function deleteHabit(habitId) {
 export async function setGoals(entries) {
   const { memberId } = await identity();
   const specs = (entries || []).map((e) =>
-    ev.goal(memberId, e.habitId, { target: e.target, active: e.active !== false }));
+    ev.goal(memberId, e.habitId, {
+      target: e.target, active: e.active !== false,
+      remindAt: e.remindAt, remindDays: e.remindDays,
+    }));
   return commitAll(specs);
+}
+
+/**
+ * When THIS phone should nudge me about one habit. Mine alone — see schema.ev.goal.
+ *
+ * Written as a goal rather than as a habit edit, which is the whole point: a habit definition is
+ * the group's and a reminder is not. `remindDays` is only meaningful for a habit judged over
+ * something longer than a day; for a daily one the shell nudges on the days it scores.
+ */
+export async function setReminder(habitId, remindAt, remindDays = []) {
+  const { memberId } = await identity();
+  return commit(ev.goal(memberId, habitId, { remindAt, remindDays }));
 }
 
 /** Point one of MY habits at a source. Per member — see schema.T.BINDING. */

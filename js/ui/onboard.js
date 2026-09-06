@@ -88,8 +88,9 @@ const STARTERS = [
     },
   },
   {
-    key: "screen", icon: "📱", name: "Screen time",
-    blurb: "Counted by Goal Buddy on this phone, in the apps you ask it to slow down.",
+    key: "screen", icon: "📱", name: "Locked apps",
+    blurb: "Minutes in the apps you ask Goal Buddy to slow down — not your whole phone. "
+      + "Maps, calls and anything you haven't locked cost you nothing.",
     unit: "minutes a day, at most", step: 15, toInput: (v) => v, fromInput: (v) => Math.round(v),
     fields: {
       metric: METRIC.SCREEN_MINUTES, direction: AT_MOST, target: 120, period: PERIOD.DAY,

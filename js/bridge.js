@@ -269,7 +269,15 @@ export function setSyncConfig({ groupCode, memberId, supabaseUrl, supabaseKey, h
       habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
       // The schedule travels with the habit so the shell can raise the alarm on the right days
       // without holding a second opinion about which days those are.
-      name: h.name || "", days: h.days || [], remindAt: h.remindAt ?? null,
+      //
+      // BOTH day lists, and that is not belt-and-braces. `days` is which days a habit is SCORED
+      // on and it is the right answer for a daily habit; `remindDays` only exists for one judged
+      // over something longer, where there are no scored days to borrow — "three workouts a week"
+      // is silent about which three on purpose. HabitReminder reads `remindDays.ifEmpty { days }`.
+      // Sending only `days` meant a weekly habit fell through to [1..7] and nudged every morning,
+      // which is the exact behaviour remindDays was added to stop.
+      name: h.name || "", days: h.days || [],
+      remindAt: h.remindAt ?? null, remindDays: h.remindDays || [],
     })),
   });
 }

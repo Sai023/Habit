@@ -27,7 +27,7 @@ import {
   T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY, AGGREGATE, SOURCE,
   HEALTH_METRICS, PAUSE_METRICS, isInterventionHabit,
   PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
-  LEGACY_METRIC,
+  LEGACY_METRIC, LEGACY_NAME,
   SCORED_METRICS,
 } from "./schema.js";
 
@@ -225,6 +225,9 @@ function normalizeHabit(p, createdDay) {
   const h = { ...HABIT_DEFAULTS, ...p, createdDay };
   // A metric this build has retired becomes the one that replaced it. See LEGACY_METRIC.
   if (h.metric && LEGACY_METRIC[h.metric]) h.metric = LEGACY_METRIC[h.metric];
+  // And a name it has retired, but only where nobody has typed over it. See LEGACY_NAME.
+  const renamed = h.metric && LEGACY_NAME[h.metric] && LEGACY_NAME[h.metric][h.name];
+  if (renamed) h.name = renamed;
   h.days = Array.isArray(h.days) && h.days.length ? h.days.map(Number) : HABIT_DEFAULTS.days;
   h.period = Object.values(PERIOD).includes(h.period) ? h.period : PERIOD.DAY;
   h.weight = Number(h.weight) > 0 ? Number(h.weight) : 1;
@@ -398,6 +401,26 @@ export function replay(events) {
           // silently reverting this person to the group's default.
           target: p.target != null ? Number(p.target) : previous.target,
           active: p.active != null ? Boolean(p.active) : (previous.active !== false),
+          // Same carry-forward rule as the target, for the same reason: the two screens that
+          // write a goal each send only their own half. Setting a target on the goals sheet must
+          // not silently switch somebody's reminder off.
+          //
+          // null is a real answer here and means "no reminder" — hence the undefined check rather
+          // than a truthiness one, which would make switching a reminder off impossible.
+          //
+          // Three states, not two, and the third is why this is not `?? null`. `undefined` means
+          // nobody has ever answered — fall back to whatever the habit carries from before
+          // reminders were personal. `null` means somebody answered "no reminder", which must beat
+          // that fallback or switching one off would silently re-inherit the group's old time.
+          remindAt: p.remindAt !== undefined
+            ? (p.remindAt === null ? null
+              : Math.min(1439, Math.max(0, Math.round(Number(p.remindAt)) || 0)))
+            : previous.remindAt,
+          remindDays: p.remindDays !== undefined
+            ? (Array.isArray(p.remindDays)
+              ? p.remindDays.map(Number).filter((d) => d >= 1 && d <= 7).sort()
+              : [])
+            : previous.remindDays,
           setOn: authored,
         });
         goals.set(key, list);

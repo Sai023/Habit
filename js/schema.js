@@ -106,6 +106,24 @@ export const SCORED_METRICS = new Set([
 export const LEGACY_METRIC = { urges: METRIC.PUFFS };
 
 /**
+ * Names this build has retired, and what they are called now.
+ *
+ * A habit's name is stored in the log, which is append-only and replayed by every device — so
+ * renaming a preset renames it for habits created AFTERWARDS and leaves every existing one saying
+ * the old thing. Editing the row would mean writing a habit_def on somebody's behalf, on whichever
+ * device happened to open first, to change a display string.
+ *
+ * So it is done on the way out of replay instead: only when the stored name is exactly the old
+ * default, which means nobody has typed over it. Somebody who renamed theirs to "Instagram" keeps
+ * "Instagram", and the moment anybody edits the habit the new name is written for real.
+ *
+ * Keyed by metric so a custom habit that happens to be called "Screen time" is left alone.
+ */
+export const LEGACY_NAME = {
+  [METRIC.SCREEN_MINUTES]: { "Screen time": "Locked apps", "Screentime": "Locked apps" },
+};
+
+/**
  * Grace scales with the period, or it means nothing.
  *
  * One token per seven clean days is a fortnight of good behaviour for a daily habit. Applied
@@ -309,8 +327,19 @@ export const ev = {
    *
    * `active: false` means they are not doing this one at all, which is different from failing it.
    */
-  goal: (memberId, habitId, { target, active = true } = {}) =>
-    ({ type: T.GOAL, payload: p({ memberId, habitId, target, active }) }),
+  /**
+   * One member's version of a habit: their number, whether they are in, and when to nudge them.
+   *
+   * The reminder lives HERE rather than on the habit for the same reason the target does. A habit
+   * definition is the group's — every device replays it and every device gets the same answer — so
+   * a reminder stored on it was one alarm clock shared by everybody: set yours for 06:00 and you
+   * set Thabo's, silently, on his phone, and whoever edited last won.
+   *
+   * Undefined means "leave what was there", which is what lets setGoals write a target without
+   * clearing a reminder somebody set on the other screen.
+   */
+  goal: (memberId, habitId, { target, active = true, remindAt, remindDays } = {}) =>
+    ({ type: T.GOAL, payload: p({ memberId, habitId, target, active, remindAt, remindDays }) }),
 
   /** Travel mode or a planned rest. `habitId` null exempts every habit. */
   exempt: (memberId, from, to, reason = "travel", habitId = null) =>

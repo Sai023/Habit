@@ -10,7 +10,7 @@
 
 import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
-import { dayKey } from "./habits.js";
+import { dayKey, latestGoal } from "./habits.js";
 import { HABIT_DEFAULTS } from "./schema.js";
 import { installBridge, caps, isNative, setSyncConfig, openSettings, onAppResume } from "./bridge.js";
 import { showProblem, showNote } from "./ui/problem.js";
@@ -517,11 +517,34 @@ let lastShellConfig = "";
  * adding one on their phone has to reach this phone's worker too, and there is no save on this
  * device for that. It is a cheap local write, and the signature check keeps it to genuine changes.
  */
+/**
+ * When this phone should nudge ME about a habit.
+ *
+ * Reminders used to live on the habit itself, which every device replays — so the group shared one
+ * alarm clock. Setting yours for six in the morning set everybody's, silently, and the last person
+ * to open the editor won. They live on the per-member goal now.
+ *
+ * The habit is still read as a fallback, and has to be: every reminder set before this change is
+ * sitting on a habit_def row in a log that is append-only and replayed by three phones. Dropping
+ * to null would switch off every reminder anybody had, at once, on an upgrade. It resolves to the
+ * personal one the moment that person touches the control.
+ */
+function reminderFor(state, memberId, habit) {
+  const goal = latestGoal(state, habit.habitId, memberId);
+  // undefined, not null: nobody has answered yet. null is somebody answering "no reminder", and it
+  // has to beat the fallback or switching one off would re-inherit the group's old time.
+  if (goal && goal.remindAt !== undefined) {
+    return { remindAt: goal.remindAt, remindDays: goal.remindDays || [] };
+  }
+  return { remindAt: habit.remindAt ?? null, remindDays: habit.remindDays || [] };
+}
+
 function tellShell(state, memberId, code) {
   if (!isNative()) return;
   const habits = [...state.habits.values()].map((h) => ({
     habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
-    name: h.name || "", days: h.days || [], remindAt: h.remindAt ?? null,
+    name: h.name || "", days: h.days || [],
+    ...reminderFor(state, memberId, h),
   }));
   const signature = code + "|" + memberId + "|" + JSON.stringify(habits);
   if (signature === lastShellConfig) return;

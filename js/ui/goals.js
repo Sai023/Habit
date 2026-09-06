@@ -17,6 +17,18 @@ import {
   sourceForDevice,
 } from "../schema.js";
 
+/** ISO weekdays, Monday first, which is how a week is spoken here. */
+const WEEKDAYS = [[1, "M"], [2, "T"], [3, "W"], [4, "T"], [5, "F"], [6, "S"], [7, "S"]];
+
+/** "07:00" from a minute of the day, and back. */
+const toClock = (minute) =>
+  String(Math.floor(minute / 60)).padStart(2, "0") + ":" + String(minute % 60).padStart(2, "0");
+const fromClock = (text) => {
+  const [h, m] = String(text || "").split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return Math.max(0, Math.min(1439, h * 60 + m));
+};
+
 /** Could anything ever read this metric, and can THIS device? Two different questions. */
 const couldBeAutomatic = (metric) => HEALTH_METRICS.has(metric) || PAUSE_METRICS.has(metric);
 const deviceSourceFor = (metric) => {
@@ -60,6 +72,16 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
       // on a phone with a watch it is a different answer from the same person's browser.
       tracked: canAuto && (firstRun || AUTOMATIC_SOURCES.has(sourceFor(state, habit, me))),
       target: scale ? scale.toInput(current) : current,
+      // Mine, not the group's. Falls back to whatever the habit carries from before reminders were
+      // personal, so an existing one keeps working until its owner touches this control.
+      remindAt: set && set.remindAt !== undefined ? set.remindAt : (habit.remindAt ?? null),
+      // Mon/Wed/Fri, not all seven. This list only exists for a habit judged over something longer
+      // than a day, and defaulting it to every day would reinstate the exact behaviour it was
+      // added to stop: four wasted notifications a week for a thing you do three times, which is
+      // how somebody learns to swipe them away.
+      remindDays: (set && set.remindDays && set.remindDays.length ? set.remindDays : null)
+        || (habit.remindDays && habit.remindDays.length ? habit.remindDays : null)
+        || [1, 3, 5],
     };
   });
 
@@ -132,7 +154,69 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           }, "I log it"),
         ) : null,
         el("p.starter-blurb", trackingNote(habit, r, canAuto)),
+        reminder(r),
       ) : null,
+    );
+  }
+
+  /**
+   * When to be nudged about this one.
+   *
+   * It used to live on the new-habit screen, beside the metric, the cadence and the category —
+   * everything on that screen is the GROUP's answer, agreed once and replayed identically on every
+   * phone, and a reminder is the one thing there that never was. Stored on the habit, it meant one
+   * alarm clock shared by everybody: set yours for six in the morning and you set Thabo's too.
+   *
+   * Here it is next to your target and your source, which are the other two things about a habit
+   * that are yours alone — and it makes the screen you use to CREATE a habit shorter by a section
+   * nobody creating a habit is thinking about yet.
+   */
+  function reminder(r) {
+    const on = r.remindAt != null;
+    // Only a habit judged over something longer than a day needs its own days. A daily one nudges
+    // on the days it scores, which is what stops the two from ever disagreeing.
+    const picksDays = r.habit.period !== PERIOD.DAY;
+    return el("div.remind",
+      el("div.chips.chips-tight",
+        el("button.chip" + (!on ? ".on" : ""), {
+          onclick: () => { r.remindAt = null; paint(); },
+        }, "No reminder"),
+        el("button.chip" + (on ? ".on" : ""), {
+          onclick: () => { if (!on) { r.remindAt = 19 * 60; paint(); } },
+        }, "Remind me"),
+      ),
+      on ? el("label.inline-field",
+        el("input", {
+          type: "time",
+          value: toClock(r.remindAt),
+          oninput: (e) => {
+            const m = fromClock(e.target.value);
+            if (m != null) r.remindAt = m;
+          },
+        }),
+        el("span", picksDays
+          ? (r.remindDays.length === 7 ? "every day" : "on the days below")
+          : (r.habit.days && r.habit.days.length < 7 ? "on its own days" : "every day")),
+      ) : null,
+      on && picksDays ? el("div.chips.chips-days", WEEKDAYS.map(([n, label]) =>
+        el("button.chip.chip-day" + (r.remindDays.includes(n) ? ".on" : ""), {
+          "aria-label": "Day " + n,
+          onclick: () => {
+            const next = r.remindDays.includes(n)
+              ? r.remindDays.filter((d) => d !== n)
+              : [...r.remindDays, n].sort();
+            // Never none: a reminder switched on that fires on no day is a setting that lies.
+            if (next.length) { r.remindDays = next; paint(); }
+          },
+        }, label))) : null,
+      // "Three workouts a week" is silent about which three on purpose, and the engine keeps it
+      // that way. Said here because the line above promises the opposite about scoring, and the
+      // two together without a word read as a contradiction rather than a division of labour.
+      on && picksDays
+        ? el("p.starter-blurb", "Nudges only. The week is still judged on the total — a missed "
+            + "Wednesday costs nothing on its own.")
+        : null,
+      on ? el("p.starter-blurb", "Yours alone. Everyone sets their own time.") : null,
     );
   }
 
@@ -169,6 +253,10 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           habitId: r.habit.habitId,
           active: r.active,
           target: scale ? scale.fromInput(raw) : Math.round(raw),
+          remindAt: r.remindAt,
+          // Only meaningful for a habit judged over something longer than a day; a daily one
+          // borrows the days it scores, and storing a second list would let the two drift.
+          remindDays: r.remindAt != null && r.habit.period !== PERIOD.DAY ? r.remindDays : [],
         };
       }));
       // Record how each one is fed from THIS device, from what they just said rather than from

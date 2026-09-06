@@ -56,7 +56,7 @@ export function demoState(now = Date.now()) {
     }), t0),
 
     E(ev.habit("screen", {
-      name: "Screen time", icon: "📱", metric: METRIC.SCREEN_MINUTES, direction: AT_MOST,
+      name: "Locked apps", icon: "📱", metric: METRIC.SCREEN_MINUTES, direction: AT_MOST,
       target: 90, tz: TZ, dayStartHour: DAY_START, source: SOURCE.PAUSE,
       visibility: VISIBILITY.FULL,
     }), t0),

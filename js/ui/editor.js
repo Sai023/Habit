@@ -12,7 +12,9 @@ import { saveHabit, deleteHabit, bindSource } from "../store.js";
 import { sourceFor } from "../habits.js";
 import { uuid } from "../id.js";
 import { caps } from "../bridge.js";
-import { categoryFor, CATEGORY_LABEL, CATEGORY_ICON } from "../score.js";
+import {
+  categoryFor, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_WEIGHT, CATEGORY_ORDER,
+} from "../score.js";
 import {
   METRIC, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD, PAUSE_METRICS,
   HEALTH_METRICS, AUTOMATIC_SOURCES, sourceForDevice, SCORED_METRICS, PHONE_ESTIMATED,
@@ -52,7 +54,13 @@ const TYPES = [
     // Fed by Pause itself. Not a watch metric and not really a manual one either — the phone
     // running the intervention screen is the only thing that can answer it, which is most of the
     // reason the two apps became one.
-    key: "screen", label: "Screen time", icon: "📱", metric: METRIC.SCREEN_MINUTES,
+    //
+    // "Locked apps", not "Screen time", and the name is the honest one rather than the familiar
+    // one. It has only ever counted minutes inside the apps you asked to be slowed — never the
+    // whole device — and calling that "screen time" on a leaderboard invites two wrong readings:
+    // that a map, a book or a call costs you points, and that somebody who locks nothing is
+    // winning it. A phone is useful. This measures the part of it you said you wanted less of.
+    key: "screen", label: "Locked apps", icon: "📱", metric: METRIC.SCREEN_MINUTES,
     direction: AT_MOST, aggregate: AGGREGATE.LAST, unit: "minutes", step: 15,
     start: 120, period: PERIOD.DAY,
   },
@@ -81,28 +89,11 @@ const WEEKDAYS = [
   [1, "M"], [2, "T"], [3, "W"], [4, "T"], [5, "F"], [6, "S"], [7, "S"],
 ];
 
-/** "07:00" from a minute of the day, and back. */
-const toClock = (minute) =>
-  String(Math.floor(minute / 60)).padStart(2, "0") + ":" + String(minute % 60).padStart(2, "0");
-const fromClock = (text) => {
-  const [h, m] = String(text || "").split(":").map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return Math.max(0, Math.min(1439, h * 60 + m));
-};
-
 const CADENCES = [
   { period: PERIOD.DAY, label: "Every day", note: "Judged one day at a time." },
   { period: PERIOD.WEEK, label: "Weekly", note: "Which days don't matter — only the total." },
   { period: PERIOD.MONTH, label: "Monthly", note: "One question, asked at the end of the month." },
 ];
-
-/** What the time field is promising, in the words of whichever cadence this is. */
-function remindDayNote(cadence, form) {
-  if (cadence.period !== PERIOD.DAY) {
-    return form.remindDays.length === 7 ? "every day" : "on the days above";
-  }
-  return form.days.length < 7 ? "on the days above" : "every day";
-}
 
 const typeOf = (habit) =>
   TYPES.find((t) => t.metric && t.metric === habit?.metric) || TYPES[TYPES.length - 1];
@@ -112,6 +103,63 @@ const couldBeAutomatic = (metric) => HEALTH_METRICS.has(metric) || PAUSE_METRICS
 
 const toInput = (type, v) => (type.toInput ? type.toInput(v) : v);
 const fromInput = (type, v) => (type.fromInput ? type.fromInput(v) : Math.round(v));
+
+/**
+ * The four categories, what they are worth, and which habits land in each.
+ *
+ * ---- Why this is a picture ----
+ *
+ * It used to be a line naming this habit's category and a sentence saying "split 40 / 30 / 15 / 15
+ * across the four categories". Both facts were true and neither was usable: the sentence gives you
+ * four numbers with nothing to attach them to, and nowhere on the screen said which habits make up
+ * a category — so "Discipline is 30" tells you nothing about whether adding this habit changes
+ * anything, or what happens to that 30 if you skip it.
+ *
+ * The thing somebody actually wants to know here is "what is my day made of, and where does this
+ * one sit in it". So: all four, in weight order, sized by their weight, with the habits named in
+ * each and the one being edited lit up.
+ *
+ * The weights are the group's and are not editable here, which is why this is a diagram and not a
+ * form. It is answering a question, not asking one.
+ */
+function categoryMap(metric) {
+  const mine = categoryFor({ metric });
+  const counts = SCORED_METRICS.has(metric);
+
+  // Named off the presets, so this cannot drift from what the picker offers. Custom is left out
+  // deliberately — it is the one type that never lands in a category.
+  const inCategory = (cat) => TYPES.filter(
+    (t) => t.metric && SCORED_METRICS.has(t.metric) && categoryFor({ metric: t.metric }) === cat,
+  );
+
+  return el("div.catmap",
+    CATEGORY_ORDER.map((cat) => {
+      const here = counts && cat === mine;
+      return el("div.catrow" + (here ? ".is-mine" : ""),
+        el("div.catrow-head",
+          el("span.catrow-icon", CATEGORY_ICON[cat]),
+          el("span.catrow-name", CATEGORY_LABEL[cat]),
+          el("span.catrow-weight", String(CATEGORY_WEIGHT[cat])),
+        ),
+        // The bar is the weight. Four numbers in a row are four numbers; four bars are a shape you
+        // read once and remember, and 40 being wider than 15 is the whole point of the split.
+        el("div.catbar", el("i", { style: "width:" + CATEGORY_WEIGHT[cat] + "%" })),
+        el("div.catrow-habits", inCategory(cat).map((t) =>
+          el("span.cattag" + (counts && t.metric === metric ? ".on" : ""),
+            t.icon + " " + t.label))),
+      );
+    }),
+
+    el("p.note-inline", counts
+      ? "Every day is worth 100, split like this. A category you're not tracking is left out and "
+        + "the rest grow to fill it — so skipping one never costs you points, it just means the "
+        + "others carry more."
+      // Said here rather than discovered later. Somebody adding a habit of their own is entitled
+      // to know before they set a goal against it that it is not part of the contest.
+      : "This one is yours alone — it sits outside all four. It shows on Today and keeps its "
+        + "streak, and it counts towards nobody's score. The board is the six above."),
+  );
+}
 
 export function openEditorSheet(host, { state, habitId, me, onDone }) {
   let saved = false;
@@ -145,12 +193,6 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
     visibility: existing?.visibility || VISIBILITY.FULL,
     taper: !!existing?.taper,
     days: Array.isArray(existing?.days) && existing.days.length ? [...existing.days] : [1, 2, 3, 4, 5, 6, 7],
-    remindAt: existing?.remindAt ?? null,
-    // Which weekdays the reminder fires on, for a habit whose cadence is longer than a day.
-    // "Three workouts a week" says nothing about which three, so the engine ignores `days` for it
-    // and a reminder had nothing to go on but "every morning" — which is how a nudge becomes noise.
-    remindDays: Array.isArray(existing?.remindDays) && existing.remindDays.length
-      ? [...existing.remindDays] : [1, 3, 5],
     tz: existing?.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     dayStartHour: existing?.dayStartHour ?? 4,
     error: "",
@@ -171,6 +213,10 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
   /** What the metric is, before anyone chooses how to feed it. */
   function metricNote(type) {
     if (type.metric === null) return "Anything you want to count. You'll set the units by name.";
+    if (type.metric === METRIC.SCREEN_MINUTES) {
+      return "Minutes inside the apps you've asked Goal Buddy to slow down — not your whole phone. "
+        + "Maps, calls and anything you haven't locked cost you nothing.";
+    }
     if (PAUSE_METRICS.has(type.metric)) return "Goal Buddy counts this on the phone it's installed on.";
     if (HEALTH_METRICS.has(type.metric)) return "A watch or phone can read this through Health Connect.";
     return "No sensor can read this one — it's yours to log.";
@@ -319,70 +365,8 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
           ? el("p.note-inline", "The other days are rest days — they don't count against you.")
           : null,
 
-        el("h2.sec-title", "Remind me"),
-        el("div.chips",
-          el("button.chip" + (form.remindAt == null ? ".on" : ""), {
-            onclick: () => { form.remindAt = null; paint(); },
-          }, "No reminder"),
-          el("button.chip" + (form.remindAt != null ? ".on" : ""), {
-            onclick: () => { if (form.remindAt == null) { form.remindAt = 19 * 60; paint(); } },
-          }, "On the day"),
-        ),
-        // Which days to be nudged, for a habit judged over something longer than a day.
-        //
-        // "Three workouts a week" is deliberately silent about which three — that is the whole
-        // point of a weekly target, and the engine keeps it that way. But a reminder has to land
-        // on SOME day, and "every morning" for a thing you do three times is four wasted
-        // notifications a week, which is how somebody learns to swipe them away.
-        //
-        // So this asks, and it changes nothing but the reminder. Miss a Wednesday and the week is
-        // untouched; the total is still the only thing scored.
-        form.remindAt != null && cadence.period !== PERIOD.DAY
-          ? el("div.chips.chips-days", WEEKDAYS.map(([n, label]) =>
-              el("button.chip.chip-day" + (form.remindDays.includes(n) ? ".on" : ""), {
-                "aria-label": "Day " + n,
-                onclick: () => {
-                  const next = form.remindDays.includes(n)
-                    ? form.remindDays.filter((d) => d !== n)
-                    : [...form.remindDays, n].sort();
-                  // Never none: a reminder switched on that fires on no day is a setting that lies.
-                  if (next.length) { form.remindDays = next; paint(); }
-                },
-              }, label)))
-          : null,
-        // Said because the line above this section says the opposite about scoring, and the two
-        // sitting together without a word would read as a contradiction rather than a division of
-        // labour.
-        form.remindAt != null && cadence.period !== PERIOD.DAY
-          ? el("p.note-inline", "Which days to nudge you. The week is still judged on the total — "
-              + "a missed Wednesday costs nothing on its own.")
-          : null,
-        form.remindAt != null ? el("label.inline-field",
-          el("input", {
-            type: "time",
-            value: toClock(form.remindAt),
-            oninput: (e) => {
-              const m = fromClock(e.target.value);
-              if (m != null) form.remindAt = m;
-            },
-          }),
-          el("span", remindDayNote(cadence, form)),
-        ) : null,
-        el("p.note-inline", form.remindAt == null
-          ? "Nothing will nudge you about this one."
-          : "Goal Buddy raises this on your phone, so it arrives whether or not the app is open."),
-
         el("h2.sec-title", "Where it counts"),
-        counts
-          ? el("p.fact", CATEGORY_ICON[category] + " " + CATEGORY_LABEL[category])
-          : el("p.fact.is-off", "Not on the board"),
-        el("p.note-inline", counts
-          ? "Each day is worth 100, split 40 / 30 / 15 / 15 across the four categories. The split "
-            + "is the group's and is the same for everyone."
-          // Said here rather than discovered later. Somebody adding a habit of their own is
-          // entitled to know before they set a goal against it that it is not part of the contest.
-          : "This one is yours alone. It shows on Today and keeps its streak, and it does not "
-            + "count towards anyone's score — the board is the six the group agreed on."),
+        categoryMap(t.metric),
 
 
         el("h2.sec-title", "What the group sees"),
@@ -426,8 +410,6 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         taper: t.direction === AT_MOST && form.taper
           ? { amount: 1, everyDays: 7, floor: 0 } : null,
         days: t.period === PERIOD.DAY ? form.days : [1, 2, 3, 4, 5, 6, 7],
-        remindAt: form.remindAt,
-        remindDays: form.remindAt != null && t.period !== PERIOD.DAY ? form.remindDays : null,
         tz: form.tz,
         dayStartHour: form.dayStartHour,
         // The habit's own default is the BEST source the metric could ever have, because it is
