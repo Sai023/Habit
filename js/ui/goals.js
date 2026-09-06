@@ -172,10 +172,21 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
    * nobody creating a habit is thinking about yet.
    */
   function reminder(r) {
+    // A daily habit does not get an alarm of its own, and that is the rule rather than an
+    // omission. Everything daily is asked for at the same moment — eight in the evening, once,
+    // "go and update your day" — because six daily habits with six alarms is six notifications a
+    // night, and the reliable outcome of that is somebody switching the lot off.
+    //
+    // Weekly and monthly are the opposite case. "Three workouts a week" and "save this much by
+    // month end" happen around a personal schedule nobody else can guess, so those carry their
+    // own time and their own days.
+    if (r.habit.period === PERIOD.DAY) return dailyNote();
+
     const on = r.remindAt != null;
-    // Only a habit judged over something longer than a day needs its own days. A daily one nudges
-    // on the days it scores, which is what stops the two from ever disagreeing.
-    const picksDays = r.habit.period !== PERIOD.DAY;
+    // A month has no day of the week in it. "Save this much by the end of the month" is asked once,
+    // at month end — the same thing the cadence line on the editor already promises — so offering
+    // weekday chips here would be asking a question whose answer cannot be honoured.
+    const monthly = r.habit.period === PERIOD.MONTH;
     return el("div.remind",
       el("div.chips.chips-tight",
         el("button.chip" + (!on ? ".on" : ""), {
@@ -194,11 +205,10 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
             if (m != null) r.remindAt = m;
           },
         }),
-        el("span", picksDays
-          ? (r.remindDays.length === 7 ? "every day" : "on the days below")
-          : (r.habit.days && r.habit.days.length < 7 ? "on its own days" : "every day")),
+        el("span", monthly ? "on the last day of the month"
+          : r.remindDays.length === 7 ? "every day" : "on the days below"),
       ) : null,
-      on && picksDays ? el("div.chips.chips-days", WEEKDAYS.map(([n, label]) =>
+      on && !monthly ? el("div.chips.chips-days", WEEKDAYS.map(([n, label]) =>
         el("button.chip.chip-day" + (r.remindDays.includes(n) ? ".on" : ""), {
           "aria-label": "Day " + n,
           onclick: () => {
@@ -212,11 +222,26 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
       // "Three workouts a week" is silent about which three on purpose, and the engine keeps it
       // that way. Said here because the line above promises the opposite about scoring, and the
       // two together without a word read as a contradiction rather than a division of labour.
-      on && picksDays
-        ? el("p.starter-blurb", "Nudges only. The week is still judged on the total — a missed "
-            + "Wednesday costs nothing on its own.")
+      on
+        ? el("p.starter-blurb", monthly
+            ? "Asked once, when the month closes. Yours alone — everyone sets their own time."
+            : "Nudges only — the total is still the only thing scored, so a missed Wednesday costs "
+              + "nothing on its own. Yours alone: everyone sets their own.")
         : null,
-      on ? el("p.starter-blurb", "Yours alone. Everyone sets their own time.") : null,
+    );
+  }
+
+  /**
+   * What a daily habit gets instead: the one evening prompt, named so it is not a silence.
+   *
+   * Without this the reminder block simply vanishes on five of the six habits, and the honest
+   * reading of a missing control is "this one cannot be reminded" — which is the opposite of true.
+   */
+  function dailyNote() {
+    return el("div.remind",
+      el("p.starter-blurb",
+        "Nudged at 8pm with everything else daily — one prompt to update the day, not one per "
+        + "habit."),
     );
   }
 
@@ -253,10 +278,13 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           habitId: r.habit.habitId,
           active: r.active,
           target: scale ? scale.fromInput(raw) : Math.round(raw),
-          remindAt: r.remindAt,
-          // Only meaningful for a habit judged over something longer than a day; a daily one
-          // borrows the days it scores, and storing a second list would let the two drift.
-          remindDays: r.remindAt != null && r.habit.period !== PERIOD.DAY ? r.remindDays : [],
+          // Daily habits are covered by the one 8pm prompt and never carry an alarm of their own,
+          // so this writes an explicit null for them rather than leaving whatever the old editor
+          // put there — see reminderFor in app.js.
+          remindAt: r.habit.period === PERIOD.DAY ? null : r.remindAt,
+          // Weekly only. A daily habit is covered by the 8pm prompt and a monthly one is asked at
+          // month end, so neither has a weekday list that means anything.
+          remindDays: r.habit.period === PERIOD.WEEK && r.remindAt != null ? r.remindDays : [],
         };
       }));
       // Record how each one is fed from THIS device, from what they just said rather than from

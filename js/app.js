@@ -11,7 +11,7 @@
 import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
 import { dayKey, latestGoal } from "./habits.js";
-import { HABIT_DEFAULTS } from "./schema.js";
+import { HABIT_DEFAULTS, PERIOD } from "./schema.js";
 import { installBridge, caps, isNative, setSyncConfig, openSettings, onAppResume } from "./bridge.js";
 import { showProblem, showNote } from "./ui/problem.js";
 import { watchForUpdates } from "./update.js";
@@ -530,6 +530,14 @@ let lastShellConfig = "";
  * personal one the moment that person touches the control.
  */
 function reminderFor(state, memberId, habit) {
+  // A daily habit never carries one. The shell already raises a single evening prompt covering
+  // everything daily — "go and update your day" — and an alarm per habit on top of it is six
+  // notifications a night for six habits, which is how somebody ends up silencing the channel.
+  //
+  // Suppressed here rather than only hidden in the UI, because reminders set on daily habits by
+  // the old editor are sitting in the log and would otherwise keep firing beside the 8pm one.
+  if (habit.period === PERIOD.DAY) return { remindAt: null, remindDays: [] };
+
   const goal = latestGoal(state, habit.habitId, memberId);
   // undefined, not null: nobody has answered yet. null is somebody answering "no reminder", and it
   // has to beat the fallback or switching one off would re-inherit the group's old time.
@@ -543,7 +551,7 @@ function tellShell(state, memberId, code) {
   if (!isNative()) return;
   const habits = [...state.habits.values()].map((h) => ({
     habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
-    name: h.name || "", days: h.days || [],
+    name: h.name || "", days: h.days || [], period: h.period,
     ...reminderFor(state, memberId, h),
   }));
   const signature = code + "|" + memberId + "|" + JSON.stringify(habits);

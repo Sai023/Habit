@@ -277,6 +277,10 @@ export function setSyncConfig({ groupCode, memberId, supabaseUrl, supabaseKey, h
       // Sending only `days` meant a weekly habit fell through to [1..7] and nudged every morning,
       // which is the exact behaviour remindDays was added to stop.
       name: h.name || "", days: h.days || [],
+      // The cadence, so the shell knows which habits the one evening prompt is FOR. Everything
+      // daily is nudged together at 8pm; weekly and monthly carry their own alarm instead, and a
+      // person with only those should not be prompted nightly to update nothing.
+      period: h.period || "day",
       remindAt: h.remindAt ?? null, remindDays: h.remindDays || [],
     })),
   });

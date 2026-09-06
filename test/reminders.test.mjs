@@ -156,7 +156,8 @@ const wire = async () => {
     groupCode: "g", memberId: "a", supabaseUrl: "u", supabaseKey: "k",
     habits: [{
       habitId: "gym", metric: METRIC.SESSIONS, tz: TZ, dayStartHour: 4,
-      name: "Workouts", days: [1, 2, 3, 4, 5, 6, 7], remindAt: 360, remindDays: [1, 3, 5],
+      name: "Workouts", days: [1, 2, 3, 4, 5, 6, 7], period: PERIOD.WEEK,
+      remindAt: 360, remindDays: [1, 3, 5],
     }],
   });
   const habit = lastConfig(calls);
@@ -169,7 +170,8 @@ const wire = async () => {
   // HabitConfig.fromJson reads exactly these; a field it reads and this never sends is silently
   // defaulted, which is how remindDays spent a release as an empty set.
   const PARSED = [
-    "habitId", "metric", "tz", "dayStartHour", "name", "days", "remindAt", "remindDays",
+    "habitId", "metric", "tz", "dayStartHour", "name", "days", "period",
+    "remindAt", "remindDays",
   ];
   for (const field of PARSED) {
     assert.ok(field in habit, field + " is parsed by the shell but never sent");

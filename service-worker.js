@@ -26,7 +26,7 @@
 // version moves on its own.
 
 // GEN:VERSION-START — content hash of SHELL, written by scripts/gen-sw-shell.mjs
-const CACHE_VERSION = "goalbuddy-814bcdbc7be8";
+const CACHE_VERSION = "goalbuddy-26425ffef9d7";
 // GEN:VERSION-END
 
 const SHELL = [
