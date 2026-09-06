@@ -192,18 +192,48 @@ export function periodsBetween(fromDay, toDay, period) {
 // ============================================================================
 
 /**
- * Replay order, clamped to the server's view of when it saw each event.
+ * When an event was authored, as far as anything here can check.
  *
- * A device whose clock runs FAST would otherwise stamp its writes into the future and win every
- * last-write-wins race, even against someone who acted afterwards having seen the change. Taking
- * min(client ts, server arrival) clamps that down; a SLOW clock keeps its earlier stamp and loses,
- * which is the safe direction to be wrong in. `seq` then the id break ties, so the order is total
- * and identical on every device. (Same rule as Passport's model.js — deliberately.)
+ * The device says. Every guard in replay that asks "when was this written" — the backfill window,
+ * the no-backdating rule on travel, when a goal change starts counting, a habit's birthday — was
+ * reading that claim straight, which means a device with a wrong clock could answer differently
+ * from every other device in the group and be believed.
+ *
+ * The server already stamps arrival, and every device receives it: an event cannot have been
+ * authored AFTER the server saw it, so `min(claim, arrival)` is a bound that costs nothing to
+ * check and is identical on every phone.
+ *
+ * ---- What this closes, and what it does not ----
+ *
+ * A clock set FORWARD is closed. It was the more useful lie: it wins every last-write-wins race,
+ * it makes "today" a day that has not happened, it moves a goal change onto a day nobody has
+ * played yet, and it makes a habit's birthday later so fewer past days are judged.
+ *
+ * A clock set BACK is not, and cannot be from here. An event claiming to be older than its arrival
+ * is exactly what a week offline looks like, and the backfill window is deliberately built to
+ * honour that — see the note on T.LOG. Choosing arrival instead would close the lie and take
+ * genuine offline logging with it, so the bound only ever clamps DOWN.
+ *
+ * `orderKey` has always done this for sort order. It is the same question, so it is now the same
+ * function — two copies of a rule about trusting clocks is one copy too many.
  */
-export function orderKey(e) {
+export function authoredAt(e) {
   const ts = Number(e && e.ts) || 0;
   const serverTs = Number(e && e.serverTs) || 0;
   return serverTs ? Math.min(ts, serverTs) : ts;
+}
+
+/**
+ * Replay order, clamped the same way.
+ *
+ * A device whose clock runs FAST would otherwise stamp its writes into the future and win every
+ * last-write-wins race, even against someone who acted afterwards having seen the change. A SLOW
+ * clock keeps its earlier stamp and loses, which is the safe direction to be wrong in. `seq` then
+ * the id break ties, so the order is total and identical on every device. (Same rule as Passport's
+ * model.js — deliberately.)
+ */
+export function orderKey(e) {
+  return authoredAt(e);
 }
 
 export function sortEvents(list) {
@@ -331,7 +361,7 @@ export function replay(events) {
         const tz = p.tz || (prev && prev.tz) || HABIT_DEFAULTS.tz;
         const startHour = p.dayStartHour != null ? p.dayStartHour
           : (prev ? prev.dayStartHour : HABIT_DEFAULTS.dayStartHour);
-        const createdDay = prev ? prev.createdDay : dayKey(e.ts, tz, startHour);
+        const createdDay = prev ? prev.createdDay : dayKey(authoredAt(e), tz, startHour);
         const next = normalizeHabit({ ...(prev || {}), ...p }, createdDay);
         // The same cheat one level up: the group's target is the fallback for anybody without a
         // goal of their own, and editing it re-scored all of history too. A habit's first
@@ -341,7 +371,7 @@ export function replay(events) {
         if (!targets.length) {
           targets.push({ from: createdDay, target: next.target });
         } else if (targets[targets.length - 1].target !== next.target) {
-          targets.push({ from: addDays(dayKey(e.ts, tz, startHour), 1), target: next.target });
+          targets.push({ from: addDays(dayKey(authoredAt(e), tz, startHour), 1), target: next.target });
         }
         next.targets = targets;
         habits.set(p.habitId, next);
@@ -360,7 +390,7 @@ export function replay(events) {
         // Reject a log authored long after the day it describes. This is what stops history being
         // rewritten — otherwise last week's crown is winnable on Tuesday. It keys off when the
         // OBSERVATION was made, not when it synced, so a week offline still backfills correctly.
-        const authoredDay = dayKey(e.ts, tz, startHour);
+        const authoredDay = dayKey(authoredAt(e), tz, startHour);
         if (daysBetween(p.day, authoredDay) > MAX_BACKFILL_DAYS) break;
 
         const k = logKey(p.habitId, p.memberId, p.day);
@@ -368,7 +398,7 @@ export function replay(events) {
         logs.get(k).push({
           source: p.source || "manual",
           value: Number(p.value) || 0,
-          ts: e.ts,
+          ts: authoredAt(e),
           externalId: p.externalId || null,
         });
         break;
@@ -385,7 +415,7 @@ export function replay(events) {
         const h = habits.get(p.habitId);
         const tz = (h && h.tz) || HABIT_DEFAULTS.tz;
         const startHour = h ? h.dayStartHour : HABIT_DEFAULTS.dayStartHour;
-        const authored = dayKey(e.ts, tz, startHour);
+        const authored = dayKey(authoredAt(e), tz, startHour);
         const previous = list.length ? list[list.length - 1] : {};
         list.push({
           // WHEN it starts counting, which used to be "always, including every day already
@@ -443,7 +473,7 @@ export function replay(events) {
         const eh = habits.get(p.habitId);
         const etz = (eh && eh.tz) || HABIT_DEFAULTS.tz;
         const eStart = eh ? eh.dayStartHour : HABIT_DEFAULTS.dayStartHour;
-        const authored = dayKey(e.ts, etz, eStart);
+        const authored = dayKey(authoredAt(e), etz, eStart);
 
         // Ending one that already exists, by id. The only thing a supersede may do is bring `to`
         // FORWARD — cutting a trip short on the way home, or cancelling one that has not started.
