@@ -100,6 +100,41 @@ test("an unknown metric is left alone rather than guessed at", () => {
   assert.equal(s.habits.get("x").metric, "hydration");
 });
 
+// ---------------------------------------------------------------------------
+// Names this build has retired
+// ---------------------------------------------------------------------------
+
+const named = (name, metric = METRIC.SCREEN_MINUTES) => replay([
+  E(ev.member("me", "You"), at(DAY, 6)),
+  E(ev.habit("s", {
+    name, metric, direction: AT_MOST, target: 120,
+    aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL, tz: TZ, dayStartHour: 0,
+  }), at(DAY, 6)),
+]).habits.get("s").name;
+
+test("a retired preset name is renamed on the way out of replay", () => {
+  // "Screen time" only ever counted minutes in the apps you asked to be slowed, never the whole
+  // device, and the name invited two wrong readings on a leaderboard: that a map or a call costs
+  // you points, and that somebody who locks nothing is winning.
+  //
+  // Done here rather than by writing a habit_def on somebody's behalf, which would mean one device
+  // rewriting the shared log to change a display string.
+  assert.equal(named("Screen time"), "Locked apps");
+  assert.equal(named("Screentime"), "Locked apps");
+});
+
+test("a name somebody typed themselves is left alone", () => {
+  // The whole reason it is keyed on the old DEFAULT rather than applied to the metric: renaming
+  // yours to "Instagram" is a choice, and a migration that overwrote it would be the app arguing.
+  assert.equal(named("Instagram"), "Instagram");
+  assert.equal(named("Doomscrolling"), "Doomscrolling");
+});
+
+test("the rename is keyed on the metric, so an unrelated habit keeps its name", () => {
+  // A custom habit that happens to be called "Screen time" is not the one being renamed.
+  assert.equal(named("Screen time", METRIC.PUFFS), "Screen time");
+});
+
 if (failures.length) {
   for (const f of failures) console.error("✗ " + f.name + "\n  " + f.err.message);
   console.error("✗ legacy: " + failures.length + " failed, " + passed + " passed");
