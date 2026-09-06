@@ -264,6 +264,7 @@ async function onEditHabit(habitId) {
   openEditorSheet(document.body, {
     state: ctx.state,
     me: ctx.me,
+    today: ctx.today,
     habitId: habitId || null, // null means new
     onDone: () => refresh(),
   });

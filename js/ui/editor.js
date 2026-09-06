@@ -8,8 +8,8 @@
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { confirmSheet } from "./confirmsheet.js";
-import { saveHabit, deleteHabit, bindSource } from "../store.js";
-import { sourceFor } from "../habits.js";
+import { saveHabit, deleteHabit, bindSource, setGoals } from "../store.js";
+import { sourceFor, targetFor, isTracking } from "../habits.js";
 import { uuid } from "../id.js";
 import { caps } from "../bridge.js";
 import {
@@ -161,7 +161,7 @@ function categoryMap(metric) {
   );
 }
 
-export function openEditorSheet(host, { state, habitId, me, onDone }) {
+export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
   let saved = false;
   const sheet = openSheet(host, { onClose: () => onDone({ saved }) });
 
@@ -181,7 +181,12 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
     // The preset's own starting point. Every type used to share one, and it was 1 — so opening
     // the editor and pressing Add gave you a goal of one step a day, and picking "Screen time"
     // gave you a one-minute daily ceiling you would fail every day for the rest of your life.
-    target: toInput(type0, existing?.target ?? type0.start),
+    // MY number, not the group's. The habit carries a target too, but it is only the seed for
+    // somebody who has never set one — reading it here is what made this screen show, and then
+    // overwrite, a figure belonging to whoever edited last.
+    target: toInput(type0, existing
+      ? targetFor(state, existing, me, today)
+      : type0.start),
     // Whether this habit is fed by a sensor or typed in. A CHOICE, not an inference: it decides
     // how every quiet day this member ever has is judged, and the leaderboard is built on that.
     //
@@ -322,7 +327,7 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         trackingChoice(t),
         el("p.note-inline", trackingNote(t)),
 
-        el("h2.sec-title", "Goal"),
+        el("h2.sec-title", "Your goal"),
         el("p.fact", reduce ? "Reduce — at most" : "Build — at least"),
         el("label.inline-field",
           el("input", {
@@ -332,6 +337,12 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
           }),
           el("span", t.unit || "per period"),
         ),
+        // Named as yours because it is, and because it did not used to be. This field wrote the
+        // habit's own target, which every member without one of their own falls back to — so one
+        // person adjusting their steps moved everybody's, and the only way to find out was to
+        // notice your number had changed.
+        el("p.note-inline",
+          "Yours alone. Everyone sets their own, and the group only agrees on what is tracked."),
         reduce ? el("label.check",
           el("input", {
             type: "checkbox", checked: form.taper,
@@ -395,7 +406,13 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         // Straight off the type. Stored rather than derived on read so that a habit keeps the
         // shape it was created with even if a preset is ever retuned.
         direction: t.direction,
-        target: fromInput(t, raw),
+        // The seed, and only ever written when the habit is BORN.
+        //
+        // targetFor falls back to this for anybody who has not set their own, so re-writing it on
+        // every edit changed the number for every member who had never opened Your goals — which
+        // is all of them until they do. Somebody adjusting their own steps target moved everybody
+        // else's, silently, and the group had no way to see it had happened.
+        ...(form.isNew ? { target: fromInput(t, raw) } : {}),
         period: t.period,
         category: categoryFor({ metric: t.metric }),
         // Not asked here any more: what the group sees of YOUR number is yours, and this screen
@@ -412,6 +429,19 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         // can read it should not inherit whatever this browser happened to be able to do.
         source: sourceForDevice(t.metric, { pause: true, health: true }),
       });
+      // And the number itself, as a goal of this member's own — the same event Your goals writes.
+      //
+      // Written every time, including on creation, so that nobody is ever left running on the
+      // seed. That is the state this bug lived in: with no goal of your own you inherit the
+      // habit's, and the habit's is one number the whole group shares.
+      await setGoals([{
+        habitId: form.habitId,
+        target: fromInput(t, raw),
+        // Editing a habit is not opting back into one you had left. Read what is already true
+        // rather than assuming the person in this screen is signed up.
+        active: existing ? isTracking(state, existing, me) : true,
+      }]);
+
       // The binding is this member's own answer, and now it is the one they actually gave. It is
       // written on every save rather than only on the first, because changing your mind about how
       // a habit is fed is exactly the kind of thing people do in an edit screen.

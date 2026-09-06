@@ -30,7 +30,7 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays, latestGoal } from "../js/habits.js";
-import { visibilityFor } from "../js/habits.js";
+import { visibilityFor, targetFor } from "../js/habits.js";
 import {
   ev, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD, VISIBILITY,
 } from "../js/schema.js";
@@ -231,6 +231,110 @@ test("a value that is not one of the three is ignored", () => {
     E(ev.goal("a", "gym", { visibility: "publik" }), at(2)),
   ], VISIBILITY.FULL);
   assert.equal(visibilityFor(s, habitOf(s), "a"), VISIBILITY.PRIVATE);
+});
+
+// ---------------------------------------------------------------------------
+// And the oldest personal thing of all: the number
+// ---------------------------------------------------------------------------
+//
+// Reported from a real group: "why does my goal change when Anj edits her goal?"
+//
+// Because the habit carries a target of its own and targetFor falls back to it for anybody who has
+// not set one — which is everybody, until they open Your goals. The edit-habit screen wrote that
+// field on every save, so one person adjusting their steps moved the whole group's number, and the
+// only symptom was your figure being different from the one you remembered.
+//
+// The habit still carries a seed, because a new joiner needs a sensible default before they have
+// chosen. What changed is that the seed is written once, when the habit is born, and the editor
+// writes a personal goal alongside it — so nobody is left running on a number that belongs to
+// everybody.
+
+const goalWorld = (extra = []) => replay([
+  E(ev.member("sahil", "Sahil"), at(0)),
+  E(ev.member("anj", "Anj"), at(0)),
+  E(ev.habit("steps", {
+    name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 10000,
+    period: PERIOD.DAY, aggregate: AGGREGATE.SUM, source: SOURCE.MANUAL,
+    tz: TZ, dayStartHour: 4,
+  }), at(0)),
+  ...extra,
+]);
+const targetOf = (s, who, n = 6) =>
+  targetFor(s, s.habits.get("steps"), who, day(n));
+
+test("Anj setting her own goal does not touch mine", () => {
+  const s = goalWorld([E(ev.goal("anj", "steps", { target: 6000 }), at(1))]);
+  assert.equal(targetOf(s, "anj"), 6000);
+  assert.equal(targetOf(s, "sahil"), 10000, "mine is still the seed, not hers");
+});
+
+test("we can hold different numbers for the same habit", () => {
+  const s = goalWorld([
+    E(ev.goal("anj", "steps", { target: 6000 }), at(1)),
+    E(ev.goal("sahil", "steps", { target: 14000 }), at(1)),
+  ]);
+  assert.equal(targetOf(s, "anj"), 6000);
+  assert.equal(targetOf(s, "sahil"), 14000);
+});
+
+test("re-writing the habit's target moves everybody who has no goal of their own", () => {
+  // The damage, stated as engine behaviour, because that is where it can be tested — the bug
+  // itself lived in the editor's write path and these tests cannot reach a form.
+  //
+  // The fallback is correct and stays. What was wrong was the edit-habit screen writing this field
+  // on every save, so one person's adjustment landed on everyone who had never opened Your goals.
+  // If that line ever comes back, this test does not fail — but it says exactly what it costs, and
+  // the comment on the editor's `target` field points here.
+  const before = goalWorld();
+  assert.equal(targetOf(before, "sahil"), 10000);
+  assert.equal(targetOf(before, "anj"), 10000);
+
+  const reseeded = goalWorld([
+    E(ev.habit("steps", {
+      name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 6000,
+      period: PERIOD.DAY, aggregate: AGGREGATE.SUM, source: SOURCE.MANUAL,
+      tz: TZ, dayStartHour: 4,
+    }), at(1)),
+  ]);
+  assert.equal(targetOf(reseeded, "sahil"), 6000, "moved, having done nothing");
+  assert.equal(targetOf(reseeded, "anj"), 6000);
+});
+
+test("but not somebody who has set one", () => {
+  // The other half, and the shape of the fix: a personal goal is immune. The editor now writes one
+  // every time it saves, so nobody is left standing on the seed.
+  const s = goalWorld([
+    E(ev.goal("sahil", "steps", { target: 14000 }), at(1)),
+    E(ev.habit("steps", {
+      name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 6000,
+      period: PERIOD.DAY, aggregate: AGGREGATE.SUM, source: SOURCE.MANUAL,
+      tz: TZ, dayStartHour: 4,
+    }), at(2)),
+  ]);
+  assert.equal(targetOf(s, "sahil"), 14000, "held");
+  assert.equal(targetOf(s, "anj"), 6000, "still on the seed, so still moved");
+});
+
+test("the seed still answers for somebody who has not chosen", () => {
+  // The reason the fallback exists at all, and why it is kept rather than removed: a member who
+  // has never opened Your goals needs a number, and the group's is the only sensible one.
+  const s = goalWorld([E(ev.goal("anj", "steps", { target: 6000 }), at(1))]);
+  assert.equal(targetOf(s, "sahil"), 10000);
+});
+
+test("a goal CHANGE counts from tomorrow, for each of us separately", () => {
+  // The rule that stops a bad week being rescued still applies per member, so one person lowering
+  // their number cannot move the day another person is being scored on either.
+  //
+  // A FIRST goal counts from the day it is set — that is not a change, and a joiner would
+  // otherwise be judged on a number they never chose — so the fixture sets one before changing it.
+  const s = goalWorld([
+    E(ev.goal("anj", "steps", { target: 8000 }), at(1)),
+    E(ev.goal("anj", "steps", { target: 100 }), at(5)),
+  ]);
+  assert.equal(targetOf(s, "anj", 5), 8000, "the drop does not land on the day it was made");
+  assert.equal(targetOf(s, "anj", 6), 100, "it lands tomorrow");
+  assert.equal(targetOf(s, "sahil", 6), 10000, "and never on me");
 });
 
 // ---------------------------------------------------------------------------
