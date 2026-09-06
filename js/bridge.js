@@ -262,9 +262,14 @@ export function requestPermissions(list) {
  * Sending it from here rather than compiling it into the APK means pointing the group at a
  * different Supabase project never needs a signed release on three phones.
  */
-export function setSyncConfig({ groupCode, memberId, supabaseUrl, supabaseKey, habits }) {
+export function setSyncConfig({
+  groupCode, memberId, supabaseUrl, supabaseKey, habits, quietUntil = 0,
+}) {
   return call("setSyncConfig", {
     groupCode, memberId, supabaseUrl, supabaseKey,
+    // When reminders resume, or 0. A verdict rather than a fact: the shell cannot see exemptions
+    // and must never have to — it just does not ring before this instant.
+    quietUntil,
     habits: (habits || []).map((h) => ({
       habitId: h.habitId, metric: h.metric, tz: h.tz, dayStartHour: h.dayStartHour,
       // The schedule travels with the habit so the shell can raise the alarm on the right days

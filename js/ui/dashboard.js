@@ -7,7 +7,7 @@
 import { el, render } from "../dom.js";
 import {
   valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, streak as habitStreak, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
-  visibilityFor,
+  visibilityFor, travelPeriod,
 } from "../habits.js";
 import {
   leaderboard, categoryOver, dayScore, expectedBy, categoryFor as categoryOf,
@@ -121,6 +121,7 @@ function todayTab(ctx) {
   }
 
   return [
+    travelBanner(ctx),
     dayHero(ctx),
     el("section.sec",
       el("div.sec-hd",
@@ -339,6 +340,54 @@ function habitCard(habit, ctx) {
  * moved here and the tab went away. Both come off the engine that already computes them for the
  * board and for the shell's notifications — nothing on this screen is worked out twice.
  */
+/**
+ * You are away, said on the screen you open rather than in a menu.
+ *
+ * Above the hero on purpose. The hero says a streak and a percentage, and during travel both are
+ * frozen — held rather than earned. Without a line above them saying why, a day where nothing was
+ * logged and nothing went down reads as the app having quietly stopped working.
+ *
+ * Also shown BEFORE it starts, because the point of booking ahead is knowing it is booked.
+ */
+function travelBanner(ctx) {
+  const away = travelPeriod(ctx.state, ctx.me, ctx.today);
+  if (!away) return null;
+  const running = daysBetween(away.from, ctx.today) >= 0;
+  const left = daysBetween(ctx.today, away.to) + 1;
+
+  // Which habits the trip actually silences TODAY, asked rather than assumed.
+  //
+  // "Nothing counts today" is the obvious line and it is often false. A weekly or monthly habit is
+  // only exempt when its WHOLE period is away — three workouts a week with one day abroad is still
+  // three workouts a week — so a trip that covers a few days pauses the daily habits and leaves
+  // the longer ones running. Saying otherwise on the screen somebody opens while away is how a
+  // week gets lost to a promise the engine never made.
+  const mine = [...ctx.state.habits.values()].filter((h) => isTracking(ctx.state, h, ctx.me));
+  const still = mine.filter((h) =>
+    rawDayStatus(ctx.state, h, ctx.me, ctx.today, ctx.today) !== EXEMPT);
+
+  const headline = !running ? "Travel booked"
+    : still.length === 0 ? "Away — nothing counts today"
+    : "Away — " + still.map((h) => (h.name || "one habit").toLowerCase()).join(" and ")
+      + (still.length === 1 ? " still counts" : " still count");
+
+  return el("button.travel-strip" + (running ? ".is-on" : ""), {
+    onclick: () => ctx.onTravel && ctx.onTravel(),
+  },
+    el("span.travel-mark", running ? "🌴" : "🗓"),
+    el("span.travel-text",
+      el("b", headline),
+      el("span", running
+        ? (left === 1 ? "Back tomorrow. " : left + " days left. ")
+          + (still.length
+            ? "Judged by the week or the month, so the trip doesn't cover them."
+            : "Streaks are held where they are.")
+        : fmt.dayLabel(away.from) + " to " + fmt.dayLabel(away.to)),
+    ),
+    el("span.travel-go", "→"),
+  );
+}
+
 function dayHero(ctx) {
   const streak = onGoalStreak(ctx.state, ctx.me, ctx.today);
   const scored = dayScore(ctx.state, ctx.me, ctx.today, ctx.today);

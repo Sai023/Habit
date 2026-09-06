@@ -10,7 +10,9 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { targetOn, sourceFor, periodKey, periodEnd, visibilityFor } from "../habits.js";
+import {
+  targetOn, sourceFor, periodKey, periodEnd, visibilityFor, travelPeriod,
+} from "../habits.js";
 import { AT_MOST, VISIBILITY, PERIOD } from "../schema.js";
 import * as fmt from "./format.js";
 
@@ -19,7 +21,7 @@ const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
 export function openHabitsSheet(
   host,
   {
-    state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite,
+    state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite, onTravel,
     onRemoveMember, embedded = false, onClosed,
   },
 ) {
@@ -73,6 +75,14 @@ export function openHabitsSheet(
     // after it was made, and the code to hand them has to be findable on that day.
     onInvite
       ? el("button.link", { onclick: () => handOffTo(() => onInvite()) }, "Invite someone →")
+      : null,
+
+    // Away for a while. Its own row rather than a line inside goals, because it is about a stretch
+    // of DAYS rather than about any one habit — and because somebody looking for it is usually
+    // looking the night before a flight, not while editing a target.
+    onTravel
+      ? el("button.link", { onclick: () => handOffTo(() => onTravel()) },
+          travelPeriod(state, me, today) ? "Travel mode — booked →" : "Travel mode →")
       : null,
 
     // One destination for everything that is about the person rather than about a habit: their

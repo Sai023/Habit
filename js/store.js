@@ -7,7 +7,7 @@
 // sync engine drains the queue whenever it can, and merges what other people wrote.
 
 import { db } from "./db.js";
-import { replay } from "./habits.js";
+import { replay, addDays } from "./habits.js";
 import { ev, T, SOURCE } from "./schema.js";
 import { uuid, groupCode as newGroupCode, normalizeGroupCode } from "./id.js";
 import { samplesToEvents, discreteEvent } from "./ingest.js";
@@ -360,9 +360,30 @@ export async function bindSource(habitId, source) {
   return commit(ev.bind(memberId, habitId, source));
 }
 
+/**
+ * Book a stretch of days off. Returns the id, which is how it is later ended.
+ *
+ * The id matters because the log only appends: without one there is no way to say "I came back
+ * early" that is not also a way to say "excuse last week". See schema.ev.exempt.
+ */
 export async function setTravelMode(from, to, habitId = null) {
   const { memberId } = await identity();
-  return commit(ev.exempt(memberId, from, to, "travel", habitId));
+  const exemptId = uuid();
+  await commit(ev.exempt(memberId, from, to, "travel", habitId, exemptId));
+  return exemptId;
+}
+
+/**
+ * End a booked stretch, from [on] onwards. Defaults to cancelling it outright.
+ *
+ * Ending is expressed as moving the last day earlier, because that is the only edit replay accepts
+ * on an existing period — and a `to` before the `from` matches no day at all, which is what makes
+ * "cancel" and "cut short" the same operation with different arguments.
+ */
+export async function endTravelMode(exemptId, from, on = null) {
+  const { memberId } = await identity();
+  const last = on || addDays(from, -1);
+  return commit(ev.exempt(memberId, from, last, "travel", null, exemptId));
 }
 
 // ---- logging ----

@@ -344,9 +344,17 @@ export const ev = {
       memberId, habitId, target, active, remindAt, remindDays, visibility,
     }) }),
 
-  /** Travel mode or a planned rest. `habitId` null exempts every habit. */
-  exempt: (memberId, from, to, reason = "travel", habitId = null) =>
-    ({ type: T.EXEMPT, payload: p({ memberId, habitId, from, to, reason }) }),
+  /**
+   * Travel mode or a planned rest. `habitId` null exempts every habit.
+   *
+   * [exemptId] gives the period an identity so it can be ENDED without deleting anything, in a log
+   * that only ever appends. A second event carrying the same id may move `to` earlier — cutting a
+   * trip short, or cancelling one outright by ending it before it starts — and may do nothing
+   * else. `from` is fixed at creation, which is what keeps "you cannot excuse a day that has
+   * already happened" true through the one operation that would otherwise reopen it.
+   */
+  exempt: (memberId, from, to, reason = "travel", habitId = null, exemptId = null) =>
+    ({ type: T.EXEMPT, payload: p({ memberId, habitId, from, to, reason, exemptId }) }),
 };
 
 /** Is this a habit event this build understands? Used by replay() to skip the rest. */

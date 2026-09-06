@@ -438,24 +438,43 @@ export function replay(events) {
         break;
       }
 
-      case T.EXEMPT:
-        if (p.memberId && p.from && p.to) {
-          // "I was away last week" is not something that can be decided after the week. Travel is
-          // known in advance or within a day or two of getting back, and without this an exemption
-          // was the cleanest cheat in the app: any run of bad days could simply be excused, after
-          // the fact, by the person who had them. Same window logs get, for the same reason.
-          const eh = habits.get(p.habitId);
-          const etz = (eh && eh.tz) || HABIT_DEFAULTS.tz;
-          const eStart = eh ? eh.dayStartHour : HABIT_DEFAULTS.dayStartHour;
-          if (daysBetween(p.from, dayKey(e.ts, etz, eStart)) > MAX_BACKFILL_DAYS) break;
-          exemptions.push({
-            memberId: p.memberId,
-            habitId: p.habitId || null,
-            from: p.from, to: p.to,
-            reason: p.reason || "travel",
-          });
+      case T.EXEMPT: {
+        if (!p.memberId || !p.from || !p.to) break;
+        const eh = habits.get(p.habitId);
+        const etz = (eh && eh.tz) || HABIT_DEFAULTS.tz;
+        const eStart = eh ? eh.dayStartHour : HABIT_DEFAULTS.dayStartHour;
+        const authored = dayKey(e.ts, etz, eStart);
+
+        // Ending one that already exists, by id. The only thing a supersede may do is bring `to`
+        // FORWARD — cutting a trip short on the way home, or cancelling one that has not started.
+        // Never `from`, never later: those are the two moves that would turn "end my travel" into
+        // "excuse the fortnight I just had", which is the whole thing the rule below prevents.
+        const prior = p.exemptId
+          ? exemptions.find((x) => x.exemptId === p.exemptId && x.memberId === p.memberId)
+          : null;
+        if (prior) {
+          if (daysBetween(p.to, prior.to) > 0) prior.to = p.to;
+          break;
         }
+
+        // "I was away last week" is not something that can be decided after the week. Without this
+        // an exemption was the cleanest cheat in the app: any run of bad days could simply be
+        // excused, after the fact, by the person who had them.
+        //
+        // Zero days of slack, not the two that logs get, and the asymmetry is deliberate. A late
+        // log ADDS a number somebody still has to have earned; a late exemption DELETES the days
+        // they did not. One is remembering, the other is choosing which week to be judged on.
+        if (daysBetween(p.from, authored) > 0) break;
+
+        exemptions.push({
+          exemptId: p.exemptId || null,
+          memberId: p.memberId,
+          habitId: p.habitId || null,
+          from: p.from, to: p.to,
+          reason: p.reason || "travel",
+        });
         break;
+      }
 
       default:
         break; // unreachable today; here so a new type is inert rather than fatal
@@ -843,6 +862,31 @@ export function sourceFor(state, habit, memberId) {
       && !PAUSE_METRICS.has(habit.metric)
       && !isInterventionHabit(habit)) return SOURCE.MANUAL;
   return bound;
+}
+
+/**
+ * The stretch of days this member has booked off that today falls in, or is still coming.
+ *
+ * Only whole-group ones — a per-habit exemption is a different thing and has no UI. Returns the
+ * one that is running now if there is one, otherwise the next one booked, so a screen can say
+ * "you are away" or "you are away from Friday" without asking two questions.
+ *
+ * Ended periods disappear on their own: ending sets `to` before the day being asked about, so
+ * nothing here has to know that ending is a thing that can happen.
+ */
+export function travelPeriod(state, memberId, today) {
+  let current = null;
+  let next = null;
+  for (const x of state.exemptions) {
+    if (x.memberId !== memberId || x.habitId) continue;
+    if (daysBetween(x.from, x.to) < 0) continue;          // ended, or cancelled before it began
+    if (daysBetween(x.from, today) >= 0 && daysBetween(today, x.to) >= 0) {
+      if (!current || daysBetween(current.to, x.to) > 0) current = x;
+    } else if (daysBetween(today, x.from) > 0) {
+      if (!next || daysBetween(x.from, next.from) > 0) next = x;
+    }
+  }
+  return current || next;
 }
 
 function exemptReason(state, habit, memberId, day) {

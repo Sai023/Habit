@@ -473,10 +473,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 }
 .field input:focus, .inline-field input:focus { outline: none; border-color: var(--teal); }
 
-/* A time field carries its own picker icon, and the browser lays that out INSIDE the box. At the
-   shared 100% width the icon pushed the digits until "19:00" rendered as "19:0(" — the one field
-   on the screen where every character matters. Sized to its content instead. */
+/* Time and date fields carry their own picker icon, and the browser lays it out INSIDE the box.
+   At the shared 100% width the icon pushed the digits out — "19:00" rendered as "19:0(" and a date
+   as "2026/0(". These are the two fields on the screen where every character matters, so they are
+   sized to their content rather than to the row. */
 .inline-field input[type="time"] { width: auto; min-width: 7.5em; }
+.inline-field input[type="date"] { width: auto; min-width: 11em; }
 .field input::placeholder { color: #5B688C; }
 
 /* A habit is on or off, and its target only matters when it is on — so the target appears with
@@ -1116,3 +1118,39 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   margin-top: 10px; padding-top: 10px;
   border-top: 1px solid var(--line);
 }
+
+/* ---------- away ---------- */
+
+/* Above the hero on Today. The hero shows a streak and a percentage that are both FROZEN during
+   travel — held rather than earned — and without a line above them saying why, a day where
+   nothing was logged and nothing went down reads as the app having stopped working. */
+.travel-strip {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  margin-bottom: 12px; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); text-align: left; cursor: pointer;
+}
+/* Booked but not started is quieter than away-right-now: one is a diary entry, the other is why
+   today looks the way it does. */
+.travel-strip.is-on { border-color: var(--teal-dim); background: var(--surface-hi); }
+.travel-strip:active { transform: scale(0.995); }
+.travel-mark { font-size: var(--fs-title); line-height: 1; }
+.travel-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.travel-text b { font-size: var(--fs-small); }
+.travel-text span { font-size: var(--fs-micro); color: var(--dim); }
+.travel-go { color: var(--dim); font-size: var(--fs-body); }
+
+.travel-dates {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 12px; margin: 4px 0 2px;
+  background: var(--bg); border-radius: var(--r-sm);
+  font-size: var(--fs-small); font-weight: 700;
+}
+
+/* What actually happens while you are away, as a list rather than a paragraph — four separate
+   promises, and a paragraph makes the reader hold all four to check none surprises them. */
+.travel-list {
+  margin: 0; padding-left: 18px;
+  font-size: var(--fs-small); color: var(--dim); line-height: var(--lh-small, 1.5);
+}
+.travel-list li { margin: 4px 0; }

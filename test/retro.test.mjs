@@ -179,13 +179,24 @@ test("a week cannot be marked as travel once it is over", () => {
   }
 });
 
-test("travel declared in advance, or just after, still works", () => {
+test("travel declared in advance works", () => {
   const ahead = badWeek([E(ev.exempt("m1", day(5), day(6), "travel"), at(2))]);
   assert.equal(statusOn(ahead, 5), EXEMPT);
+});
 
-  // Two days late is inside the backfill window, same as a log.
-  const justAfter = badWeek([E(ev.exempt("m1", day(4), day(5), "travel"), at(6))]);
-  assert.equal(statusOn(justAfter, 4), EXEMPT);
+test("travel declared today, for today, works", () => {
+  // The boundary. Booking a trip on the morning it starts is the ordinary case, not a cheat.
+  const sameDay = badWeek([E(ev.exempt("m1", day(4), day(6), "travel"), at(4))]);
+  assert.equal(statusOn(sameDay, 4), EXEMPT);
+});
+
+test("travel cannot reach back even one day", () => {
+  // This used to allow two days of slack, the same window a log gets. The asymmetry is deliberate
+  // and the tightening was asked for: a late LOG adds a number somebody still had to earn, while a
+  // late EXEMPTION deletes the days they did not. One is remembering; the other is choosing which
+  // week to be judged on, after seeing it.
+  const late = badWeek([E(ev.exempt("m1", day(4), day(5), "travel"), at(5))]);
+  assert.notEqual(statusOn(late, 4), EXEMPT, "yesterday cannot be excused today");
 });
 
 // ===========================================================================

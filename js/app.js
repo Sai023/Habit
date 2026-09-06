@@ -10,7 +10,7 @@
 
 import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
-import { dayKey, latestGoal } from "./habits.js";
+import { dayKey, latestGoal, travelPeriod, addDays } from "./habits.js";
 import { HABIT_DEFAULTS, PERIOD } from "./schema.js";
 import { installBridge, caps, isNative, setSyncConfig, openSettings, onAppResume } from "./bridge.js";
 import { showProblem, showNote } from "./ui/problem.js";
@@ -282,8 +282,19 @@ const onOpenHabits = guard("menu", async () => {
     onEditGoals,
     onOpenSettings,
     onInvite,
+    onTravel,
     onRemoveMember,
     onClosed: () => refresh(),
+  });
+});
+
+/** Days off. Booked ahead, never backwards — see travelsheet.js. */
+const onTravel = guard("travel", async () => {
+  if (demoBlocked()) return;
+  const { openTravelSheet } = await import("./ui/travelsheet.js");
+  openTravelSheet(document.body, {
+    state: ctx.state, me: ctx.me, today: ctx.today,
+    onDone: () => refresh(),
   });
 });
 
@@ -547,6 +558,37 @@ function reminderFor(state, memberId, habit) {
   return { remindAt: habit.remindAt ?? null, remindDays: habit.remindDays || [] };
 }
 
+/**
+ * The instant reminders should start again, or 0.
+ *
+ * Travel turns notifications off, and the shell must not be the thing that decides that — it would
+ * need to know what an exemption is, and the whole seam between these two halves is that the web
+ * owns verdicts. So this is a verdict, expressed as a time: the start of the first day that is not
+ * exempt.
+ *
+ * Sent as an instant rather than a date because the shell's alarm arithmetic is in milliseconds,
+ * and a date would make it re-derive a day boundary the engine has already worked out.
+ */
+function quietUntil(state, memberId, today) {
+  const away = travelPeriod(state, memberId, today);
+  if (!away) return 0;
+  const habit = [...state.habits.values()][0];
+  const tz = (habit && habit.tz) || HABIT_DEFAULTS.tz;
+  const startHour = habit ? habit.dayStartHour : HABIT_DEFAULTS.dayStartHour;
+  // The morning after the last day away. dayStartHour is the app's midnight, so a 4am day start
+  // means reminders resume at 4am rather than at a calendar midnight nothing else uses.
+  return Date.parse(addDays(away.to, 1) + "T00:00:00Z") + startHour * 3600_000
+    - tzOffsetMs(tz, away.to);
+}
+
+/** How far the pinned zone is ahead of UTC on a given day, so a day key can become an instant. */
+function tzOffsetMs(tz, day) {
+  const probe = new Date(day + "T12:00:00Z");
+  const local = new Date(probe.toLocaleString("en-US", { timeZone: tz }));
+  const utc = new Date(probe.toLocaleString("en-US", { timeZone: "UTC" }));
+  return local.getTime() - utc.getTime();
+}
+
 function tellShell(state, memberId, code) {
   if (!isNative()) return;
   const habits = [...state.habits.values()].map((h) => ({
@@ -554,11 +596,13 @@ function tellShell(state, memberId, code) {
     name: h.name || "", days: h.days || [], period: h.period,
     ...reminderFor(state, memberId, h),
   }));
-  const signature = code + "|" + memberId + "|" + JSON.stringify(habits);
+  const quiet = quietUntil(state, memberId, ctx.today);
+  const signature = code + "|" + memberId + "|" + quiet + "|" + JSON.stringify(habits);
   if (signature === lastShellConfig) return;
   lastShellConfig = signature;
   setSyncConfig({
     groupCode: code, memberId, supabaseUrl: SUPABASE_URL, supabaseKey: SUPABASE_ANON_KEY, habits,
+    quietUntil: quiet,
   });
 }
 
