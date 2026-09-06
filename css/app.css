@@ -1154,3 +1154,16 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   font-size: var(--fs-small); color: var(--dim); line-height: var(--lh-small, 1.5);
 }
 .travel-list li { margin: 4px 0; }
+
+/* A category that is not being judged today. Present, quiet, and carrying its reason instead of
+   its numbers — the alternative was dropping the row, which is what made the surviving weights
+   look like an arithmetic error rather than the rule they are. */
+.hero-cat.is-quiet { opacity: 0.55; }
+.hero-cat.is-quiet .hero-cat-num {
+  font-size: var(--fs-micro); font-weight: 600; color: var(--dim);
+}
+/* Above the list, because it explains the numbers in it rather than following from them. */
+.hero-cat-note {
+  font-size: var(--fs-micro); color: var(--dim);
+  margin: 0 0 8px; line-height: 1.45;
+}

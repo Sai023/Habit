@@ -437,7 +437,7 @@ function dayHero(ctx) {
       // What carried the day and what sank it. Only the categories actually being asked about
       // today, because a row reading "0 of 0" is not a shortfall, it is a category nobody signed
       // up for.
-      categoryLines(scored),
+      categoryLines(scored, ctx),
     ),
   );
 }
@@ -457,11 +457,62 @@ function tierLine(streak) {
   return (held ? held.name + " · " : "") + away + " to " + next.tier.name;
 }
 
-function categoryLines(scored) {
-  const live = (scored.categories || []).filter((c) => c.eligible && c.share > 0);
-  if (!live.length) return null;
+/**
+ * Why a category is not being judged today, in the words its own cards already use.
+ *
+ * Derived here rather than carried out of the scorer, because it is a sentence rather than a fact:
+ * the engine's answer is "not eligible" and the useful answer is which of three ordinary things
+ * happened. All three are already true on the cards below, so this cannot say something the rest
+ * of the screen contradicts.
+ */
+/** "a", "a and b", "a, b and c" — the shape a person would say out loud. */
+function nameList(names) {
+  if (names.length <= 1) return names[0] || "";
+  return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+}
 
-  return el("div.hero-cats", live.map((c) => {
+function whyQuiet(c, ctx) {
+  const mine = (c.habits || []).filter((h) => isTracking(ctx.state, h.habit, ctx.me));
+  if (!mine.length) return "not tracked";
+  const longer = mine.find((h) => h.habit.period !== PERIOD.DAY);
+  if (longer) {
+    return longer.habit.period === PERIOD.MONTH ? "counts at month end" : "counts at week end";
+  }
+  return "waiting for data";
+}
+
+/**
+ * What the day is made of, including the parts of it that are not being judged.
+ *
+ * ---- Why the quiet ones are drawn ----
+ *
+ * They used to be filtered out, and the weights of whatever remained grew to fill the hundred —
+ * which is the correct scoring rule and, drawn this way, an invisible one. A morning where sleep
+ * had not arrived and savings was mid-month showed two categories reading "of 57" and "of 43", and
+ * nothing on the screen said where the other thirty points had gone or that they were coming back.
+ *
+ * It reads as data missing rather than as a rule working. So all four are always here: the ones
+ * being judged with their numbers, the ones that are not with the reason, and a line underneath
+ * saying what that does to the split. The arithmetic stops being a surprise.
+ */
+function categoryLines(scored, ctx) {
+  const all = (scored.categories || []);
+  if (!all.length) return null;
+  const live = all.filter((c) => c.eligible && c.share > 0);
+  const quiet = all.filter((c) => !c.eligible || c.share <= 0);
+
+  return el("div.hero-cats",
+    quiet.length ? el("p.hero-cat-note",
+      quiet.length === all.length
+        ? "Nothing is being judged today, so there is no score to make."
+        // Names the QUIET ones, which are usually the fewer and always the surprising ones. The
+        // first draft listed the live ones and read "core fitness and discipline and rest" — the
+        // information somebody wants here is which part is missing and why it is coming back.
+        : nameList(quiet.map((c) => CATEGORY_LABEL[c.category]))
+          + (quiet.length === 1 ? " isn't counted today, so the rest carry"
+            : " aren't counted today, so the rest carry")
+          + " the whole hundred between them.") : null,
+    live.map((c) => {
     const reached = Math.min(100, Math.round((c.score || 0) * 100));
     const tone = reached >= 100 ? " is-hit" : reached < 50 ? " is-poor" : "";
     const bonus = Math.round(c.bonus || 0);
@@ -476,7 +527,15 @@ function categoryLines(scored) {
       ),
       el("div.bar" + tone, { role: "presentation" }, el("i", { style: "width:" + reached + "%" })),
     );
-  }));
+  }),
+    quiet.map((c) => el("div.hero-cat.is-quiet",
+      el("div.hero-cat-top",
+        el("span.hero-cat-icon", CATEGORY_ICON[c.category]),
+        el("span.hero-cat-name", CATEGORY_LABEL[c.category]),
+        el("span.hero-cat-num", whyQuiet(c, ctx)),
+      ),
+    )),
+  );
 }
 
 /**
