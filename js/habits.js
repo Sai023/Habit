@@ -221,6 +221,9 @@ export function sortEvents(list) {
 // Replay
 // ============================================================================
 
+/** The answers a visibility event may carry. Anything else is a typo and is ignored. */
+const VISIBLE = new Set(Object.values(VISIBILITY));
+
 function normalizeHabit(p, createdDay) {
   const h = { ...HABIT_DEFAULTS, ...p, createdDay };
   // A metric this build has retired becomes the one that replaced it. See LEGACY_METRIC.
@@ -421,6 +424,14 @@ export function replay(events) {
               ? p.remindDays.map(Number).filter((d) => d >= 1 && d <= 7).sort()
               : [])
             : previous.remindDays,
+          // How much of THIS person's number the group sees. Was on the habit, which made it one
+          // answer for everybody: the group agreed to track sleep, and one person deciding they
+          // would rather show a tick than a number decided it for all three. Same three states as
+          // the reminder — undefined is nobody having answered, and the habit's own setting is the
+          // fallback for every row written before this.
+          visibility: p.visibility !== undefined
+            ? (VISIBLE.has(p.visibility) ? p.visibility : previous.visibility)
+            : previous.visibility,
           setOn: authored,
         });
         goals.set(key, list);
@@ -1074,10 +1085,33 @@ export function compareDays(state, gateHabitId, valueHabitId, memberId, fromDay,
   };
 }
 
-/** What the group may see of a member's number, per the habit's visibility setting. */
-export function publicValue(habit, value) {
-  if (habit.visibility === VISIBILITY.PRIVATE) return null;
-  if (habit.visibility === VISIBILITY.PROGRESS) {
+/**
+ * How much of ONE PERSON's number the group may see.
+ *
+ * Whose setting applies is the question worth being explicit about: it is the setting belonging to
+ * the person the number is ABOUT, never the person looking. Reading the viewer's would mean two
+ * people opening the same board saw different amounts of somebody else's data, which is not a
+ * privacy control, it is a rendering bug with a lock icon on it.
+ *
+ * Falls back to the habit's own setting, which is where this lived until it became personal, and
+ * has to: every habit in the log carries one and dropping to a default would silently re-publish
+ * numbers somebody had hidden. undefined means nobody has answered; an explicit answer wins.
+ */
+export function visibilityFor(state, habit, memberId) {
+  const goal = latestGoal(state, habit.habitId, memberId);
+  if (goal && goal.visibility !== undefined) return goal.visibility;
+  return habit.visibility;
+}
+
+/**
+ * What the group may see of a member's number.
+ *
+ * [visibility] overrides the habit's own, and is how a caller passes the answer visibilityFor gave
+ * it. Defaulted rather than required so the pure shape stays testable on a habit alone.
+ */
+export function publicValue(habit, value, visibility = habit.visibility) {
+  if (visibility === VISIBILITY.PRIVATE) return null;
+  if (visibility === VISIBILITY.PROGRESS) {
     if (value === null) return null;
     const t = habit.target || 1;
     const pct = habit.direction === AT_MOST

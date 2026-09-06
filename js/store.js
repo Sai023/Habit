@@ -350,7 +350,7 @@ export async function setGoals(entries) {
   const specs = (entries || []).map((e) =>
     ev.goal(memberId, e.habitId, {
       target: e.target, active: e.active !== false,
-      remindAt: e.remindAt, remindDays: e.remindDays,
+      remindAt: e.remindAt, remindDays: e.remindDays, visibility: e.visibility,
     }));
   return commitAll(specs);
 }

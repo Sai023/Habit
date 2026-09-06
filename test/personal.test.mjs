@@ -1,6 +1,14 @@
-// reminders.test.mjs — whose alarm clock is it, and does the shell ever hear about the days?
+// personal.test.mjs — which answers about a habit are the group's, and which are yours.
 //
-// ---- Two bugs, one seam ----
+// ---- The distinction ----
+//
+// A habit definition is the group's: the metric, the cadence, the direction, the category. Every
+// device replays it and every device gets the same answer, which is exactly what you want for
+// "we are tracking sleep" and exactly wrong for anything about one person.
+//
+// Three things were on the wrong side of that line, all of them stored on the habit and all of
+// them therefore one answer for everybody. Two are fixed here; the third — the target — was
+// already personal and is the model the other two now follow.
 //
 // A reminder was stored on the HABIT. A habit definition is the group's: every device replays it
 // and every device gets the same answer, which is exactly right for the metric, the cadence and the
@@ -15,10 +23,17 @@
 // workout reminder firing every morning fired every morning.
 //
 // Both halves worked. Neither test suite covered the join.
+//
+// And visibility: the group agreed to track sleep, and whoever created the habit decided on behalf
+// of all three whether a number or a tick was published. Nobody was asked, and there was no screen
+// on which to answer.
 
 import assert from "node:assert/strict";
 import { replay, addDays, latestGoal } from "../js/habits.js";
-import { ev, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
+import { visibilityFor } from "../js/habits.js";
+import {
+  ev, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD, VISIBILITY,
+} from "../js/schema.js";
 
 let passed = 0;
 const failures = [];
@@ -143,6 +158,82 @@ test("days outside a week are dropped", () => {
 });
 
 // ---------------------------------------------------------------------------
+// And the other thing that was everybody's answer: what the group sees
+// ---------------------------------------------------------------------------
+//
+// Same bug, same shape. Visibility sat on the habit, so the group agreed to track sleep and
+// whoever created it decided on behalf of all three whether a number or a tick was published.
+// Nobody was asked, and there was no screen on which to answer.
+
+const HABIT = () => [...base()][2];
+const withHabit = (extra, vis) => replay([
+  E(ev.member("a", "A"), at(0)),
+  E(ev.member("b", "B"), at(0)),
+  E(ev.habit("gym", {
+    name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST, target: 3,
+    period: PERIOD.WEEK, aggregate: AGGREGATE.SUM, source: SOURCE.MANUAL,
+    tz: TZ, dayStartHour: 4, visibility: vis || VISIBILITY.FULL,
+  }), at(0)),
+  ...extra,
+]);
+const habitOf = (s) => s.habits.get("gym");
+
+test("what the group sees of me is my answer, not the habit's", () => {
+  const s = withHabit([
+    E(ev.goal("a", "gym", { visibility: VISIBILITY.PRIVATE }), at(1)),
+  ], VISIBILITY.FULL);
+  assert.equal(visibilityFor(s, habitOf(s), "a"), VISIBILITY.PRIVATE);
+});
+
+test("and it says nothing about anybody else", () => {
+  // The half that makes it a personal setting rather than a renamed group one. Before this, A
+  // choosing to hide a number hid B's too.
+  const s = withHabit([
+    E(ev.goal("a", "gym", { visibility: VISIBILITY.PRIVATE }), at(1)),
+  ], VISIBILITY.FULL);
+  assert.equal(visibilityFor(s, habitOf(s), "b"), VISIBILITY.FULL, "B never answered");
+});
+
+test("three people, three different answers", () => {
+  const s = withHabit([
+    E(ev.goal("a", "gym", { visibility: VISIBILITY.PRIVATE }), at(1)),
+    E(ev.goal("b", "gym", { visibility: VISIBILITY.PROGRESS }), at(1)),
+  ], VISIBILITY.FULL);
+  assert.equal(visibilityFor(s, habitOf(s), "a"), VISIBILITY.PRIVATE);
+  assert.equal(visibilityFor(s, habitOf(s), "b"), VISIBILITY.PROGRESS);
+  assert.equal(visibilityFor(s, habitOf(s), "c"), VISIBILITY.FULL, "never answered, so the habit");
+});
+
+test("a row written before this falls back to the habit, not to a default", () => {
+  // The one that matters on upgrade. Every habit in the log carries a visibility, and somebody who
+  // set a habit to private did so expecting it to hold — defaulting to FULL here would republish
+  // numbers that had been deliberately hidden, on the first sync after an update.
+  const s = withHabit([
+    E(ev.goal("a", "gym", { target: 4 }), at(1)),
+  ], VISIBILITY.PRIVATE);
+  assert.equal(visibilityFor(s, habitOf(s), "a"), VISIBILITY.PRIVATE);
+});
+
+test("setting a target does not republish a hidden number", () => {
+  const s = withHabit([
+    E(ev.goal("a", "gym", { visibility: VISIBILITY.PRIVATE }), at(1)),
+    E(ev.goal("a", "gym", { target: 9 }), at(2)),
+  ], VISIBILITY.FULL);
+  assert.equal(visibilityFor(s, habitOf(s), "a"), VISIBILITY.PRIVATE);
+  assert.equal(latestGoal(s, "gym", "a").target, 9);
+});
+
+test("a value that is not one of the three is ignored", () => {
+  // A typo must not open a number up. Falling through to the previous answer keeps whatever was
+  // already true rather than resolving to the most permissive thing in the enum.
+  const s = withHabit([
+    E(ev.goal("a", "gym", { visibility: VISIBILITY.PRIVATE }), at(1)),
+    E(ev.goal("a", "gym", { visibility: "publik" }), at(2)),
+  ], VISIBILITY.FULL);
+  assert.equal(visibilityFor(s, habitOf(s), "a"), VISIBILITY.PRIVATE);
+});
+
+// ---------------------------------------------------------------------------
 // The wire
 // ---------------------------------------------------------------------------
 
@@ -184,8 +275,8 @@ wire()
   .then(() => {
     if (failures.length) {
       for (const f of failures) console.error("✗ " + f.name + "\n  " + f.err.message);
-      console.error("✗ reminders: " + failures.length + " failed, " + passed + " passed");
+      console.error("✗ personal: " + failures.length + " failed, " + passed + " passed");
       process.exit(1);
     }
-    console.log("✓ reminders: " + passed + " tests passed");
+    console.log("✓ personal: " + passed + " tests passed");
   });

@@ -328,7 +328,8 @@ export const ev = {
    * `active: false` means they are not doing this one at all, which is different from failing it.
    */
   /**
-   * One member's version of a habit: their number, whether they are in, and when to nudge them.
+   * One member's version of a habit: their number, whether they are in, when to nudge them, and
+   * how much of it the group gets to see.
    *
    * The reminder lives HERE rather than on the habit for the same reason the target does. A habit
    * definition is the group's — every device replays it and every device gets the same answer — so
@@ -338,8 +339,10 @@ export const ev = {
    * Undefined means "leave what was there", which is what lets setGoals write a target without
    * clearing a reminder somebody set on the other screen.
    */
-  goal: (memberId, habitId, { target, active = true, remindAt, remindDays } = {}) =>
-    ({ type: T.GOAL, payload: p({ memberId, habitId, target, active, remindAt, remindDays }) }),
+  goal: (memberId, habitId, { target, active = true, remindAt, remindDays, visibility } = {}) =>
+    ({ type: T.GOAL, payload: p({
+      memberId, habitId, target, active, remindAt, remindDays, visibility,
+    }) }),
 
   /** Travel mode or a planned rest. `habitId` null exempts every habit. */
   exempt: (memberId, from, to, reason = "travel", habitId = null) =>

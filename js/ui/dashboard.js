@@ -7,6 +7,7 @@
 import { el, render } from "../dom.js";
 import {
   valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, streak as habitStreak, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
+  visibilityFor,
 } from "../habits.js";
 import {
   leaderboard, categoryOver, dayScore, expectedBy, categoryFor as categoryOf,
@@ -1089,10 +1090,16 @@ function recentActivity(ctx, limit) {
   return out;
 }
 
-/** Respect the habit's visibility before putting anyone's number in a shared feed. */
+/**
+ * Respect a person's own visibility before putting their number in a shared feed.
+ *
+ * THEIRS, not the habit's and not the viewer's — see visibilityFor. Your own numbers are always
+ * shown to you, because hiding them from yourself is the one reading of "private" nobody means.
+ */
 function publicNumber(habit, payload, ctx) {
   if (payload.memberId === ctx.me) return payload.value;
-  if (habit.visibility === VISIBILITY.FULL) return payload.value;
+  const seen = visibilityFor(ctx.state, habit, payload.memberId);
+  if (seen === VISIBILITY.FULL) return payload.value;
   return null;
 }
 

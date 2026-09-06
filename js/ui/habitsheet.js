@@ -10,7 +10,7 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { targetOn, sourceFor, periodKey, periodEnd } from "../habits.js";
+import { targetOn, sourceFor, periodKey, periodEnd, visibilityFor } from "../habits.js";
 import { AT_MOST, VISIBILITY, PERIOD } from "../schema.js";
 import * as fmt from "./format.js";
 
@@ -92,6 +92,7 @@ export function openHabitsSheet(
 }
 
 function habitRow(habit, state, me, today, handOffTo, onEditHabit) {
+  const seen = visibilityFor(state, habit, me);
   const src = fmt.source(sourceFor(state, habit, me));
   const target = targetOn(habit, periodEnd(periodKey(today, habit.period), habit.period));
 
@@ -119,8 +120,11 @@ function habitRow(habit, state, me, today, handOffTo, onEditHabit) {
       ),
       el("div.row-meta",
         src.icon + " " + src.label,
-        habit.visibility === VISIBILITY.PROGRESS ? " · 🔒 count hidden" : "",
-        habit.visibility === VISIBILITY.PRIVATE ? " · 🔒 private" : "",
+        // YOUR setting, not the habit's. This list is what you are tracking, so a lock here has
+        // to describe what the group sees of you — reading the habit's would have shown somebody
+        // else's choice on your own row.
+        seen === VISIBILITY.PROGRESS ? " · 🔒 count hidden" : "",
+        seen === VISIBILITY.PRIVATE ? " · 🔒 private" : "",
         habit.scored ? "" : " · not scored",
       ),
     ),

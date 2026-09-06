@@ -14,7 +14,7 @@ import { targetFor, isTracking, sourceFor, latestGoal } from "../habits.js";
 import { caps } from "../bridge.js";
 import {
   METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE, HEALTH_METRICS, PAUSE_METRICS,
-  sourceForDevice,
+  VISIBILITY, sourceForDevice,
 } from "../schema.js";
 
 /** ISO weekdays, Monday first, which is how a week is spoken here. */
@@ -79,6 +79,8 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
       // than a day, and defaulting it to every day would reinstate the exact behaviour it was
       // added to stop: four wasted notifications a week for a thing you do three times, which is
       // how somebody learns to swipe them away.
+      // Mine too, with the habit as the fallback for a row written before it was personal.
+      visibility: set && set.visibility !== undefined ? set.visibility : habit.visibility,
       remindDays: (set && set.remindDays && set.remindDays.length ? set.remindDays : null)
         || (habit.remindDays && habit.remindDays.length ? habit.remindDays : null)
         || [1, 3, 5],
@@ -154,8 +156,38 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           }, "I log it"),
         ) : null,
         el("p.starter-blurb", trackingNote(habit, r, canAuto)),
+        seenBy(r),
         reminder(r),
       ) : null,
+    );
+  }
+
+  /**
+   * How much of your number the group gets.
+   *
+   * It used to sit on the new-habit screen, which made it one answer for everybody: the group
+   * agreed to track sleep, and whoever created the habit decided on behalf of all three whether a
+   * number or a tick was shown. Nobody was asked. Here it is one row per person, next to the
+   * target and the source, and it governs YOUR figures only — see visibilityFor for why the
+   * setting that applies is the owner's rather than the viewer's.
+   *
+   * Still shown to you in full on Today either way. Hiding your own numbers from yourself is the
+   * one reading of "private" nobody means.
+   */
+  function seenBy(r) {
+    const CHOICES = [
+      [VISIBILITY.FULL, "My numbers", "The group sees the figure."],
+      [VISIBILITY.PROGRESS, "Progress only", "They see how close you got, not the number."],
+      [VISIBILITY.PRIVATE, "Just ✓ / ✗", "They see whether you hit it, and nothing else."],
+    ];
+    const chosen = CHOICES.find(([v]) => v === r.visibility) || CHOICES[0];
+    return el("div.remind",
+      el("p.starter-blurb", "What the group sees"),
+      el("div.chips.chips-tight", CHOICES.map(([v, label]) =>
+        el("button.chip" + (r.visibility === v ? ".on" : ""), {
+          onclick: () => { r.visibility = v; paint(); },
+        }, label))),
+      el("p.starter-blurb", chosen[2] + " Yours alone — it says nothing about anyone else."),
     );
   }
 
@@ -281,6 +313,7 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
           // Daily habits are covered by the one 8pm prompt and never carry an alarm of their own,
           // so this writes an explicit null for them rather than leaving whatever the old editor
           // put there — see reminderFor in app.js.
+          visibility: r.visibility,
           remindAt: r.habit.period === PERIOD.DAY ? null : r.remindAt,
           // Weekly only. A daily habit is covered by the 8pm prompt and a monthly one is asked at
           // month end, so neither has a weekday list that means anything.

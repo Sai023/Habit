@@ -190,7 +190,6 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
     // otherwise a browser would open showing "My watch" selected and greyed out at once.
     tracked: canTrackAutomatically(type0)
       && (existing ? AUTOMATIC_SOURCES.has(sourceFor(state, existing, me)) : true),
-    visibility: existing?.visibility || VISIBILITY.FULL,
     taper: !!existing?.taper,
     days: Array.isArray(existing?.days) && existing.days.length ? [...existing.days] : [1, 2, 3, 4, 5, 6, 7],
     tz: existing?.tz || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -369,13 +368,6 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         categoryMap(t.metric),
 
 
-        el("h2.sec-title", "What the group sees"),
-        el("div.chips",
-          [[VISIBILITY.FULL, "My numbers"], [VISIBILITY.PROGRESS, "Progress only"], [VISIBILITY.PRIVATE, "Just ✓ / ✗"]]
-            .map(([v, label]) => el("button.chip" + (form.visibility === v ? ".on" : ""), {
-              onclick: () => { form.visibility = v; paint(); },
-            }, label)),
-        ),
 
         form.error ? el("p.err", form.error) : null,
         el("button.tap", { onclick: submit, disabled: form.busy },
@@ -406,7 +398,10 @@ export function openEditorSheet(host, { state, habitId, me, onDone }) {
         target: fromInput(t, raw),
         period: t.period,
         category: categoryFor({ metric: t.metric }),
-        visibility: form.visibility,
+        // Not asked here any more: what the group sees of YOUR number is yours, and this screen
+        // writes the group's copy of the habit. The habit still carries one, as the fallback every
+        // row written before this relies on — see visibilityFor.
+        visibility: existing?.visibility || VISIBILITY.FULL,
         taper: t.direction === AT_MOST && form.taper
           ? { amount: 1, everyDays: 7, floor: 0 } : null,
         days: t.period === PERIOD.DAY ? form.days : [1, 2, 3, 4, 5, 6, 7],
