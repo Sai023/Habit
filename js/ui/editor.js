@@ -9,7 +9,8 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { confirmSheet } from "./confirmsheet.js";
 import { saveHabit, deleteHabit, bindSource, setGoals } from "../store.js";
-import { sourceFor, targetFor, isTracking } from "../habits.js";
+import { sourceFor, isTracking } from "../habits.js";
+import { goalToShow, habitFields } from "../edits.js";
 import { uuid } from "../id.js";
 import { caps } from "../bridge.js";
 import {
@@ -181,11 +182,11 @@ export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
     // The preset's own starting point. Every type used to share one, and it was 1 — so opening
     // the editor and pressing Add gave you a goal of one step a day, and picking "Screen time"
     // gave you a one-minute daily ceiling you would fail every day for the rest of your life.
-    // MY number, not the group's. The habit carries a target too, but it is only the seed for
-    // somebody who has never set one — reading it here is what made this screen show, and then
-    // overwrite, a figure belonging to whoever edited last.
+    // MY number, not the group's, and the one I last SET rather than the one in force today —
+    // see goalToShow. Using the in-force number here is what made a saved change look like it had
+    // not saved: goal changes start counting tomorrow, so reopening showed the old figure.
     target: toInput(type0, existing
-      ? targetFor(state, existing, me, today)
+      ? goalToShow(state, existing, me, today)
       : type0.start),
     // Whether this habit is fed by a sensor or typed in. A CHOICE, not an inference: it decides
     // how every quiet day this member ever has is judged, and the leaderboard is built on that.
@@ -342,7 +343,12 @@ export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
         // person adjusting their steps moved everybody's, and the only way to find out was to
         // notice your number had changed.
         el("p.note-inline",
-          "Yours alone. Everyone sets their own, and the group only agrees on what is tracked."),
+          "Yours alone. Everyone sets their own, and the group only agrees on what is tracked."
+          // Said on an edit, not on a creation, where there is no yesterday to protect. The goals
+          // sheet has carried this line all along; the editor did not, so a change that correctly
+          // took effect tomorrow looked like one that had not saved.
+          + (form.isNew ? "" : " A change starts counting tomorrow — today is judged on what you "
+            + "had already set, which is why nobody can rescue a bad day from here.")),
         reduce ? el("label.check",
           el("input", {
             type: "checkbox", checked: form.taper,
@@ -398,37 +404,27 @@ export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
     form.busy = true; form.error = ""; paint();
     try {
       const t = form.type;
-      await saveHabit(form.habitId, {
+      // Shaped by habitFields, which is where the one rule that matters lives: `target` is the
+      // seed and is written only when the habit is born. See edits.js.
+      await saveHabit(form.habitId, habitFields({
+        isNew: form.isNew,
         name: form.name.trim() || t.label,
-        icon: t.icon,
-        metric: t.metric,
-        aggregate: t.aggregate,
-        // Straight off the type. Stored rather than derived on read so that a habit keeps the
-        // shape it was created with even if a preset is ever retuned.
-        direction: t.direction,
-        // The seed, and only ever written when the habit is BORN.
-        //
-        // targetFor falls back to this for anybody who has not set their own, so re-writing it on
-        // every edit changed the number for every member who had never opened Your goals — which
-        // is all of them until they do. Somebody adjusting their own steps target moved everybody
-        // else's, silently, and the group had no way to see it had happened.
-        ...(form.isNew ? { target: fromInput(t, raw) } : {}),
-        period: t.period,
+        type: t,
+        target: fromInput(t, raw),
+        taper: t.direction === AT_MOST && form.taper,
+        days: t.period === PERIOD.DAY ? form.days : [1, 2, 3, 4, 5, 6, 7],
+        tz: form.tz,
+        dayStartHour: form.dayStartHour,
         category: categoryFor({ metric: t.metric }),
         // Not asked here any more: what the group sees of YOUR number is yours, and this screen
         // writes the group's copy of the habit. The habit still carries one, as the fallback every
         // row written before this relies on — see visibilityFor.
         visibility: existing?.visibility || VISIBILITY.FULL,
-        taper: t.direction === AT_MOST && form.taper
-          ? { amount: 1, everyDays: 7, floor: 0 } : null,
-        days: t.period === PERIOD.DAY ? form.days : [1, 2, 3, 4, 5, 6, 7],
-        tz: form.tz,
-        dayStartHour: form.dayStartHour,
         // The habit's own default is the BEST source the metric could ever have, because it is
         // the group's answer rather than this device's — somebody joining later on a phone that
         // can read it should not inherit whatever this browser happened to be able to do.
         source: sourceForDevice(t.metric, { pause: true, health: true }),
-      });
+      }));
       // And the number itself, as a goal of this member's own — the same event Your goals writes.
       //
       // Written every time, including on creation, so that nobody is ever left running on the

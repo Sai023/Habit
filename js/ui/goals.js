@@ -11,6 +11,7 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { setGoals, bindSource } from "../store.js";
 import { targetFor, isTracking, sourceFor, latestGoal } from "../habits.js";
+import { goalToShow } from "../edits.js";
 import { caps } from "../bridge.js";
 import {
   METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE, HEALTH_METRICS, PAUSE_METRICS,
@@ -57,13 +58,10 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
 
   const rows = habits.map((habit) => {
     const scale = SCALE[habit.metric];
-    // What they last SET, not what is currently in force — a change made yesterday is already
-    // theirs even though it starts counting today, and showing the old number would invite them
-    // to "fix" it a second time.
+    // What they last SET, not what is currently in force. The rule and the reason moved into
+    // edits.js when the habit editor was found answering it differently — see goalToShow.
     const set = latestGoal(state, habit.habitId, me);
-    const current = set && Number.isFinite(set.target) && set.target > 0
-      ? set.target
-      : targetFor(state, habit, me, habit.createdDay);
+    const current = goalToShow(state, habit, me, habit.createdDay);
     const canAuto = deviceSourceFor(habit.metric) !== SOURCE.MANUAL;
     return {
       habit,
