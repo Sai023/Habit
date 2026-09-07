@@ -333,9 +333,24 @@ export function replay(events) {
     if (!isKnown(e.type, p)) continue;
 
     switch (e.type) {
-      case T.META:
-        meta = { ...meta, ...p };
+      case T.META: {
+        const next = { ...meta, ...p };
+        // Remember the season being replaced, so the board has something to show while the new one
+        // is still in the future.
+        //
+        // There is only ever one `seasonFrom`, and starting a season overwrites it. Between the tap
+        // and the Monday the line is not in force yet — correctly — and seasonStart used to fall all
+        // the way back to the first habit's day, so a finished season's standings were replaced by
+        // an unrelated week from the beginning of time, labelled "Season over". Derived here rather
+        // than written by the client: it is a fact about the log, and an old build that never sends
+        // it still produces it on replay.
+        if (p.seasonFrom && meta.seasonFrom && p.seasonFrom !== meta.seasonFrom) {
+          next.seasonPrevFrom = meta.seasonFrom;
+          next.seasonPrevWeeks = meta.seasonWeeks ?? null;
+        }
+        meta = next;
         break;
+      }
 
       case T.MEMBER:
         if (!p.memberId) break;

@@ -20,7 +20,7 @@ import {
   seasonStart, seasonWeeks, seasonTally, pendingSeason, weekStandings,
   seasonLength, seasonEnd, seasonProgress,
 } from "../js/season.js";
-import { ev, SOURCE, AT_LEAST, AGGREGATE, METRIC } from "../js/schema.js";
+import { ev, SOURCE, AT_LEAST, AGGREGATE, METRIC, PERIOD } from "../js/schema.js";
 
 let passed = 0;
 const failures = [];
@@ -375,6 +375,69 @@ test("the bar moves every day, not once a week", () => {
   const pcts = [0, 1, 2, 3].map((n) => seasonProgress(s, day(n)).pct);
   assert.equal(new Set(pcts).size, 4, "four different days, four different figures: " + pcts);
   assert.equal(seasonProgress(s, day(27)).pct, 100, "full on the last day");
+});
+
+// ---------------------------------------------------------------------------
+// Booking the next one while the last one has finished
+// ---------------------------------------------------------------------------
+//
+// Reported from a real group. A one-week season ran Thu 3 Sept to Sun 6 Sept and finished. On
+// Monday the 7th somebody started the next one, and the board went on showing "Thu 03 Sept →
+// Sun 06 Sept · Season over" as though nothing had happened.
+//
+// Two bugs, and they hid each other. The sheet's "Monday" option offered the Monday AFTER the one
+// they were standing on, so the season was booked a week away; and while a line sits in the future
+// seasonStart fell all the way back to the first habit's day — which in that group WAS 3 Sept, so
+// the board showed a season that had been replaced, with dates that happened to match.
+
+const lifecycleMeta = (extra) => replay([
+  E(ev.member("me", "You"), at(0)),
+  E(ev.habit("h", {
+    name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 100,
+    period: PERIOD.DAY, aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL,
+    tz: TZ, dayStartHour: 4,
+  }), at(0)),
+  ...extra,
+]);
+
+test("a booked season does not erase the one it replaces", () => {
+  // The finished season's standings are what everybody played for. They stay until the morning the
+  // new one starts, rather than being swapped for an unrelated week from the beginning of time.
+  const s = lifecycleMeta([
+    E(ev.meta({ seasonFrom: day(7), seasonWeeks: 1 }), at(7)),
+    E(ev.meta({ seasonFrom: day(28), seasonWeeks: 4 }), at(21)),
+  ]);
+  assert.equal(seasonStart(s, day(21)), day(7), "still the season that ran");
+  assert.equal(pendingSeason(s, day(21)), day(28), "and the next one is announced");
+});
+
+test("and it keeps its OWN length, not the new one's", () => {
+  // The subtler half. seasonWeeks already describes the booked season, so reading the old start
+  // against the new length invents an end date neither season has — a one-week season that
+  // suddenly claims to run for four.
+  const s = lifecycleMeta([
+    E(ev.meta({ seasonFrom: day(7), seasonWeeks: 1 }), at(7)),
+    E(ev.meta({ seasonFrom: day(28), seasonWeeks: 4 }), at(21)),
+  ]);
+  assert.equal(seasonLength(s, day(21)), 1, "the finished season was one week");
+  assert.equal(seasonLength(s, day(28)), 4, "and the new one is four");
+});
+
+test("the moment it starts, the new season takes over completely", () => {
+  const s = lifecycleMeta([
+    E(ev.meta({ seasonFrom: day(7), seasonWeeks: 1 }), at(7)),
+    E(ev.meta({ seasonFrom: day(28), seasonWeeks: 4 }), at(21)),
+  ]);
+  assert.equal(seasonStart(s, day(28)), day(28));
+  assert.equal(pendingSeason(s, day(28)), null);
+});
+
+test("a first season still falls back to the first habit before it begins", () => {
+  // The behaviour the fallback was written for, and which must survive: with nothing to replace,
+  // a pending line leaves the board showing everything since the group started.
+  const s = lifecycleMeta([E(ev.meta({ seasonFrom: day(28), seasonWeeks: 4 }), at(21))]);
+  assert.equal(seasonStart(s, day(21)), day(0), "back to the first habit");
+  assert.equal(pendingSeason(s, day(21)), day(28));
 });
 
 if (failures.length) {

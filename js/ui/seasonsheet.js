@@ -74,17 +74,26 @@ export function seasonSheet(host, { monday, today, weeks: playedWeeks }) {
         ),
 
         el("h2.sec-title", "Starts"),
+        // One chip when both answers are the same day. On a Monday the next week boundary IS today,
+        // and offering "Mon, 7 Sept" beside "Today" is two buttons that do the same thing — which
+        // reads as a choice somebody is failing to understand rather than as no choice at all.
         el("div.chips",
-          el("button.chip" + (form.from === monday ? ".on" : ""), {
-            onclick: () => { form.from = monday; paint(); },
-          }, fmt.dayLabel(monday)),
-          el("button.chip" + (form.from === today ? ".on" : ""), {
-            onclick: () => { form.from = today; paint(); },
-          }, "Today"),
+          monday === today
+            ? el("button.chip.on", { disabled: true }, "Today — " + fmt.dayLabel(today))
+            : [
+              el("button.chip" + (form.from === monday ? ".on" : ""), {
+                onclick: () => { form.from = monday; paint(); },
+              }, fmt.dayLabel(monday)),
+              el("button.chip" + (form.from === today ? ".on" : ""), {
+                onclick: () => { form.from = today; paint(); },
+              }, "Today"),
+            ],
         ),
-        el("p.note-inline", form.from === monday
-          ? "Week one starts clean, instead of being half-played under the old standings."
-          : "This week counts only from today, so the first crown lands on the coming Monday."),
+        el("p.note-inline", monday === today
+          ? "Today is a Monday, so week one starts clean either way."
+          : form.from === monday
+            ? "Week one starts clean, instead of being half-played under the old standings."
+            : "This week counts only from today, so the first crown lands on the coming Monday."),
 
         el("h2.sec-title", "Runs for"),
         el("div.chips", LENGTHS.map((l) => el("button.chip" + (form.weeks === l.weeks ? ".on" : ""), {

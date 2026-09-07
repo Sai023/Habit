@@ -65,7 +65,16 @@ export function seasonStart(state, today = null) {
     //
     // `today` is optional so that asking what the line IS stays possible; every caller that renders
     // a board passes it.
-    if (today && line > today) return earliest;
+    if (today && line > today) {
+      // Booked, not begun. Keep showing the season it replaces rather than dropping to the first
+      // habit's day — those standings are what everybody played for and they stay on screen until
+      // the morning the new one starts. See the T.META case in habits.js.
+      const prev = state.meta.seasonPrevFrom;
+      if (typeof prev === "string" && /^\d{4}-\d{2}-\d{2}$/.test(prev)) {
+        return earliest === null || prev > earliest ? prev : earliest;
+      }
+      return earliest;
+    }
     if (earliest === null || line > earliest) return line;
   }
   return earliest;
@@ -94,8 +103,14 @@ export function pendingSeason(state, today) {
  * Weeks rather than days, because a week is the unit the whole scoreboard is built on. A season
  * measured in days would end mid-week and its last week would be a partial one nobody could win.
  */
-export function seasonLength(state) {
-  const n = state.meta && state.meta.seasonWeeks;
+export function seasonLength(state, today = null) {
+  const meta = state.meta || {};
+  // While a season is booked but not begun, `seasonWeeks` already describes the NEW one — so the
+  // length has to come from the same place the start does, or the board draws the old season's
+  // start against the new season's length and invents an end date neither of them has.
+  const pending = today && typeof meta.seasonFrom === "string" && meta.seasonFrom > today
+    && typeof meta.seasonPrevFrom === "string";
+  const n = pending ? meta.seasonPrevWeeks : meta.seasonWeeks;
   return Number.isInteger(n) && n > 0 && n <= 104 ? n : null;
 }
 
@@ -109,7 +124,7 @@ export function seasonLength(state) {
  */
 export function seasonEnd(state, today = null) {
   const start = seasonStart(state, today);
-  const weeks = seasonLength(state);
+  const weeks = seasonLength(state, today);
   if (!start || !weeks) return null;
   return addDays(periodStart(isoWeekKey(start), PERIOD.WEEK), weeks * 7 - 1);
 }
@@ -125,7 +140,7 @@ export function seasonProgress(state, today) {
   if (!start) return null;
 
   const end = seasonEnd(state, today);
-  const weeks = seasonLength(state);
+  const weeks = seasonLength(state, today);
   const done = seasonTally(state, [], today).weeks;
 
   if (!end) return { start, end: null, weeks: null, done, daysLeft: null, ended: false, pct: null };

@@ -332,7 +332,14 @@ const onNewSeason = guard("season", async () => {
       import("./season.js"),
     ]);
 
-  const monday = addDays(periodStart(isoWeekKey(ctx.today), "week"), 7);
+  // The next week boundary — which is TODAY when today is already a Monday.
+  //
+  // This was `+ 7` unconditionally, so somebody starting a season on a Monday was offered the
+  // Monday after it: the option that says "week one starts clean" meant "nothing happens for a
+  // week". It is the default in the sheet, so it is the one most likely to be taken, and it is
+  // exactly the day somebody sets up a season on.
+  const thisMonday = periodStart(isoWeekKey(ctx.today), "week");
+  const monday = thisMonday === ctx.today ? thisMonday : addDays(thisMonday, 7);
   const { weeks } = seasonTally(ctx.state, [...ctx.state.members.keys()], ctx.today);
 
   const chosen = await seasonSheet(document.body, { monday, today: ctx.today, weeks });
