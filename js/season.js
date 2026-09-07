@@ -226,15 +226,29 @@ export function seasonHistory(state, today) {
 
   return out
     .map((x, i) => {
-      const end = endFor(x.from, x.weeks);
+      const own = endFor(x.from, x.weeks);
+      // Being REPLACED is an ending too, and only its own length was modelled.
+      //
+      // A season started with "No end" has no end date, so it stayed current for ever — a group
+      // that ran one, then started two more, had three seasons on screen and two of them labelled
+      // Running. The next season's start is a hard stop whatever this one's length said: the day
+      // before it begins is this one's last, and a season cut short that way is Replaced rather
+      // than Finished, because "finished" claims it ran its course.
+      const next = out[i + 1];
+      const capped = next ? addDays(next.from, -1) : null;
+      const to = own && capped ? (own < capped ? own : capped) : (own || capped);
+      const superseded = !!capped && (!own || capped < own);
+
       return {
         from: x.from,
-        to: end,
+        to,
         weeks: x.weeks,
-        // Which one the board is currently showing, and which has not begun.
+        superseded,
         pending: x.from > today,
-        current: x.from <= today && (!end || end >= today),
-        ended: !!end && end < today,
+        // At most one, by construction: every season but the last is capped at the next one's
+        // start, so only the final entry can still contain today.
+        current: x.from <= today && (!to || to >= today),
+        ended: !!to && to < today,
         index: i + 1,
       };
     })

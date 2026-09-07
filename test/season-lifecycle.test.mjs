@@ -541,6 +541,49 @@ test("the list and the board agree about a season's dates", () => {
   assert.equal(only.to, endFor(day(3), 2));
 });
 
+test("only one season is ever running", () => {
+  // Reported from a live board showing three seasons, two of them labelled Running. The first had
+  // been started with "No end", so it had no end date and stayed current for ever — being REPLACED
+  // was an ending nothing modelled.
+  const s = runs([[day(0), null, 0], [day(1), 1, 1], [day(14), 1, 2]]);
+  const h = seasonHistory(s, day(3));
+  assert.equal(h.filter((x) => x.current).length, 1, "exactly one");
+  assert.equal(h.filter((x) => x.pending).length, 1);
+});
+
+test("a season with no end still ends when the next one starts", () => {
+  const s = runs([[day(0), null, 0], [day(7), 1, 7]]);
+  const [, first] = seasonHistory(s, day(9));
+  assert.equal(first.to, day(6), "the day before its replacement");
+  assert.ok(first.ended);
+  assert.ok(first.superseded, "cut short rather than run out");
+});
+
+test("a season that runs its full length is not marked replaced", () => {
+  // The distinction the label rests on: "finished" claims it ran its course, and one somebody
+  // ended after a day did not.
+  const s = runs([[day(0), 1, 0], [day(7), 1, 7]]);
+  const [, first] = seasonHistory(s, day(9));
+  assert.equal(first.to, day(6), "its own end, which the next start does not shorten");
+  assert.ok(!first.superseded);
+});
+
+test("the last season keeps its own end, capped by nothing", () => {
+  const s = runs([[day(0), 1, 0]]);
+  const [only] = seasonHistory(s, day(3));
+  assert.equal(only.to, day(6));
+  assert.ok(only.current);
+  assert.ok(!only.superseded);
+});
+
+test("a no-end season that has never been replaced runs on", () => {
+  // The reason "no end" exists at all, and it must survive the fix.
+  const s = runs([[day(0), null, 0]]);
+  const [only] = seasonHistory(s, day(90));
+  assert.equal(only.to, null);
+  assert.ok(only.current, "still going, three months later");
+});
+
 if (failures.length) {
   for (const f of failures) console.error("✗ " + f.name + "\n  " + f.err.message);
   console.error("✗ season lifecycle: " + failures.length + " failed, " + passed + " passed");

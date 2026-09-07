@@ -36,6 +36,8 @@ export function openSeasonsSheet(host, { state, me, today, onNewSeason, onDone }
     if (!weeks) {
       return el("p.note-inline", season.pending
         ? "Starts " + fmt.dayLabel(season.from) + ". Nothing counted yet."
+        : season.superseded
+        ? "Replaced before a week of it finished, so there is nothing to tally."
         : "No week finished inside this season, so there is nothing to tally.");
     }
     return el("div.board", rows.map((r) => el(
@@ -58,7 +60,12 @@ export function openSeasonsSheet(host, { state, me, today, onNewSeason, onDone }
   /** One row in the list: its dates, its state, and its table when it is the open one. */
   function seasonRow(season, i) {
     const open = i === openIndex;
-    const label = season.pending ? "Booked" : season.current ? "Running" : "Finished";
+    // "Replaced" rather than "Finished" for one cut short by the next season starting — finished
+    // claims it ran its course, and a season somebody ended after a day did not.
+    const label = season.pending ? "Booked"
+      : season.current ? "Running"
+      : season.superseded ? "Replaced"
+      : "Finished";
     return el("div.season-item" + (open ? ".is-open" : ""),
       el("button.season-item-head", {
         onclick: () => { openIndex = open ? -1 : i; paint(); },
