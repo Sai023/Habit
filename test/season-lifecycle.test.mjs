@@ -271,17 +271,34 @@ function splitWeek(extra = []) {
   return replay([...events, ...extra]);
 }
 
-test("a season that starts mid-week is scored from the line, not from the Monday", () => {
-  // The reason a season otherwise waits for a Monday, and the reason it no longer has to. Without
-  // the floor, week one reaches back and counts days from BEFORE the line — the exact history
-  // somebody just asked to be rid of, folded into the first week of the thing replacing it.
+test("the days before the first whole week are warm-up, and score nothing", () => {
+  // This reverses an earlier rule, and the reversal is the point.
   //
-  // Here I am perfect Monday to Thursday and they are perfect Friday to Sunday. A season starting
-  // on the Friday belongs to them.
+  // A season starting mid-week used to score that stub as a completed week, floored to the days it
+  // was actually running. Internally tidy, and it produced two things nobody wanted: a season
+  // started on a SUNDAY awarded a crown for one day, and a season set to run "1 week" finished
+  // with two weeks and two crowns in its table — because endFor treats the stub as extra while
+  // this counted it as one of the N. Two rules disagreeing about what a week was.
+  //
+  // It also put the season's first number a week behind the board's, which is how it surfaced:
+  // "why is All time 59 when This week says 66%". They were different weeks.
+  //
+  // The cost is real and worth naming: a season started on a Friday now waits until the Sunday
+  // after next for its first crown, where it used to produce one that weekend. Consistent length
+  // is worth more than fast first feedback — and starting on a Monday, which is the default, gives
+  // both.
   const s = splitWeek([E(ev.meta({ seasonFrom: day(4) }), at(4))]);
-  const rows = seasonTally(s, BOTH, day(7)).rows;
-  assert.equal(rows[0].memberId, RIVAL, "the Friday-to-Sunday winner leads");
-  assert.equal(rows.find((r) => r.memberId === ME).points, 0, "and my Monday to Thursday is gone");
+  const t = seasonTally(s, BOTH, day(7));
+  assert.equal(t.weeks, 0, "the stub is not a week");
+  assert.equal(t.rows.find((r) => r.memberId === ME).points, 0);
+  assert.equal(t.rows.find((r) => r.memberId === RIVAL).points, 0);
+});
+
+test("and the whole week that follows a mid-week start does score", () => {
+  // The other half: warm-up is skipped, not the season. Day 4 is a Friday, so the first whole week
+  // is the one beginning day 7, and it lands when that week closes on day 13.
+  const s = splitWeek([E(ev.meta({ seasonFrom: day(4) }), at(4))]);
+  assert.equal(seasonTally(s, BOTH, day(14)).weeks, 1);
 });
 
 test("the same week, started on the Monday, belongs to the other one", () => {
@@ -299,14 +316,24 @@ test("a full week is unaffected by the floor", () => {
   assert.deepEqual(floored.map((r) => r.pct), whole.map((r) => r.pct));
 });
 
-test("a season started today produces a crown on the next Monday", () => {
-  // What a few days of testing actually needs: start it now, and have something to look at when
-  // the week turns over rather than a week on Monday.
-  const s = splitWeek([E(ev.meta({ seasonFrom: day(4) }), at(4))]);
+test("a season started ON a Monday produces its crown that Sunday", () => {
+  // The quick-feedback case, which is why the sheet offers Monday first and why "Monday" now means
+  // TODAY when today is one. Six days to a crown, with no stub to skip.
+  const s = splitWeek([E(ev.meta({ seasonFrom: day(0) }), at(0))]);
   assert.equal(seasonTally(s, BOTH, day(5)).weeks, 0, "nothing while the week is still running");
   const done = seasonTally(s, BOTH, day(7));
   assert.equal(done.weeks, 1, "and one week the moment it finishes");
   assert.equal(done.rows[0].crowns, 1);
+});
+
+test("a one-week season tallies exactly one week", () => {
+  // The property that was violated, stated plainly. It held for a Monday start and failed for
+  // every other day, which is why nobody caught it until a season was started on a Sunday.
+  for (let startsOn = 0; startsOn < 7; startsOn += 1) {
+    const s = splitWeek([E(ev.meta({ seasonFrom: day(startsOn), seasonWeeks: 1 }), at(startsOn))]);
+    const t = seasonTally(s, BOTH, day(60));
+    assert.equal(t.weeks, 1, "a season starting on day " + startsOn + " tallied " + t.weeks);
+  }
 });
 
 // ---------------------------------------------------------------------------

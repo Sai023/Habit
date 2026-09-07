@@ -202,7 +202,23 @@ export function seasonWeeks(state, today) {
 export function weeksIn(from, to, today) {
   const last = to && to < today ? to : today;
   if (!from || last < from) return [];
-  return periodsBetween(from, last, PERIOD.WEEK);
+
+  // Scoring starts at the first WHOLE week, and the stub before it is warm-up.
+  //
+  // A season started on a Sunday used to score that Sunday as a completed week — it is the tail of
+  // an ISO week that closes the same night — so a crown was awarded for one day, and a season set
+  // to run "1 week" finished with two weeks and two crowns in its table. It also put the season's
+  // first number a week behind the one on the board, which is exactly how it was reported: "why is
+  // All time 59 when This week says 66%". They were different weeks.
+  //
+  // endFor already treats the stub as extra rather than as one of the N. This is the same rule
+  // seen from the other end, and the two disagreeing about what a week was is what produced both
+  // symptoms.
+  const firstFull = from === periodStart(isoWeekKey(from), PERIOD.WEEK)
+    ? from
+    : addDays(periodStart(isoWeekKey(from), PERIOD.WEEK), 7);
+  if (last < firstFull) return [];
+  return periodsBetween(firstFull, last, PERIOD.WEEK);
 }
 
 /**
@@ -266,12 +282,12 @@ export function seasonHistory(state, today) {
 export function weekStandings(state, memberIds, weekKey, notBefore = null) {
   const weekOpens = periodStart(weekKey, PERIOD.WEEK);
   const to = periodEnd(weekKey, PERIOD.WEEK);
-  // A season that begins mid-week scores only the days it was actually running.
+  // Never count days from before the line.
   //
-  // Without this, week one reaches back to the Monday and counts days from BEFORE the line — the
-  // exact history somebody just asked to be rid of, folded into the first week of the thing meant
-  // to replace it. It is also the whole reason a season otherwise starts on a Monday: with the
-  // floor in place, starting one today is honest rather than merely allowed.
+  // Belt and braces now rather than the mechanism it once was: weeksIn no longer hands over a week
+  // that began before the season did, so this cannot fire. It stays because the property it
+  // protects — a season never scores a day that predates it — is one worth being unable to break
+  // by accident, and the cost of keeping it is a comparison.
   const from = notBefore && notBefore > weekOpens ? notBefore : weekOpens;
   return leaderboard(state, memberIds, from, to, to);
 }

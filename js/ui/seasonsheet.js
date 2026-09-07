@@ -93,7 +93,11 @@ export function seasonSheet(host, { monday, today, weeks: playedWeeks }) {
           ? "Today is a Monday, so week one starts clean either way."
           : form.from === monday
             ? "Week one starts clean, instead of being half-played under the old standings."
-            : "This week counts only from today, so the first crown lands on the coming Monday."),
+            // Said before the choice, because the cost of starting today is a whole week of
+            // waiting rather than a few days — scoring begins at the first WHOLE week, so the days
+            // between now and Monday are warm-up and the first crown lands the Sunday after that.
+            : "The rest of this week is warm-up — nothing counts until Monday, and the first crown "
+              + "lands the Sunday after."),
 
         el("h2.sec-title", "Runs for"),
         el("div.chips", LENGTHS.map((l) => el("button.chip" + (form.weeks === l.weeks ? ".on" : ""), {

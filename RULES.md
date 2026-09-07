@@ -89,6 +89,7 @@ on the wrong one.
 | A partial first week is scored only on the days it ran | `js/season.js` — `weekStandings` | `test/season-lifecycle.test.mjs` |
 | A finished season stops counting weeks | `js/season.js` — `seasonWeeks` | `test/season-lifecycle.test.mjs` |
 | Ranked on points; crowns break a tie | `js/season.js` — `seasonTally` | `test/season.test.mjs` |
+| Scoring starts at the first WHOLE week; the stub before it is warm-up | `js/season.js` — `weeksIn` | `test/season-lifecycle.test.mjs` |
 | A chosen length always delivers that many WHOLE weeks | `js/season.js` — `endFor` | `test/season-lifecycle.test.mjs` |
 | A booked season does not erase the one it replaces | `js/season.js` — `seasonStart` | `test/season-lifecycle.test.mjs` |
 | Every season run is readable afterwards, by its own window | `js/season.js` — `seasonHistory` | `test/season-lifecycle.test.mjs` |
