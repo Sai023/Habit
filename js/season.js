@@ -122,11 +122,33 @@ export function seasonLength(state, today = null) {
  * runs three weeks and two days — which is the honest reading of "four weeks of scoring", because
  * the week it started in only ever had two days of season in it.
  */
+/**
+ * The last day of a season that starts on [from] and runs [weeks] weeks.
+ *
+ * A season that starts mid-week gets the REST of that week plus its full weeks, rather than having
+ * the stub consume one of them.
+ *
+ * It used to count from the Monday of the starting week unconditionally, which is defensible
+ * arithmetic and produced a season shorter than a day: one week started on a Sunday ended that
+ * same Sunday, so a real group's board read "Sun 06 Sept → Sun 06 Sept · Season over" before
+ * anybody had played a day of it. Nobody choosing "1 week" means the remaining ninety minutes.
+ *
+ * Pure and shared, because the history list has to answer this for seasons the meta line no longer
+ * points at — and a second copy of the rule is how the two would come to disagree about the same
+ * season's dates.
+ */
+export function endFor(from, weeks) {
+  if (!from || !weeks) return null;
+  const monday = periodStart(isoWeekKey(from), PERIOD.WEEK);
+  const firstFull = from === monday ? monday : addDays(monday, 7);
+  return addDays(firstFull, weeks * 7 - 1);
+}
+
 export function seasonEnd(state, today = null) {
   const start = seasonStart(state, today);
   const weeks = seasonLength(state, today);
   if (!start || !weeks) return null;
-  return addDays(periodStart(isoWeekKey(start), PERIOD.WEEK), weeks * 7 - 1);
+  return endFor(start, weeks);
 }
 
 /**
@@ -166,12 +188,57 @@ export function seasonProgress(state, today) {
 export function seasonWeeks(state, today) {
   const start = seasonStart(state, today);
   if (!start) return [];
-  // A season that has finished stops counting. Without this its standings would keep growing after
-  // the final whistle, and "final" would be the one thing they were not.
-  const end = seasonEnd(state, today);
-  const last = end && end < today ? end : today;
-  if (last < start) return [];
-  return periodsBetween(start, last, PERIOD.WEEK);
+  return weeksIn(start, seasonEnd(state, today), today);
+}
+
+/**
+ * The weeks an explicit window covers, up to today.
+ *
+ * Split out of seasonWeeks so a FINISHED season can be tallied by naming its dates, rather than
+ * only ever the one the meta line currently points at. A season that has ended stops counting —
+ * without that its standings would keep growing after the final whistle, and "final" would be the
+ * one thing they were not.
+ */
+export function weeksIn(from, to, today) {
+  const last = to && to < today ? to : today;
+  if (!from || last < from) return [];
+  return periodsBetween(from, last, PERIOD.WEEK);
+}
+
+/**
+ * Every season this group has run, newest first.
+ *
+ * Built from the trail replay leaves behind — see the T.META case — plus whatever the meta line
+ * points at now. Each entry carries only its window; the standings are derived from the log on
+ * demand, so a season read back in a year is scored by today's engine rather than by a snapshot
+ * taken at the time.
+ */
+export function seasonHistory(state, today) {
+  const meta = state.meta || {};
+  const past = Array.isArray(meta.seasonPast) ? meta.seasonPast : [];
+  const out = past
+    .filter((x) => x && typeof x.from === "string")
+    .map((x) => ({ from: x.from, weeks: x.weeks || null }));
+
+  if (typeof meta.seasonFrom === "string") {
+    out.push({ from: meta.seasonFrom, weeks: meta.seasonWeeks || null });
+  }
+
+  return out
+    .map((x, i) => {
+      const end = endFor(x.from, x.weeks);
+      return {
+        from: x.from,
+        to: end,
+        weeks: x.weeks,
+        // Which one the board is currently showing, and which has not begun.
+        pending: x.from > today,
+        current: x.from <= today && (!end || end >= today),
+        ended: !!end && end < today,
+        index: i + 1,
+      };
+    })
+    .reverse();
 }
 
 /**
@@ -202,9 +269,11 @@ export function weekStandings(state, memberIds, weekKey, notBefore = null) {
  * handing out its trophy on a Tuesday — then taking it back on a Thursday — would make the tally
  * something to refresh rather than something to build.
  */
-export function seasonTally(state, memberIds, today) {
-  const start = seasonStart(state, today);
-  const weeks = seasonWeeks(state, today);
+export function seasonTally(state, memberIds, today, window = null) {
+  // `window` names a season explicitly, which is how a FINISHED one is read back. Without it the
+  // answer is always whichever season the meta line points at, and there is exactly one of those.
+  const start = window ? window.from : seasonStart(state, today);
+  const weeks = window ? weeksIn(window.from, window.to, today) : seasonWeeks(state, today);
   const thisWeek = isoWeekKey(today);
   const done = weeks.filter((w) => w !== thisWeek);
 

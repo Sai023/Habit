@@ -733,10 +733,16 @@ function seasonStrip(ctx) {
   const p = seasonProgress(ctx.state, ctx.today);
   if (!p || !p.end) return null;
 
-  return el("div.season-strip" + (p.ended ? ".is-over" : ""),
+  // A button, because this is now the way into the season list — and the only reliable way into
+  // starting one. The link at the foot of the All-time view vanished whenever a season was booked
+  // and not yet running, which left a group with no entry point anywhere.
+  return el("button.season-strip" + (p.ended ? ".is-over" : ""), {
+    onclick: () => ctx.onSeasons && ctx.onSeasons(),
+    "aria-label": "Seasons",
+  },
     el("div.season-strip-top",
       el("span.season-strip-dates", fmt.dayLabel(p.start), " → ", fmt.dayLabel(p.end)),
-      el("span.season-strip-left", countdown(p)),
+      el("span.season-strip-left", countdown(p), el("span.season-strip-go", " ›")),
     ),
     el("div.bar", { role: "presentation" },
       el("i", { style: "width:" + p.pct + "%" })),
@@ -965,11 +971,14 @@ function seasonSection(ctx, members) {
       ? el("p.sec-note", { style: "padding:0 2px" },
           "A new season starts " + fmt.dayLabel(pending)
           + ". These standings run until then, and reset that morning.")
-      // Offered here rather than buried in settings, because this is the screen you are looking at
-      // when you decide the standings are not worth keeping.
-      : ctx.onNewSeason
-        ? el("button.link.sec-note", { onclick: () => ctx.onNewSeason() }, "Start a new season →")
-        : null,
+      : null,
+    // Always offered, and no longer an either/or with the note above it. Somebody who has booked a
+    // season is exactly the person most likely to want to change it, and replacing the only control
+    // with an explanation left them nowhere to go.
+    ctx.onSeasons
+      ? el("button.link.sec-note", { onclick: () => ctx.onSeasons() },
+          pending ? "Seasons — change it →" : "Seasons →")
+      : null,
   );
 }
 

@@ -347,6 +347,14 @@ export function replay(events) {
         if (p.seasonFrom && meta.seasonFrom && p.seasonFrom !== meta.seasonFrom) {
           next.seasonPrevFrom = meta.seasonFrom;
           next.seasonPrevWeeks = meta.seasonWeeks ?? null;
+          // And the whole run of them, so a finished season is still readable after the next two
+          // have been and gone. The standings are derived from the log either way — this only
+          // records WHICH windows to derive, which is the one thing a single overwritten field
+          // cannot remember.
+          next.seasonPast = [
+            ...(meta.seasonPast || []),
+            { from: meta.seasonFrom, weeks: meta.seasonWeeks ?? null },
+          ];
         }
         meta = next;
         break;

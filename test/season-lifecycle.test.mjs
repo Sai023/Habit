@@ -15,10 +15,10 @@
 // declare a winner and close the book by itself.
 
 import assert from "node:assert/strict";
-import { replay, addDays, periodStart, isoWeekKey } from "../js/habits.js";
+import { replay, addDays, periodStart, isoWeekKey, daysBetween } from "../js/habits.js";
 import {
   seasonStart, seasonWeeks, seasonTally, pendingSeason, weekStandings,
-  seasonLength, seasonEnd, seasonProgress,
+  seasonLength, seasonEnd, seasonProgress, seasonHistory, endFor,
 } from "../js/season.js";
 import { ev, SOURCE, AT_LEAST, AGGREGATE, METRIC, PERIOD } from "../js/schema.js";
 
@@ -329,14 +329,47 @@ test("a length gives it a last day, counted from the Monday of its first week", 
   assert.equal(seasonEnd(s, AFTER_SIX), day(27));
 });
 
-test("a season started mid-week still ends on a Sunday", () => {
-  // Its first week only ever had a few days of season in it, so a length in weeks is counted from
-  // that week's Monday. Anything else ends the season mid-week, on a week nobody could win.
+test("a season started mid-week ends on a Sunday, after a whole week of scoring", () => {
+  // Two properties, and the second one replaced an earlier rule.
+  //
+  // It always ended on a Sunday, counted from the Monday of the week it began in — defensible
+  // arithmetic that let the stub of the starting week consume one of the N. At four weeks that is
+  // barely noticeable. At one it is fatal: a season started on a Sunday ended that same Sunday, and
+  // a real group created one and watched the board say "Sun 06 Sept → Sun 06 Sept · Season over"
+  // before anybody had played a day of it.
+  //
+  // So the partial week is now extra rather than counted. "1 week" means at least one whole week,
+  // which is the only reading of it nobody has to be talked out of.
   const s = season({
     mine: MINE, theirs: THEIRS,
     extra: [E(ev.meta({ seasonFrom: day(3), seasonWeeks: 1 }), at(3))],
   });
-  assert.equal(seasonEnd(s, day(7)), day(6), "the Sunday of the week it began in");
+  assert.equal(seasonEnd(s, day(7)), day(13), "the rest of that week, then a full one");
+});
+
+test("a season started ON a Monday is exactly its length", () => {
+  // The other half: with no stub there is nothing to add, so the common case is unchanged.
+  const s = season({
+    mine: MINE, theirs: THEIRS,
+    extra: [E(ev.meta({ seasonFrom: MON, seasonWeeks: 1 }), at(0))],
+  });
+  assert.equal(seasonEnd(s, day(3)), day(6), "seven days, Monday to Sunday");
+});
+
+test("a one-week season is never shorter than a week", () => {
+  // Stated as the property rather than as an example, because the example that broke was the one
+  // nobody thought to write: the last possible day of a week.
+  for (let startsOn = 0; startsOn < 7; startsOn += 1) {
+    const s = season({
+      mine: MINE, theirs: THEIRS,
+      extra: [E(ev.meta({ seasonFrom: day(startsOn), seasonWeeks: 1 }), at(startsOn))],
+    });
+    const end = seasonEnd(s, day(startsOn));
+    assert.ok(
+      daysBetween(day(startsOn), end) >= 6,
+      "a season starting on day " + startsOn + " ran " + daysBetween(day(startsOn), end) + " days",
+    );
+  }
 });
 
 test("a finished season stops counting", () => {
@@ -438,6 +471,74 @@ test("a first season still falls back to the first habit before it begins", () =
   const s = lifecycleMeta([E(ev.meta({ seasonFrom: day(28), seasonWeeks: 4 }), at(21))]);
   assert.equal(seasonStart(s, day(21)), day(0), "back to the first habit");
   assert.equal(pendingSeason(s, day(21)), day(28));
+});
+
+// ---------------------------------------------------------------------------
+// Every season, not just the one the meta line points at
+// ---------------------------------------------------------------------------
+//
+// There is one `seasonFrom`, and starting a season overwrites it — so a group on their third
+// season could not see who won either of the first two. The standings were still derivable from
+// the log the whole time; nothing recorded WHICH windows to derive.
+
+const runs = (lines) => replay([
+  E(ev.member(ME, "Me"), at(0)),
+  E(ev.member(RIVAL, "Them"), at(0)),
+  E(ev.habit("h", {
+    name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 100,
+    period: PERIOD.DAY, aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL,
+    tz: TZ, dayStartHour: 4,
+  }), at(0)),
+  ...lines.map(([from, weeks, when]) =>
+    E(ev.meta({ seasonFrom: from, seasonWeeks: weeks }), at(when))),
+]);
+
+test("every season run is remembered, newest first", () => {
+  const s = runs([[day(0), 1, 0], [day(7), 1, 7], [day(14), 1, 14]]);
+  const h = seasonHistory(s, day(16));
+  assert.deepEqual(h.map((x) => x.from), [day(14), day(7), day(0)]);
+  assert.deepEqual(h.map((x) => x.index), [3, 2, 1], "numbered from the group's first");
+});
+
+test("each one carries its own dates and state", () => {
+  const s = runs([[day(0), 1, 0], [day(7), 2, 7]]);
+  const [current, first] = seasonHistory(s, day(9));
+  assert.equal(first.to, day(6), "a one-week season");
+  assert.ok(first.ended);
+  assert.equal(current.to, day(20), "and a two-week one");
+  assert.ok(current.current && !current.ended);
+});
+
+test("a booked season is listed as booked, not as running", () => {
+  const s = runs([[day(0), 1, 0], [day(14), 1, 7]]);
+  const [next, done] = seasonHistory(s, day(9));
+  assert.ok(next.pending, "not started yet");
+  assert.ok(!next.current);
+  assert.ok(done.ended);
+});
+
+test("a finished season can still be tallied by naming its window", () => {
+  // The thing the list is for. seasonTally answers about the CURRENT season unless a window says
+  // otherwise, and every past season is exactly a window.
+  const s = runs([[day(0), 1, 0], [day(7), 1, 7]]);
+  const [, first] = seasonHistory(s, day(9));
+  const tally = seasonTally(s, [ME, RIVAL], day(9), { from: first.from, to: first.to });
+  assert.equal(tally.weeks, 1, "the one week it ran");
+  assert.equal(tally.rows.length, 2);
+});
+
+test("with no season ever started the list is empty", () => {
+  const s = runs([]);
+  assert.deepEqual(seasonHistory(s, day(9)), []);
+});
+
+test("the list and the board agree about a season's dates", () => {
+  // Both derive the end from endFor, which exists so they cannot answer differently — the list has
+  // to date seasons the meta line no longer points at.
+  const s = runs([[day(3), 2, 3]]);
+  const [only] = seasonHistory(s, day(5));
+  assert.equal(only.to, seasonEnd(s, day(5)));
+  assert.equal(only.to, endFor(day(3), 2));
 });
 
 if (failures.length) {

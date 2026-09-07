@@ -1167,3 +1167,40 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   font-size: var(--fs-micro); color: var(--dim);
   margin: 0 0 8px; line-height: 1.45;
 }
+
+/* ---------- the season list ---------- */
+
+/* The strip is a button now. It has to keep reading as a status line rather than a control, so it
+   borrows nothing from .tap and gains only a chevron and a press. */
+button.season-strip {
+  display: block; width: 100%; text-align: left;
+  border: 1px solid var(--line); cursor: pointer;
+}
+button.season-strip:active { transform: scale(0.995); }
+.season-strip-go { color: var(--dim); }
+
+.season-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.season-item {
+  background: var(--surface); border: 1px solid transparent;
+  border-radius: var(--r); overflow: hidden;
+}
+.season-item.is-open { border-color: var(--line); }
+
+.season-item-head {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 12px 14px; background: none; border: 0; cursor: pointer; text-align: left;
+}
+/* Which season this is, counted from the group's first. Tabular so a list of them lines up. */
+.season-item-n {
+  font-size: var(--fs-micro); font-weight: 800; color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.season-item-dates { flex: 1; min-width: 0; font-size: var(--fs-small); font-weight: 700; }
+.season-item-tag {
+  font-size: var(--fs-micro); padding: 2px 8px; border-radius: 999px;
+  background: var(--bg); color: var(--dim); white-space: nowrap;
+}
+.season-item-tag.is-live { background: var(--teal-dim); color: var(--text); font-weight: 700; }
+
+/* The table sits inside the row it belongs to, indented by the row's own padding. */
+.season-item .board { padding: 0 14px 12px; }

@@ -67,7 +67,7 @@ function paint() {
     focusSettings: caps().focusSettings,
     manualSync: caps().manualSync,
     syncing: ui.syncing,
-    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason,
+    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason, onSeasons,
     onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
   });
 }
@@ -324,6 +324,17 @@ const onInvite = guard("invite", async () => {
  * Says plainly what survives. "Reset" is a word people have learned to read as "lose everything",
  * and the whole point of this is that it only clears the scoreboard.
  */
+/** Every season the group has run, and the way to start the next. */
+const onSeasons = guard("seasons", async () => {
+  if (demoBlocked()) return;
+  const { openSeasonsSheet } = await import("./ui/seasonssheet.js");
+  openSeasonsSheet(document.body, {
+    state: ctx.state, me: ctx.me, today: ctx.today,
+    onNewSeason,
+    onDone: () => refresh(),
+  });
+});
+
 const onNewSeason = guard("season", async () => {
   if (demoBlocked()) return;
   const [{ seasonSheet }, { startNewSeason }, { periodStart, isoWeekKey, addDays }, { seasonTally }] =
