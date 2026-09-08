@@ -800,6 +800,13 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 /* The hero's copy. Big enough to be the object you look at first, which is the one place in the app
    where that is the right thing to be looking at. */
+/* Between the 22px badge that sits beside a name and the 44px one in the hero. Four of these fit
+   across a phone with their span labels under them, and the number stays readable — which is the
+   whole reason the per-habit levels stopped being plain rings. */
+.badge-md { width: 34px; height: 34px; padding: 2px; }
+.badge-md .badge-face { font-size: 13px; }
+.badge-md.badge-wide .badge-face { font-size: 11px; letter-spacing: -0.05em; }
+
 .badge-lg { width: 44px; height: 44px; padding: 2.5px; }
 .badge-lg .badge-face { font-size: 17px; }
 .badge-lg.badge-diamond { filter: drop-shadow(0 0 11px rgba(62, 224, 196, 0.55)); }
@@ -938,17 +945,8 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   /* No opacity multiplier. Dimming was being applied four times over — drained colour, faint rim,
      near-transparent fill, and then this — and four subtractions from a dark theme is an erasure. */
 }
-/* Drained, not merely dimmed. Keeping the tier's colour at low opacity made earned and unearned
-   differ only in brightness — a dim orange 14 beside a bright orange 14 — so telling them apart
-   meant comparing two pips rather than reading one. The majors go properly dark; these follow. */
-.case-slot.is-locked .pip {
-  /* --dim at full opacity: about 8:1, which is comfortably readable and clearly quieter than a
-     filled medal. The old value was --dim multiplied by 0.6 opacity on a 14%-white ring, which is
-     where "I can't see them" came from. */
-  color: var(--dim);
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.04);
-}
+/* Nothing extra for the per-habit levels: they are .badge now, so the socket rules above already
+   cover them. Two treatments for one idea is how they came to look like different things. */
 /* Readable, not shouting. The span under a locked badge says what the number MEANS — "two months"
    — which is the half that makes it a target rather than a digit. */
 .case-slot.is-locked .case-name { opacity: 0.8; }

@@ -206,7 +206,9 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
 
       el("div.hd-rungs", tiers.map((t, i) => el(
         "div.hd-rung" + (i < level ? ".is-won" : ""),
-        el("span.pip.pip-" + LEVEL_KEY[i + 1], String(t.at)),
+        el("span.badge.badge-md.badge-" + LEVEL_KEY[i + 1]
+          + (String(t.at).length > 2 ? ".badge-wide" : ""),
+          el("span.badge-face", el("span.badge-n", String(t.at)))),
         el("span.hd-rung-span", t.span),
       ))),
       next

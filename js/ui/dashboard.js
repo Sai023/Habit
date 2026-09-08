@@ -1070,7 +1070,16 @@ function awardsSection(ctx) {
         el("span.case-habit-run", h.streak ? runLabel(h.streak, h.period) : "no run"),
       ),
       el("div.case-pips", h.levels.map((l) => el("div.case-slot" + (l.times ? "" : ".is-locked"),
-        el("span.pip.pip-" + LEVEL_KEY[l.level], { title: runLabel(l.at, h.period) }, String(l.at)),
+        // The same medal the majors are struck from, not a ring with a number in it.
+        //
+        // These were `.pip`: a small outlined circle. Asked directly — "is the 14 30 60 120 the
+        // badge, or just telling me what's needed?" — which is the question failing at its job,
+        // because a badge somebody has to ask about is a label. One family now: same hexagon, same
+        // metals, same empty socket when it has not been won.
+        el("span.badge.badge-md.badge-" + LEVEL_KEY[l.level]
+          + (String(l.at).length > 2 ? ".badge-wide" : ""),
+          { title: runLabel(l.at, h.period) },
+          el("span.badge-face", el("span.badge-n", String(l.at)))),
         el("span.case-name", l.span),
         l.times > 1 ? el("span.case-times", "×" + l.times) : null,
       ))),
