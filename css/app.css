@@ -822,21 +822,38 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   flex: none;
   display: inline-grid;
   place-items: center;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
+  /* Big enough to read at arm's length. These were 17px with 9.5px type, which is fine for a badge
+     you have WON and sitting beside a name — and too small for the same badge doing its other job,
+     which is being a target somebody is meant to want. */
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
   border-radius: 999px;
-  border: 1px solid currentColor;
+  border: 1.5px solid currentColor;
   /* A hint of its own colour under the ring, so it reads as belonging to the same set as the metals
      without ever being mistaken for one. */
   background:
     radial-gradient(120% 120% at 30% 20%, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 60%),
     rgba(255, 255, 255, 0.04);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+/* Won: the metal, and FILLED. An outline in bronze is about 5:1 on this ground while plain white
+   is 16:1, so making the locked ones legible had quietly made them louder than the earned ones —
+   a case where the badges you have not got shouted over the badges you have. The fill is what puts
+   the emphasis back where it belongs, and it is a difference in KIND rather than in brightness. */
+/* Filled per tier, with the colour written out.
+   `background: currentColor` alongside `color: var(--bg)` in one rule is a trap: currentColor
+   resolves to the element's OWN colour, which that same rule had just overridden — so the fill and
+   the text both became the page colour and the won badge painted itself invisible. Measured, not
+   noticed, because it looked like an empty slot rather than like a bug. */
+.case-slot:not(.is-locked) .pip { color: var(--bg); border-color: transparent; }
+.case-slot:not(.is-locked) .pip-bronze  { background: #C97B3C; }
+.case-slot:not(.is-locked) .pip-silver  { background: #B9C2D0; }
+.case-slot:not(.is-locked) .pip-gold    { background: var(--amber); }
+.case-slot:not(.is-locked) .pip-diamond { background: var(--teal); }
 .pip-bronze  { color: #C97B3C; }
 .pip-silver  { color: #B9C2D0; }
 .pip-gold    { color: var(--amber); }
@@ -906,28 +923,35 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
    the honest description and the more wanted one.
    It keeps its number — "60" under a dark disc is a target, where a padlock is a shrug. */
 .case-slot.is-locked .badge {
-  --rim: rgba(255, 255, 255, 0.13);
-  --lit: #10152C;
-  --mid: #141B3A;
-  --dark: #0D1226;
+  /* The rim was 13% white on a near-black ground, which is invisible on a phone in daylight — the
+     socket idea was right and the socket could not be seen. Reported as "I can't see them". */
+  --rim: rgba(255, 255, 255, 0.30);
+  --lit: #1B2342;
+  --mid: #161D38;
+  --dark: #10152C;
   filter: none;
 }
 .case-slot.is-locked .badge-face {
   background-image: linear-gradient(150deg, var(--lit) 0%, var(--mid) 46%, var(--dark) 100%);
   color: var(--dim);
   text-shadow: none;
-  opacity: 0.75;
+  /* No opacity multiplier. Dimming was being applied four times over — drained colour, faint rim,
+     near-transparent fill, and then this — and four subtractions from a dark theme is an erasure. */
 }
 /* Drained, not merely dimmed. Keeping the tier's colour at low opacity made earned and unearned
    differ only in brightness — a dim orange 14 beside a bright orange 14 — so telling them apart
    meant comparing two pips rather than reading one. The majors go properly dark; these follow. */
 .case-slot.is-locked .pip {
+  /* --dim at full opacity: about 8:1, which is comfortably readable and clearly quieter than a
+     filled medal. The old value was --dim multiplied by 0.6 opacity on a 14%-white ring, which is
+     where "I can't see them" came from. */
   color: var(--dim);
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.02);
-  opacity: 0.6;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.04);
 }
-.case-slot.is-locked .case-name { opacity: 0.45; }
+/* Readable, not shouting. The span under a locked badge says what the number MEANS — "two months"
+   — which is the half that makes it a target rather than a digit. */
+.case-slot.is-locked .case-name { opacity: 0.8; }
 
 .case-habit { display: flex; flex-direction: column; gap: 9px; }
 .case-habit-head { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-small); }
@@ -1319,11 +1343,14 @@ button.card-open:active { transform: scale(0.99); }
   flex: 1; min-width: 0; display: flex; flex-direction: column;
   align-items: center; gap: 5px; padding: 10px 4px;
   background: var(--surface); border-radius: var(--r-sm);
-  opacity: 0.45;
 }
-/* Won ones come forward. The rest stay visible rather than hidden — a ladder you cannot see the
-   top of is not a ladder. */
-.hd-rung.is-won { opacity: 1; }
+/* Won ones come forward — by GAINING something rather than by everything else losing it. The rungs
+   still to climb were at 0.45 opacity, which on this ground is most of the way to gone, and a
+   ladder you cannot see the top of is not a ladder. */
+.hd-rung.is-won {
+  background: var(--surface-hi);
+  box-shadow: inset 0 0 0 1px var(--teal-dim);
+}
 .hd-rung-span { font-size: 9px; color: var(--dim); text-align: center; }
 
 /* ---------- everybody, on one habit ---------- */
