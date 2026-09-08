@@ -21,7 +21,7 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { habitHistory, historySummary, runs } from "../history.js";
+import { habitHistory, historySummary, runs, trend } from "../history.js";
 import { sourceFor, HIT, MISS, NO_DATA, EXEMPT } from "../habits.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
 import * as fmt from "./format.js";
@@ -58,11 +58,14 @@ function periodLabel(entry) {
  * The window's biggest value, or the target if nothing reached it — so the target line always has
  * somewhere to sit and a fortnight of near-misses does not draw as a flat wall of nothing.
  */
-function scaleOf(entries, target) {
-  const top = entries.reduce(
-    (m, e) => (Number.isFinite(e.value) ? Math.max(m, e.value) : m), 0,
-  );
-  return Math.max(top, target || 0) || 1;
+function scaleOf(entries) {
+  const top = entries.reduce((m, e) => {
+    const v = Number.isFinite(e.value) ? e.value : 0;
+    // The TARGET counts towards the scale too, and per period rather than once — otherwise a
+    // fortnight spent well under a ceiling draws with the ceiling off the top of the chart.
+    return Math.max(m, v, e.target || 0);
+  }, 0);
+  return top || 1;
 }
 
 /**
@@ -83,6 +86,12 @@ function count(n, unit) {
   return n + " " + unit + (n === 1 ? "" : "s");
 }
 
+/** Has the target moved across this window? Only a taper does that, and it is worth saying. */
+function taperMoving(entries) {
+  const targets = entries.map((e) => e.target).filter(Number.isFinite);
+  return targets.length > 1 && targets[0] !== targets[targets.length - 1];
+}
+
 const TONE = {
   [HIT]: "is-hit",
   [MISS]: "is-miss",
@@ -97,6 +106,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   const entries = habitHistory(state, habit, me, today);
   const sum = historySummary(entries);
   const run = runs(state, habit, me, today);
+  const move = trend(state, habit, me, today);
   const src = sourceFor(state, habit, me);
   const srcLabel = fmt.source(src);
   const automatic = AUTOMATIC_SOURCES.has(src);
@@ -108,28 +118,39 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   const unit = (v) => (v == null ? "—" : fmt.value(habit.metric, v));
 
   function chart() {
-    const scale = scaleOf(entries, habit.target);
-    // Where the goal sits on that scale. Drawn once across the whole chart rather than per bar,
-    // because the question is "which of these cleared it" and a line answers that in one look.
-    const line = Math.max(0, Math.min(100, Math.round((habit.target / scale) * 100)));
+    const scale = scaleOf(entries);
+    const now = entries[entries.length - 1];
 
-    // The ticks are their own row rather than living inside each bar, so the chart box IS the
-    // track area and the goal line can be positioned against it exactly. With the labels inside,
-    // "bottom: 100%" put the line above the whole thing.
+    // The goal is drawn PER BAR, at that period's own target.
+    //
+    // Phase one drew one line across the chart at habit.target, which is wrong twice over. That
+    // field is the group's SEED — the number a new joiner inherits — so anybody who had set a goal
+    // of their own saw a line at somebody else's number, and every bar was judged against it by
+    // eye while the colours were judged against the real one. And a tapering ceiling MOVES: one
+    // flat line cannot show a ceiling coming down, which is the entire point of a taper.
     return el("div.hd-chart-wrap",
       el("div.hd-chart",
-        el("i.hd-goal" + (reduce ? ".is-ceiling" : ""), { style: "bottom:" + line + "%" }),
         entries.map((e, i) => el("button.hd-bar" + (i === picked ? ".is-picked" : ""), {
           onclick: () => { picked = i; paint(); },
           "aria-label": periodLabel(e),
         },
           el("i.hd-bar-fill." + (TONE[e.status] || "is-quiet"),
             { style: "height:" + height(e, scale) + "%" }),
+          e.target
+            ? el("i.hd-bar-goal" + (reduce ? ".is-ceiling" : ""), {
+                // Capped just below the top rather than at it. The bar clips its overflow so the
+                // fill keeps its rounded corners, and a marker sitting exactly ON the edge is
+                // clipped with it — which hid the ceiling on every period that set the scale.
+                style: "bottom:" + Math.min(98, Math.round((e.target / scale) * 100)) + "%",
+              })
+            : null,
         )),
       ),
       el("div.hd-ticks", entries.map((e) =>
         el("span.hd-tick" + (e.open ? ".is-now" : ""), tick(e)))),
-      el("p.hd-scale", (reduce ? "Ceiling " : "Goal ") + unit(habit.target)),
+      el("p.hd-scale",
+        (reduce ? "Ceiling " : "Goal ") + unit(now ? now.target : habit.target)
+        + (taperMoving(entries) ? " — coming down" : "")),
     );
   }
 
@@ -158,6 +179,9 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   function paint() {
     const label = habit.period === PERIOD.DAY ? "day"
       : habit.period === PERIOD.WEEK ? "week" : "month";
+    // The target in force right now, which is what a header should quote.
+    const latest = entries[entries.length - 1];
+    const mine = latest && Number.isFinite(latest.target) ? latest.target : habit.target;
 
     sheet.paint(
       el("div.form",
@@ -166,7 +190,10 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
           el("div.hd-title",
             el("h1", habit.name || "Habit"),
             el("span.hd-sub",
-              (reduce ? "Stay under " : "Reach ") + unit(habit.target)
+              // MY target, from the newest entry, rather than habit.target — that field is the
+              // group's seed, and a header quoting it tells somebody with a goal of their own that
+              // their goal is a number they never chose.
+              (reduce ? "Stay under " : "Reach ") + unit(mine)
               // fmt.source returns { icon, label } — it is drawn as two pieces everywhere else,
               // and interpolating it into a string gets you [object Object].
               + " a " + label + " · " + srcLabel.icon + " " + srcLabel.label),
@@ -203,6 +230,20 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
               + ". " + (sum.quiet && sum.resting ? "Neither counts" : "That does not count")
               + " against you.")
           : null,
+
+        // How this window compares with the one before it, in words rather than an arrow.
+        //
+        // "Up 22%" means opposite things for steps and for puffs, and an arrow makes the reader do
+        // that translation every time. The habit knows which direction is good; saying so is the
+        // whole value of the line.
+        move && !move.flat
+          ? el("p.hd-trend" + (move.better ? ".is-better" : ".is-worse"),
+              (move.better ? "Better" : "Worse") + " than the "
+              + count(move.periods, label) + " before — "
+              + unit(Math.round(move.before)) + " then, " + unit(Math.round(move.now)) + " now.")
+          : move
+            ? el("p.hd-trend", "About the same as the " + count(move.periods, label) + " before.")
+            : null,
 
         sum.average != null
           ? el("p.note-inline",

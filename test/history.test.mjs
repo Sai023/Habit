@@ -15,7 +15,7 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays, HIT, MISS, NO_DATA, EXEMPT } from "../js/habits.js";
-import { habitHistory, historySummary, runs, SPAN } from "../js/history.js";
+import { habitHistory, historySummary, runs, trend, SPAN } from "../js/history.js";
 import { ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
 let passed = 0;
@@ -225,6 +225,70 @@ test("an at-most habit carries the target that was in force for each period", ()
   const early = h[0];
   const late = h[h.length - 1];
   assert.ok(late.target <= early.target, "the ceiling came down: " + early.target + " -> " + late.target);
+});
+
+// ---------------------------------------------------------------------------
+// This window against the one before it
+// ---------------------------------------------------------------------------
+//
+// The easiest thing on a history screen to get backwards, because for a CEILING down is the good
+// direction. Reporting the change is arithmetic; deciding whether it is good is a fact about the
+// habit, and only the habit knows.
+
+const climbing = (dir) => {
+  const values = {};
+  // First fortnight around 200, second around 400.
+  for (let n = 0; n < 14; n += 1) values[n] = 200;
+  for (let n = 14; n < 28; n += 1) values[n] = 400;
+  return world({ direction: dir, target: 300, born: 0, values });
+};
+
+test("a habit going up is BETTER when the goal is a floor", () => {
+  const s = climbing(AT_LEAST);
+  const t = trend(s, s.habits.get("h"), "me", day(28));
+  assert.ok(t.change > 0, "the numbers went up");
+  assert.ok(t.better, "and for a floor, up is better");
+});
+
+test("the same movement is WORSE when the goal is a ceiling", () => {
+  // Identical numbers, opposite verdict. This is the whole reason `better` is separate from
+  // `change` — "up 100%" is a triumph for steps and a relapse for puffs.
+  const s = climbing(AT_MOST);
+  const t = trend(s, s.habits.get("h"), "me", day(28));
+  assert.ok(t.change > 0, "the same movement");
+  assert.ok(!t.better, "and for a ceiling it is not an improvement");
+});
+
+test("a window that barely moved is called flat", () => {
+  // Under five per cent is noise wearing a percentage, and a screen that announces it teaches
+  // people to ignore the screen.
+  const values = {};
+  for (let n = 0; n < 28; n += 1) values[n] = 300 + (n % 2);
+  const s = world({ born: 0, values });
+  const t = trend(s, s.habits.get("h"), "me", day(28));
+  assert.ok(t.flat);
+});
+
+test("too little history reports nothing rather than a number", () => {
+  // Two days against one produces a percentage that is arithmetically true and meaningless, and
+  // somebody will believe it.
+  const s = world({ born: 24, values: { 24: 100, 25: 200, 26: 300 } });
+  assert.equal(trend(s, s.habits.get("h"), "me", day(27)), null);
+});
+
+test("a habit with no numbers at all reports nothing", () => {
+  const s = world({ born: 0 });
+  assert.equal(trend(s, s.habits.get("h"), "me", day(28)), null);
+});
+
+test("the two windows are the same length", () => {
+  // Comparing nine days against five would produce a change that is mostly an artefact of the
+  // split, and the split is the one thing the reader cannot see.
+  const values = {};
+  for (let n = 0; n < 28; n += 1) values[n] = 300;
+  const s = world({ born: 0, values });
+  const t = trend(s, s.habits.get("h"), "me", day(28));
+  assert.equal(t.periods, SPAN[PERIOD.DAY], "half of a double window");
 });
 
 if (failures.length) {

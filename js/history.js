@@ -23,7 +23,7 @@ import {
   valueForPeriod, targetFor, rawPeriodStatus, walk, isTracking,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
-import { PERIOD } from "./schema.js";
+import { PERIOD, AT_MOST } from "./schema.js";
 
 /**
  * How many periods back is worth showing, per cadence.
@@ -135,6 +135,50 @@ export function runs(state, habit, memberId, today) {
     else if (status === HIT) { run += 1; best = Math.max(best, run); }
   }
   return { current: w.streak, best: Math.max(best, w.streak) };
+}
+
+/**
+ * This window against the one before it.
+ *
+ * The single most useful thing a history screen can say, and the easiest to get backwards: for a
+ * ceiling, DOWN is the good direction. So this reports the change and whether it is an improvement,
+ * and leaves the wording to the caller — "better" and "worse" are the honest words, not "up" and
+ * "down", which mean opposite things for steps and for puffs.
+ *
+ * Null rather than zero when either window has too little in it. Two days against one produces a
+ * percentage that is arithmetically true and completely meaningless, and somebody will believe it —
+ * the same reason MIN_COMPARE_DAYS exists next door.
+ */
+export const MIN_TREND_PERIODS = 3;
+
+export function trend(state, habit, memberId, today) {
+  const span = SPAN[habit.period || PERIOD.DAY] || SPAN[PERIOD.DAY];
+  // Two windows of the same length, asked for in one go so the split cannot drift.
+  const all = habitHistory(state, habit, memberId, today, span * 2);
+  const closed = all.filter((e) => !e.open && Number.isFinite(e.value));
+  if (closed.length < MIN_TREND_PERIODS * 2) return null;
+
+  const half = Math.floor(closed.length / 2);
+  const before = closed.slice(0, half);
+  const now = closed.slice(half);
+  const mean = (xs) => xs.reduce((t, e) => t + e.value, 0) / xs.length;
+
+  const a = mean(before);
+  const b = mean(now);
+  if (!a) return null;
+
+  const change = (b - a) / a;
+  const reduce = habit.direction === AT_MOST;
+  return {
+    before: a,
+    now: b,
+    change,
+    // Which way is up depends on the habit, and only the habit knows.
+    better: reduce ? change < 0 : change > 0,
+    // A window that moved less than this is noise wearing a percentage.
+    flat: Math.abs(change) < 0.05,
+    periods: now.length,
+  };
 }
 
 /** Is this member even doing this habit? A history screen for one they declined is a blank. */

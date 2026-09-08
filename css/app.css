@@ -1240,16 +1240,18 @@ button.card-open:active { transform: scale(0.99); }
   display: flex; align-items: flex-end; gap: 3px;
   height: 96px;
 }
-/* The goal, across the whole chart. Per-bar it would be fourteen answers to one question. The
-   chart box is exactly the track area — the tick labels are a sibling row — so this sits where
-   the arithmetic says it does. */
-.hd-goal {
+/* The goal, per bar, at that period's own target. One line across the chart could only ever show
+   one number, and the number moves: a taper brings the ceiling down, and each person's target is
+   their own rather than the group's seed. */
+.hd-bar-goal {
   position: absolute; left: 0; right: 0; height: 0;
-  border-top: 1px dashed var(--teal-dim); pointer-events: none; z-index: 1;
+  border-top: 1px dashed var(--teal-soft); opacity: 0.75;
+  pointer-events: none; z-index: 1;
 }
-.hd-goal.is-ceiling { border-top-color: var(--danger); opacity: 0.6; }
+.hd-bar-goal.is-ceiling { border-top-color: var(--danger); opacity: 0.65; }
 
 .hd-bar {
+  position: relative;
   flex: 1; min-width: 0; height: 100%;
   display: flex; align-items: flex-end;
   background: var(--bg); border: 0; border-radius: 4px; padding: 0;
@@ -1282,5 +1284,16 @@ button.card-open:active { transform: scale(0.99); }
 .hd-detail-verdict.is-quiet, .hd-detail-verdict.is-rest { color: var(--dim); }
 .hd-detail-num { margin-top: 4px; font-size: var(--fs-head); }
 .hd-detail-num span { color: var(--dim); font-size: var(--fs-small); }
+
+/* Better or worse, said rather than arrowed. An arrow makes the reader translate "up" into good or
+   bad every time, and it means the opposite for steps and for puffs. */
+.hd-trend {
+  margin: 0 0 8px; padding: 9px 12px;
+  font-size: var(--fs-small); color: var(--dim);
+  background: var(--surface); border-radius: var(--r-sm);
+  border-left: 2px solid var(--line);
+}
+.hd-trend.is-better { border-left-color: var(--teal); color: var(--text); }
+.hd-trend.is-worse { border-left-color: var(--danger); color: var(--text); }
 
 .hd-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
