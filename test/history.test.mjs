@@ -15,7 +15,9 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays, HIT, MISS, NO_DATA, EXEMPT } from "../js/habits.js";
-import { habitHistory, historySummary, runs, trend, SPAN } from "../js/history.js";
+import {
+  habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday, SPAN,
+} from "../js/history.js";
 import { ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
 let passed = 0;
@@ -289,6 +291,92 @@ test("the two windows are the same length", () => {
   const s = world({ born: 0, values });
   const t = trend(s, s.habits.get("h"), "me", day(28));
   assert.equal(t.periods, SPAN[PERIOD.DAY], "half of a double window");
+});
+
+// ---------------------------------------------------------------------------
+// The longer view
+// ---------------------------------------------------------------------------
+
+test("lifetime looks past the window on screen", () => {
+  // The chart is a fortnight because a fortnight is readable. It is a bad answer to "is this
+  // working" — two weeks is one bad flu.
+  const values = {};
+  for (let n = 0; n < 60; n += 1) values[n] = n < 30 ? 50 : 500;
+  const s = world({ born: 0, values });
+  const life = lifetime(s, s.habits.get("h"), "me", day(60));
+  assert.ok(life.judged > SPAN[PERIOD.DAY], "more than the chart shows: " + life.judged);
+  assert.equal(life.hits, 30, "the thirty good days");
+});
+
+test("the best day is the highest when the goal is a floor", () => {
+  const s = world({ born: 0, values: { 0: 200, 1: 900, 2: 300 } });
+  const life = lifetime(s, s.habits.get("h"), "me", day(3));
+  assert.equal(life.best.value, 900);
+});
+
+test("and the LOWEST when it is a ceiling", () => {
+  // Reporting the highest number as a personal best on a vape habit would be grim, and it is the
+  // version you get for free by not thinking about it.
+  const s = world({ direction: AT_MOST, target: 500, aggregate: AGGREGATE.SUM, born: 0,
+    values: { 0: 200, 1: 20, 2: 300 } });
+  const life = lifetime(s, s.habits.get("h"), "me", day(3));
+  assert.equal(life.best.value, 20);
+});
+
+test("a habit with nothing judged has no lifetime to report", () => {
+  const s = world({ born: 0 });
+  assert.equal(lifetime(s, s.habits.get("h"), "me", day(0)), null);
+});
+
+// ---------------------------------------------------------------------------
+// Which days go badly
+// ---------------------------------------------------------------------------
+
+test("weekdays are Monday first and count only judged days", () => {
+  const values = {};
+  for (let n = 0; n < 28; n += 1) values[n] = 500;
+  const s = world({ born: 0, values });
+  const days = byWeekday(s, s.habits.get("h"), "me", day(28));
+  assert.equal(days.length, 7);
+  // MON is a Monday, so day 0 lands in slot 0.
+  assert.ok(days[0].judged > 0);
+  assert.equal(days.reduce((t, d) => t + d.hits, 0), days.reduce((t, d) => t + d.judged, 0));
+});
+
+test("a weekly habit has no weekday pattern to report", () => {
+  // "Your worst Sunday" is meaningless for a target that is silent about which days it happens on.
+  const s = world({ period: PERIOD.WEEK, aggregate: AGGREGATE.SUM, target: 3, born: 0 });
+  assert.equal(byWeekday(s, s.habits.get("h"), "me", day(30)), null);
+});
+
+test("a genuinely bad day is named", () => {
+  // Sundays missed, everything else met.
+  const values = {};
+  for (let n = 0; n < 56; n += 1) {
+    const isSunday = (new Date(addDays(MON, n) + "T12:00:00Z").getUTCDay() + 6) % 7 === 6;
+    values[n] = isSunday ? 0 : 500;
+  }
+  const s = world({ born: 0, values });
+  const worst = worstWeekday(byWeekday(s, s.habits.get("h"), "me", day(56)));
+  assert.ok(worst, "there is a pattern");
+  assert.equal(worst.index, 6, "Sunday");
+});
+
+test("a week with no real pattern says nothing", () => {
+  // The normal case, and the one that has to stay silent — naming whichever day happened to be
+  // lowest is how a screen invents a problem somebody then organises their week around.
+  const values = {};
+  for (let n = 0; n < 56; n += 1) values[n] = n % 9 === 0 ? 0 : 500;
+  const s = world({ born: 0, values });
+  assert.equal(worstWeekday(byWeekday(s, s.habits.get("h"), "me", day(56))), null);
+});
+
+test("too few samples of a day says nothing about it", () => {
+  // "You always fail on Tuesdays" off two Tuesdays is a claim somebody changes their week for.
+  const values = {};
+  for (let n = 0; n < 8; n += 1) values[n] = n === 1 ? 0 : 500;
+  const s = world({ born: 0, values });
+  assert.equal(worstWeekday(byWeekday(s, s.habits.get("h"), "me", day(8))), null);
 });
 
 if (failures.length) {

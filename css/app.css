@@ -1297,3 +1297,31 @@ button.card-open:active { transform: scale(0.99); }
 .hd-trend.is-worse { border-left-color: var(--danger); color: var(--text); }
 
 .hd-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+
+/* ---------- a habit's longer view ---------- */
+
+.hd-long { margin-top: 6px; }
+.hd-long-line {
+  margin: 0 0 10px; font-size: var(--fs-small); color: var(--dim);
+  line-height: var(--lh-small, 1.5);
+}
+/* The one pattern worth naming. A left rule rather than a colour, because it is an observation
+   and not a verdict — nobody failed by having a bad Sunday. */
+.hd-long-line.is-flagged {
+  padding: 9px 12px; color: var(--text);
+  background: var(--surface); border-radius: var(--r-sm);
+  border-left: 2px solid var(--amber);
+}
+
+.hd-ladder { margin-top: 4px; }
+.hd-rungs { display: flex; gap: 6px; margin-bottom: 8px; }
+.hd-rung {
+  flex: 1; min-width: 0; display: flex; flex-direction: column;
+  align-items: center; gap: 5px; padding: 10px 4px;
+  background: var(--surface); border-radius: var(--r-sm);
+  opacity: 0.45;
+}
+/* Won ones come forward. The rest stay visible rather than hidden — a ladder you cannot see the
+   top of is not a ladder. */
+.hd-rung.is-won { opacity: 1; }
+.hd-rung-span { font-size: 9px; color: var(--dim); text-align: center; }

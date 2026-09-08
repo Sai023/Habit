@@ -21,13 +21,18 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { habitHistory, historySummary, runs, trend } from "../history.js";
+import {
+  habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday,
+} from "../history.js";
+import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { sourceFor, HIT, MISS, NO_DATA, EXEMPT } from "../habits.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
 import * as fmt from "./format.js";
 
 /** What one period is called, in the fewest characters that stay unambiguous. */
 const WEEKDAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEKDAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+  "Saturday", "Sunday"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -107,6 +112,8 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   const sum = historySummary(entries);
   const run = runs(state, habit, me, today);
   const move = trend(state, habit, me, today);
+  const life = lifetime(state, habit, me, today);
+  const worst = worstWeekday(byWeekday(state, habit, me, today));
   const src = sourceFor(state, habit, me);
   const srcLabel = fmt.source(src);
   const automatic = AUTOMATIC_SOURCES.has(src);
@@ -116,6 +123,10 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   let picked = entries.length - 1;
 
   const unit = (v) => (v == null ? "—" : fmt.value(habit.metric, v));
+  // What one period is called, in the sentences below. Derived from the habit and constant for the
+  // life of the sheet, so it lives out here rather than inside paint where only paint could see it.
+  const label = habit.period === PERIOD.DAY ? "day"
+    : habit.period === PERIOD.WEEK ? "week" : "month";
 
   function chart() {
     const scale = scaleOf(entries);
@@ -176,9 +187,36 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     );
   }
 
+  /**
+   * The four badges this habit can win, and how far the run has got.
+   *
+   * The same ladder the awards case draws, on the screen where the number it is counting actually
+   * lives — a streak of six means nothing until you can see that fourteen is the first rung.
+   */
+  function ladder() {
+    const tiers = HABIT_TIERS[habit.period] || HABIT_TIERS.day;
+    const level = habitLevel(run.best, habit.period);
+    const next = tiers.find((t) => run.current < t.at);
+
+    return el("div.hd-ladder",
+      el("h2.sec-title", "Badges for this habit"),
+      el("div.hd-rungs", tiers.map((t, i) => el(
+        "div.hd-rung" + (i < level ? ".is-won" : ""),
+        el("span.pip.pip-" + LEVEL_KEY[i + 1], String(t.at)),
+        el("span.hd-rung-span", t.span),
+      ))),
+      next
+        ? el("p.note-inline",
+            // "8 more days", not "8 days more" — count() puts the unit next to its number, which
+            // is right everywhere else on this screen and wrong in front of "more".
+            (next.at - run.current) + " more " + label
+            + (next.at - run.current === 1 ? "" : "s")
+            + " without a miss for " + next.span + ".")
+        : el("p.note-inline", "Every badge for this habit is won."),
+    );
+  }
+
   function paint() {
-    const label = habit.period === PERIOD.DAY ? "day"
-      : habit.period === PERIOD.WEEK ? "week" : "month";
     // The target in force right now, which is what a header should quote.
     const latest = entries[entries.length - 1];
     const mine = latest && Number.isFinite(latest.target) ? latest.target : habit.target;
@@ -251,6 +289,33 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
               + ", over the " + count(sum.judged, label)
               + (sum.judged === 1 ? " that was judged." : " that were judged."))
           : null,
+
+        // ---- The longer view ----
+        //
+        // Everything above is a fortnight, which is readable and a bad answer to "is this working".
+        life && life.judged > sum.judged
+          ? el("div.hd-long",
+              el("h2.sec-title", "Since you started"),
+              el("p.hd-long-line",
+                life.hits + " of " + count(life.judged, label) + " met"
+                + (life.since ? ", since " + fmt.dayLabel(life.since) : "") + "."
+                + (life.best
+                  ? " Best " + label + ": " + unit(life.best.value)
+                    + " on " + fmt.dayLabel(life.best.from) + "."
+                  : "")),
+            )
+          : null,
+
+        // The one pattern worth naming, and only when it is real. Every day being roughly equal is
+        // the normal case and deserves silence rather than a sentence about whichever was lowest.
+        worst
+          ? el("p.hd-long-line.is-flagged",
+              WEEKDAY_FULL[worst.index] + " is the hard one — met "
+              + Math.round(worst.rate * 100) + "% of them, against "
+              + Math.round(worst.restRate * 100) + "% on the rest.")
+          : null,
+
+        ladder(),
 
         el("div.hd-actions",
           onLog ? el("button.tap", { onclick: () => { sheet.close(); onLog(habit.habitId); } },

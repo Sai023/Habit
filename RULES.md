@@ -81,6 +81,8 @@ on the wrong one.
 | Four group tiers at 7 / 20 / 50 / 100 days | `js/milestones.js` — `TIERS` | `test/milestones.test.mjs` |
 | Per-habit levels are counted in the habit's own period | `js/milestones.js` — `HABIT_TIERS` | `test/milestones.test.mjs` |
 | A habit's history is its own periods, and the open one is never scored | `js/history.js` — `habitHistory` | `test/history.test.mjs` |
+| Which direction counts as better is the habit's, never the arrow's | `js/history.js` — `trend` | `test/history.test.mjs` |
+| A weekday pattern is named only when it is real | `js/history.js` — `worstWeekday` | `test/history.test.mjs` |
 
 ## The season
 

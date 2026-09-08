@@ -181,6 +181,101 @@ export function trend(state, habit, memberId, today) {
   };
 }
 
+/**
+ * Everything, not just the window on screen.
+ *
+ * The chart is a fortnight because a fortnight is what a person can read at a glance. It is a bad
+ * answer to "is this working" — two weeks is one bad flu — so this is the same questions asked of
+ * the whole life of the habit: how often it has been met, and the best it has ever been.
+ *
+ * Bounded by the walk's own limit rather than by a date, so it can never turn into a scan of five
+ * years of days on a phone.
+ */
+export function lifetime(state, habit, memberId, today) {
+  const period = habit.period || PERIOD.DAY;
+  const entries = habitHistory(state, habit, memberId, today, MAX_LOOKBACK[period]);
+  const closed = entries.filter((e) => !e.open);
+  const judged = closed.filter((e) => e.status === HIT || e.status === MISS);
+  const withValue = judged.filter((e) => Number.isFinite(e.value));
+  if (!judged.length) return null;
+
+  const reduce = habit.direction === AT_MOST;
+  // "Best" is the extreme in the direction the habit is trying to go, which is the low end for a
+  // ceiling. Reporting the highest number as a personal best on a vape habit would be grim.
+  const best = withValue.length
+    ? withValue.reduce((b, e) => {
+      if (!b) return e;
+      return (reduce ? e.value < b.value : e.value > b.value) ? e : b;
+    }, null)
+    : null;
+
+  return {
+    judged: judged.length,
+    hits: judged.filter((e) => e.status === HIT).length,
+    best,
+    since: closed.length ? closed[0].from : null,
+  };
+}
+
+/** How far back "everything" reaches, per cadence. Bounded so a long history stays cheap. */
+const MAX_LOOKBACK = {
+  [PERIOD.DAY]: 120,
+  [PERIOD.WEEK]: 52,
+  [PERIOD.MONTH]: 24,
+};
+
+/**
+ * Which days of the week actually go well, and which do not.
+ *
+ * Daily habits only — "your worst Sunday" is meaningless for a weekly target, which is silent
+ * about which days it happens on by design.
+ *
+ * Returns Monday-first, each with how many times that weekday has been judged and how many it was
+ * met. A weekday nobody has enough of is left with `judged` small and the caller decides whether
+ * that is enough to say anything, because "you always fail on Tuesdays" off two Tuesdays is the
+ * kind of claim somebody changes their week for.
+ */
+export const MIN_WEEKDAY_SAMPLES = 3;
+
+export function byWeekday(state, habit, memberId, today) {
+  if ((habit.period || PERIOD.DAY) !== PERIOD.DAY) return null;
+
+  const entries = habitHistory(state, habit, memberId, today, MAX_LOOKBACK[PERIOD.DAY]);
+  const days = Array.from({ length: 7 }, () => ({ judged: 0, hits: 0 }));
+
+  for (const e of entries) {
+    if (e.open || (e.status !== HIT && e.status !== MISS)) continue;
+    // ISO weekday, Monday first, from the day key rather than a local Date — the same convention
+    // the engine schedules on.
+    const idx = (new Date(e.from + "T12:00:00Z").getUTCDay() + 6) % 7;
+    days[idx].judged += 1;
+    if (e.status === HIT) days[idx].hits += 1;
+  }
+  return days;
+}
+
+/**
+ * The weekday that stands out, or null when nothing does.
+ *
+ * Only speaks when there is a real gap: a weekday with enough samples whose hit rate is well below
+ * the rest. Every day being roughly equal is the normal case and deserves silence rather than a
+ * sentence naming whichever one happened to be lowest.
+ */
+export function worstWeekday(days) {
+  if (!days) return null;
+  const enough = days
+    .map((d, i) => ({ ...d, index: i, rate: d.judged ? d.hits / d.judged : null }))
+    .filter((d) => d.judged >= MIN_WEEKDAY_SAMPLES);
+  if (enough.length < 4) return null;
+
+  const worst = enough.reduce((w, d) => (d.rate < w.rate ? d : w));
+  const rest = enough.filter((d) => d.index !== worst.index);
+  const restRate = rest.reduce((t, d) => t + d.rate, 0) / rest.length;
+
+  // A fifth of a day's worth of difference. Below that it is which day happened to be lowest.
+  return restRate - worst.rate >= 0.2 ? { ...worst, restRate } : null;
+}
+
 /** Is this member even doing this habit? A history screen for one they declined is a blank. */
 export function tracked(state, habit, memberId) {
   return isTracking(state, habit, memberId);
