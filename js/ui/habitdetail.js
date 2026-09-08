@@ -201,6 +201,9 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
 
     return el("div.hd-ladder",
       el("h2.sec-title", "Badges for this habit"),
+      // Every rung is drawn, won or not — the same rule the Awards tab follows. A ladder you
+      // cannot see the top of is not a ladder, and a badge nobody knows exists is not a target.
+
       el("div.hd-rungs", tiers.map((t, i) => el(
         "div.hd-rung" + (i < level ? ".is-won" : ""),
         el("span.pip.pip-" + LEVEL_KEY[i + 1], String(t.at)),
@@ -275,6 +278,13 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
               + " a " + label + " · " + srcLabel.icon + " " + srcLabel.label),
           ),
         ),
+
+        // Named, because the screen has two halves and only one of them is about you.
+        //
+        // Everything from here to "Everyone on this" is this member's own record — the chart, the
+        // runs, the trend, the lifetime line, the weekday pattern, the badges. It was all already
+        // personal and none of it said so, which is a question somebody should not have to ask.
+        el("h2.sec-title.hd-mine", "Your history"),
 
         // The two numbers a person actually wants from a history screen, before any chart.
         el("div.hd-runs",

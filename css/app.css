@@ -1349,3 +1349,7 @@ button.card-open:active { transform: scale(0.99); }
 }
 /* Whatever they chose to share, under the count everyone shares. */
 .hd-person-sub { display: block; font-size: 10px; font-weight: 600; color: var(--dim); }
+
+/* The first heading on the habit detail sheet, which needs a little air above it because the
+   header block sits directly on top. */
+.hd-mine { margin-top: 14px; }
