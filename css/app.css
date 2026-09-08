@@ -1204,3 +1204,83 @@ button.season-strip:active { transform: scale(0.995); }
 
 /* The table sits inside the row it belongs to, indented by the row's own padding. */
 .season-item .board { padding: 0 14px 12px; }
+
+/* ---------- a habit, one layer deeper ---------- */
+
+/* The card's reading half. It has to look like the card it came from rather than like a control,
+   so it inherits the card's own layout and gains only a press. */
+button.card-open {
+  display: block; width: 100%; text-align: left;
+  background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit;
+  cursor: pointer;
+}
+button.card-open:active { transform: scale(0.99); }
+
+.hd-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.hd-icon { font-size: var(--fs-display); line-height: 1; }
+.hd-title h1 { margin: 0; font-size: var(--fs-title); }
+.hd-sub { font-size: var(--fs-micro); color: var(--dim); }
+
+/* Three numbers, equal weight. The run, the record, and the hit rate — what somebody opens a
+   history screen to find, before any chart. */
+.hd-runs { display: flex; gap: 8px; margin: 14px 0; }
+.hd-run {
+  flex: 1; padding: 10px; text-align: center;
+  background: var(--surface); border-radius: var(--r-sm);
+}
+.hd-run b { display: block; font-size: var(--fs-title); font-variant-numeric: tabular-nums; }
+.hd-run span { font-size: var(--fs-micro); color: var(--dim); }
+
+/* A fortnight of bars. A shape read at a glance, and the only honest way to show four states at
+   once — "9 of 14" collapses them into two. */
+/* stretch, not flex-end. flex-end shrinks each column to its content, so the track never got the
+   height its bar was a percentage OF and the whole chart drew as a row of tick letters. */
+.hd-chart {
+  position: relative;
+  display: flex; align-items: flex-end; gap: 3px;
+  height: 96px;
+}
+/* The goal, across the whole chart. Per-bar it would be fourteen answers to one question. The
+   chart box is exactly the track area — the tick labels are a sibling row — so this sits where
+   the arithmetic says it does. */
+.hd-goal {
+  position: absolute; left: 0; right: 0; height: 0;
+  border-top: 1px dashed var(--teal-dim); pointer-events: none; z-index: 1;
+}
+.hd-goal.is-ceiling { border-top-color: var(--danger); opacity: 0.6; }
+
+.hd-bar {
+  flex: 1; min-width: 0; height: 100%;
+  display: flex; align-items: flex-end;
+  background: var(--bg); border: 0; border-radius: 4px; padding: 0;
+  cursor: pointer; overflow: hidden;
+}
+.hd-bar-fill { display: block; width: 100%; border-radius: 4px; }
+.hd-bar-fill.is-hit { background: var(--teal); }
+.hd-bar-fill.is-miss { background: var(--danger); }
+/* Silence and rest are drawn, not blank — a missing bar reads as a failure nobody had. */
+.hd-bar-fill.is-quiet { background: var(--line); height: 4px !important; }
+.hd-bar-fill.is-rest { background: var(--teal-dim); height: 4px !important; }
+.hd-bar.is-picked { outline: 1px solid var(--dim); outline-offset: 1px; }
+
+.hd-ticks { display: flex; gap: 3px; margin-top: 5px; }
+.hd-tick { flex: 1; min-width: 0; font-size: 9px; color: var(--dim); text-align: center; }
+.hd-tick.is-now { color: var(--teal); font-weight: 800; }
+
+.hd-chart-wrap { margin-bottom: 12px; }
+.hd-scale { margin: 3px 0 0; font-size: 10px; color: var(--dim); text-align: right; }
+
+.hd-detail {
+  padding: 12px 14px; margin-bottom: 12px;
+  background: var(--surface); border-radius: var(--r-sm);
+}
+.hd-detail-top { display: flex; align-items: baseline; gap: 8px; }
+.hd-detail-when { flex: 1; font-size: var(--fs-small); font-weight: 700; }
+.hd-detail-verdict { font-size: var(--fs-micro); font-weight: 700; }
+.hd-detail-verdict.is-hit { color: var(--teal); }
+.hd-detail-verdict.is-miss { color: var(--danger); }
+.hd-detail-verdict.is-quiet, .hd-detail-verdict.is-rest { color: var(--dim); }
+.hd-detail-num { margin-top: 4px; font-size: var(--fs-head); }
+.hd-detail-num span { color: var(--dim); font-size: var(--fs-small); }
+
+.hd-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }

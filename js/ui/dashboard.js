@@ -255,6 +255,14 @@ function habitCard(habit, ctx) {
   if (reduce && value != null && value > target) classes.push("is-over");
 
   return el("article." + classes.join("."),
+    // The card's reading half opens the habit's history; the log button below it stays its own
+    // control. A button rather than the whole article, because the article already contains one
+    // and nesting them is invalid — and because the half somebody taps to READ should not be the
+    // half they tap to WRITE.
+    el("button.card-open", {
+      onclick: () => ctx.onHabitDetail && ctx.onHabitDetail(habit.habitId),
+      "aria-label": (habit.name || "Habit") + " — history",
+    },
     el("div.card-top",
       el("span.card-icon", habit.icon || "◆"),
       el("span.card-name", habit.name || "Habit"),
@@ -296,6 +304,7 @@ function habitCard(habit, ctx) {
         : fmt.goal(habit, target) + (cadence ? " " + cadence : "")),
     ),
     reduce ? budgetDots(value, target) : progressBar(value, target),
+    ),
     el("div.card-foot",
       el("span.src", src.icon, " ", src.label),
       status === HIT ? el("span", "✓") : null,

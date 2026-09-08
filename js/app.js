@@ -67,7 +67,7 @@ function paint() {
     focusSettings: caps().focusSettings,
     manualSync: caps().manualSync,
     syncing: ui.syncing,
-    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason, onSeasons,
+    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason, onSeasons, onHabitDetail,
     onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
   });
 }
@@ -286,6 +286,18 @@ const onOpenHabits = guard("menu", async () => {
     onTravel,
     onRemoveMember,
     onClosed: () => refresh(),
+  });
+});
+
+/** One habit, a layer deeper: the run, the window, and what happened in each period of it. */
+const onHabitDetail = guard("habit detail", async (habitId) => {
+  const habit = ctx.state.habits.get(habitId);
+  if (!habit) return;
+  const { openHabitDetail } = await import("./ui/habitdetail.js");
+  openHabitDetail(document.body, {
+    state: ctx.state, habit, me: ctx.me, today: ctx.today,
+    onLog, onEdit: onEditHabit,
+    onDone: () => refresh(),
   });
 });
 

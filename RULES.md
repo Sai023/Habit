@@ -80,6 +80,7 @@ on the wrong one.
 | Badges count CROSSINGS, so one can be won twice | `js/awards.js` | `test/awards.test.mjs` |
 | Four group tiers at 7 / 20 / 50 / 100 days | `js/milestones.js` — `TIERS` | `test/milestones.test.mjs` |
 | Per-habit levels are counted in the habit's own period | `js/milestones.js` — `HABIT_TIERS` | `test/milestones.test.mjs` |
+| A habit's history is its own periods, and the open one is never scored | `js/history.js` — `habitHistory` | `test/history.test.mjs` |
 
 ## The season
 
