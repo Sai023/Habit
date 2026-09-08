@@ -21,9 +21,10 @@
 import {
   periodKey, periodStart, periodEnd, periodsBetween, addDays, daysBetween,
   valueForPeriod, targetFor, rawPeriodStatus, walk, isTracking,
+  visibilityFor, publicValue,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
-import { PERIOD, AT_MOST } from "./schema.js";
+import { PERIOD, AT_MOST, VISIBILITY } from "./schema.js";
 
 /**
  * How many periods back is worth showing, per cadence.
@@ -274,6 +275,63 @@ export function worstWeekday(days) {
 
   // A fifth of a day's worth of difference. Below that it is which day happened to be lowest.
   return restRate - worst.rate >= 0.2 ? { ...worst, restRate } : null;
+}
+
+/**
+ * How everybody doing this habit is getting on, with each person's own privacy applied.
+ *
+ * ---- Where this could leak ----
+ *
+ * A comparison is the one screen where somebody's hidden number can escape. The three settings
+ * mean exactly what they say and this is the place they have to hold:
+ *
+ *   FULL      the group sees the figure
+ *   PROGRESS  the group sees how close they got, not the number
+ *   PRIVATE   the group sees whether they hit it, and nothing else
+ *
+ * So the count of hits is shown for everybody — that is what PRIVATE permits, and it is the whole
+ * point of a shared board — while the VALUE goes through publicValue, which is the same function
+ * the activity feed uses. One rule, and a percentage computed against THEIR target rather than the
+ * group's seed, or somebody on an easier goal reads as though they were failing.
+ *
+ * Your own row is never filtered. Hiding your numbers from yourself is the one reading of "private"
+ * that nobody means.
+ */
+export function groupHistory(state, habit, me, today) {
+  const rows = [];
+
+  for (const member of state.members.values()) {
+    const id = member.memberId;
+    // Somebody who declined this habit is not competing on it, and a row of dashes for them is
+    // noise on a screen about one habit.
+    if (!isTracking(state, habit, id)) continue;
+
+    const entries = habitHistory(state, habit, id, today);
+    const sum = historySummary(entries);
+    if (!sum.judged) continue;
+
+    const mine = id === me;
+    const seen = mine ? VISIBILITY.FULL : visibilityFor(state, habit, id);
+    // Their own target, so a percentage means what it says.
+    const target = targetFor(state, habit, id, today);
+
+    rows.push({
+      memberId: id,
+      name: member.name || id,
+      isMe: mine,
+      judged: sum.judged,
+      hits: sum.hits,
+      rate: sum.judged ? sum.hits / sum.judged : 0,
+      run: runs(state, habit, id, today).current,
+      // null when they have chosen to show only ticks.
+      shown: sum.average == null ? null : publicValue(habit, sum.average, seen, target),
+    });
+  }
+
+  // Best hit rate first, then the longer run, then name — so the order cannot flicker between
+  // repaints for two people who are level.
+  return rows.sort((a, b) =>
+    b.rate - a.rate || b.run - a.run || a.name.localeCompare(b.name));
 }
 
 /** Is this member even doing this habit? A history screen for one they declined is a blank. */

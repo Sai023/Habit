@@ -16,9 +16,12 @@
 import assert from "node:assert/strict";
 import { replay, addDays, HIT, MISS, NO_DATA, EXEMPT } from "../js/habits.js";
 import {
-  habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday, SPAN,
+  habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday,
+  groupHistory, SPAN,
 } from "../js/history.js";
-import { ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
+import {
+  ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD, VISIBILITY,
+} from "../js/schema.js";
 
 let passed = 0;
 const failures = [];
@@ -377,6 +380,128 @@ test("too few samples of a day says nothing about it", () => {
   for (let n = 0; n < 8; n += 1) values[n] = n === 1 ? 0 : 500;
   const s = world({ born: 0, values });
   assert.equal(worstWeekday(byWeekday(s, s.habits.get("h"), "me", day(8))), null);
+});
+
+// ---------------------------------------------------------------------------
+// The group, on one habit — and where a hidden number could escape
+// ---------------------------------------------------------------------------
+//
+// A comparison is the one screen where somebody's privacy setting can be quietly undone. The three
+// settings mean exactly what they say, and this is the place they have to hold.
+
+/** Three people on one habit, each logging `values[id]` and choosing `vis[id]`. */
+function group({ values = {}, vis = {}, targets = {} } = {}) {
+  const events = [
+    E(ev.member("me", "Me"), at(0)),
+    E(ev.member("anj", "Anj"), at(0)),
+    E(ev.member("ivan", "Ivan"), at(0)),
+    E(ev.habit("h", {
+      name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 10000,
+      period: PERIOD.DAY, aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL,
+      tz: TZ, dayStartHour: 0, grace: { earnEvery: 0, cap: 0 },
+    }), at(0)),
+  ];
+  for (const [id, v] of Object.entries(vis)) {
+    events.push(E(ev.goal(id, "h", { visibility: v }), at(0)));
+  }
+  for (const [id, t] of Object.entries(targets)) {
+    events.push(E(ev.goal(id, "h", { target: t }), at(0)));
+  }
+  for (const [id, list] of Object.entries(values)) {
+    list.forEach((v, n) => events.push(E(ev.log("h", id, day(n + 1), v, SOURCE.MANUAL), at(n + 1))));
+  }
+  return replay(events);
+}
+
+const row = (rows, id) => rows.find((r) => r.memberId === id);
+
+test("somebody on FULL shows their number", () => {
+  const s = group({
+    values: { me: [9000, 9000], anj: [12000, 12000] },
+    vis: { anj: VISIBILITY.FULL },
+  });
+  const rows = groupHistory(s, s.habits.get("h"), "me", day(4));
+  assert.ok("value" in row(rows, "anj").shown, "the figure itself");
+});
+
+test("somebody on PROGRESS shows a percentage and never the number", () => {
+  const s = group({
+    values: { me: [9000, 9000], anj: [12000, 12000] },
+    vis: { anj: VISIBILITY.PROGRESS },
+  });
+  const anj = row(groupHistory(s, s.habits.get("h"), "me", day(4)), "anj");
+  assert.ok("pct" in anj.shown, "how close, not what");
+  assert.ok(!("value" in anj.shown), "the number must not be here");
+});
+
+test("somebody on PRIVATE shows nothing but their ticks", () => {
+  const s = group({
+    values: { me: [9000, 9000], anj: [12000, 12000] },
+    vis: { anj: VISIBILITY.PRIVATE },
+  });
+  const anj = row(groupHistory(s, s.habits.get("h"), "me", day(4)), "anj");
+  assert.equal(anj.shown, null, "no number and no percentage");
+  assert.ok(anj.judged > 0, "but whether they hit it is still shown — that is what private means");
+});
+
+test("a private number cannot be reconstructed from anything else on the row", () => {
+  // The leak worth naming: a row that hides the value and reports everything else can hand it
+  // back. Hits, days and the run are all counts of VERDICTS, which is exactly what PRIVATE
+  // permits; nothing on the row is derived from the figure itself.
+  const s = group({
+    values: { me: [9000], anj: [12345] },
+    vis: { anj: VISIBILITY.PRIVATE },
+  });
+  const anj = row(groupHistory(s, s.habits.get("h"), "me", day(3)), "anj");
+  const leaked = JSON.stringify(anj).includes("12345");
+  assert.ok(!leaked, "the figure appears nowhere on the row: " + JSON.stringify(anj));
+});
+
+test("my own row is never filtered, whatever I chose", () => {
+  // Hiding your numbers from yourself is the one reading of "private" nobody means.
+  const s = group({
+    values: { me: [9000, 9000] },
+    vis: { me: VISIBILITY.PRIVATE },
+  });
+  const mine = row(groupHistory(s, s.habits.get("h"), "me", day(4)), "me");
+  assert.ok(mine.shown && "value" in mine.shown, "I still see my own figure");
+});
+
+test("progress is measured against THEIR target, not the group's seed", () => {
+  // habit.target is 10 000 — the seed. Anj is on 6 000 and clearing it every day, which is 100%
+  // of what she was asked for and 60% of somebody else's number.
+  const s = group({
+    values: { me: [9000], anj: [6000, 6000] },
+    vis: { anj: VISIBILITY.PROGRESS },
+    targets: { anj: 6000 },
+  });
+  const anj = row(groupHistory(s, s.habits.get("h"), "me", day(4)), "anj");
+  assert.equal(anj.shown.pct, 100, "she cleared her goal");
+});
+
+test("somebody who declined the habit is not on the list", () => {
+  const s = replay([
+    E(ev.member("me", "Me"), at(0)),
+    E(ev.member("anj", "Anj"), at(0)),
+    E(ev.habit("h", {
+      name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 10000,
+      period: PERIOD.DAY, aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL,
+      tz: TZ, dayStartHour: 0,
+    }), at(0)),
+    E(ev.goal("anj", "h", { active: false }), at(0)),
+    E(ev.log("h", "me", day(1), 12000, SOURCE.MANUAL), at(1)),
+  ]);
+  const rows = groupHistory(s, s.habits.get("h"), "me", day(3));
+  assert.equal(row(rows, "anj"), undefined, "not competing on it");
+  assert.ok(row(rows, "me"), "and I still am");
+});
+
+test("the order is stable for two people who are level", () => {
+  // Otherwise the list reshuffles between repaints, which reads as the numbers changing.
+  const s = group({ values: { me: [12000, 12000], anj: [12000, 12000] } });
+  const a = groupHistory(s, s.habits.get("h"), "me", day(4)).map((r) => r.memberId);
+  const b = groupHistory(s, s.habits.get("h"), "me", day(4)).map((r) => r.memberId);
+  assert.deepEqual(a, b);
 });
 
 if (failures.length) {

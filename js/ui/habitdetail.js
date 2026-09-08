@@ -22,7 +22,7 @@
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import {
-  habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday,
+  habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday, groupHistory,
 } from "../history.js";
 import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { sourceFor, HIT, MISS, NO_DATA, EXEMPT } from "../habits.js";
@@ -114,6 +114,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   const move = trend(state, habit, me, today);
   const life = lifetime(state, habit, me, today);
   const worst = worstWeekday(byWeekday(state, habit, me, today));
+  const others = groupHistory(state, habit, me, today);
   const src = sourceFor(state, habit, me);
   const srcLabel = fmt.source(src);
   const automatic = AUTOMATIC_SOURCES.has(src);
@@ -213,6 +214,43 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
             + (next.at - run.current === 1 ? "" : "s")
             + " without a miss for " + next.span + ".")
         : el("p.note-inline", "Every badge for this habit is won."),
+    );
+  }
+
+  /**
+   * Everybody doing this habit, over the same window.
+   *
+   * What each row may say is each person's own choice — see groupHistory, which puts every value
+   * through the same publicValue the activity feed uses. The COUNT of days met is shown for
+   * everybody, because that is exactly what "Just ✓ / ✗" permits and it is the whole point of a
+   * shared board; only the figure is gated.
+   *
+   * Not drawn for one person. A comparison of you against nobody is a heading and a row.
+   */
+  function group() {
+    if (others.length < 2) return null;
+
+    return el("div.hd-group",
+      el("h2.sec-title", "Everyone on this"),
+      el("div.hd-people", others.map((r) => el("div.hd-person" + (r.isMe ? ".is-me" : ""),
+        el("span.hd-person-name", r.isMe ? "You" : r.name),
+        el("span.hd-person-bar",
+          el("i", { style: "width:" + Math.round(r.rate * 100) + "%" })),
+        el("span.hd-person-num",
+          r.hits + "/" + r.judged,
+          // Their number, their percentage, or nothing — whichever they chose to share.
+          r.shown && "value" in r.shown
+            ? el("span.hd-person-sub", unit(Math.round(r.shown.value)))
+            : r.shown && "pct" in r.shown
+              ? el("span.hd-person-sub", r.shown.pct + "% of goal")
+              : null,
+        ),
+      ))),
+      // Said once, so a row with no number reads as a choice rather than as missing data.
+      others.some((r) => !r.shown)
+        ? el("p.note-inline",
+            "Some of these show ticks only — everyone picks what the group sees of their numbers.")
+        : null,
     );
   }
 
@@ -316,6 +354,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
           : null,
 
         ladder(),
+        group(),
 
         el("div.hd-actions",
           onLog ? el("button.tap", { onclick: () => { sheet.close(); onLog(habit.habitId); } },

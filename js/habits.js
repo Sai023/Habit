@@ -1206,11 +1206,15 @@ export function visibilityFor(state, habit, memberId) {
  * [visibility] overrides the habit's own, and is how a caller passes the answer visibilityFor gave
  * it. Defaulted rather than required so the pure shape stays testable on a habit alone.
  */
-export function publicValue(habit, value, visibility = habit.visibility) {
+export function publicValue(habit, value, visibility = habit.visibility, target = null) {
   if (visibility === VISIBILITY.PRIVATE) return null;
   if (visibility === VISIBILITY.PROGRESS) {
     if (value === null) return null;
-    const t = habit.target || 1;
+    // THEIR target, when the caller knows it. habit.target is the group's seed — the number a new
+    // joiner inherits — so measuring somebody's progress against it reports a person on a 6 000
+    // step goal as 60% for a day they cleared. "How close you got" has to mean close to the thing
+    // they were actually asked for.
+    const t = target || habit.target || 1;
     const pct = habit.direction === AT_MOST
       ? Math.max(0, Math.min(100, Math.round((1 - value / t) * 100)))
       : Math.max(0, Math.min(100, Math.round((value / t) * 100)));

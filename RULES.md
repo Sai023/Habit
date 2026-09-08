@@ -83,6 +83,8 @@ on the wrong one.
 | A habit's history is its own periods, and the open one is never scored | `js/history.js` — `habitHistory` | `test/history.test.mjs` |
 | Which direction counts as better is the habit's, never the arrow's | `js/history.js` — `trend` | `test/history.test.mjs` |
 | A weekday pattern is named only when it is real | `js/history.js` — `worstWeekday` | `test/history.test.mjs` |
+| A comparison shows only what each person chose to share | `js/history.js` — `groupHistory` | `test/history.test.mjs` |
+| Progress is measured against THEIR target, not the seed | `js/habits.js` — `publicValue` | `test/history.test.mjs` |
 
 ## The season
 
