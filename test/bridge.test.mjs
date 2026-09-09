@@ -34,9 +34,27 @@ function test(name, fn) {
  * separate repositories that cannot import from each other — which is the whole reason the drift
  * this file catches is possible in the first place.
  */
-const ANNOUNCED = [
-  "version", "healthConnect", "alarms", "tile", "embedded", "focusSettings", "manualSync",
-];
+const FLAGS = ["healthConnect", "alarms", "tile", "embedded", "focusSettings", "manualSync"];
+
+/**
+ * Announced, but not a flag — it carries a NAME.
+ *
+ * `healthApp` is the app that fills Health Connect on that phone, and it is a string because the
+ * control it draws has to say which app it is about to open. Its version of "no" is "", which is
+ * why it cannot ride along in the boolean checks below.
+ *
+ * Kept as a list rather than special-cased inline so the next one costs one line instead of a
+ * rewrite — the payload has been all-booleans for four capabilities and stopped being so at the
+ * fifth, and it will happen again.
+ */
+const NAMES = ["healthApp"];
+
+const ANNOUNCED = ["version", ...FLAGS, ...NAMES];
+
+/** What each capability reads as when nobody has said otherwise. */
+function absent(key) {
+  return NAMES.includes(key) ? "" : false;
+}
 
 function fakeShell() {
   const calls = [];
@@ -65,7 +83,10 @@ test("before the shell says anything, every capability is false", () => {
   assert.equal(caps().native, false, "native");
   for (const k of ANNOUNCED) {
     if (k === "version") continue;
-    assert.equal(caps()[k], false, k + " must start false, so a control is never drawn on a guess");
+    assert.equal(
+      caps()[k], absent(k),
+      k + " must start empty, so a control is never drawn on a guess",
+    );
   }
   assert.equal(caps().version, 0);
 });
@@ -73,7 +94,9 @@ test("before the shell says anything, every capability is false", () => {
 test("every capability the shell announces is readable", () => {
   // All true, so a field that is simply not read shows up as false and names itself.
   const payload = { version: 1, setup: null };
-  for (const k of ANNOUNCED) payload[k] = k === "version" ? 1 : true;
+  for (const k of ANNOUNCED) {
+    payload[k] = k === "version" ? 1 : NAMES.includes(k) ? "Samsung Health" : true;
+  }
 
   announce(payload);
   const got = caps();
@@ -94,7 +117,7 @@ test("a capability the shell omits is false, not undefined", () => {
   const got = caps();
   for (const k of ANNOUNCED) {
     if (k === "version") continue;
-    assert.equal(got[k], false, k + " should be false when the shell does not announce it");
+    assert.equal(got[k], absent(k), k + " should be empty when the shell does not announce it");
   }
 });
 
@@ -105,6 +128,16 @@ test("an announcement from an older shell does not throw", () => {
   assert.equal(caps().embedded, true);
   assert.equal(caps().focusSettings, false);
   assert.equal(caps().native, true);
+  // A shell too old to name the provider must not have the page offering to open "Open undefined".
+  assert.equal(caps().healthApp, "");
+});
+
+test("a provider name that is not a string is treated as no name at all", () => {
+  // The shell sends "" when it has never seen a write. An older one sends nothing. Both have to
+  // land on the same falsy string, because the button is drawn on truthiness and "Open true" is
+  // the kind of thing that ships.
+  announce({ version: 1, healthApp: true });
+  assert.equal(caps().healthApp, "");
 });
 
 if (failures.length) {

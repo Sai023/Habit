@@ -302,6 +302,34 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .card-month { color: var(--dim); font-variant-numeric: tabular-nums; }
 .src { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
+/* The source badge, when it is a button.
+   
+   Deliberately still a badge and not a button: it sits in the quiet foot of a card, beside a tick
+   and a streak pip, and giving it a fill or a border would make the least important line on the
+   card the loudest thing on it. What marks it as pressable is the arrow, which the plain badge
+   does not have — and the fact that it lights up under a finger. */
+.src-btn {
+  background: none;
+  border: 0;
+  padding: 2px 6px 2px 0;
+  margin: -2px 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+.src-go { opacity: 0.75; margin-left: 2px; }
+.src-btn:active:not(:disabled) { color: var(--teal); }
+.src-btn:active:not(:disabled) .src-go { opacity: 1; }
+.src-btn:disabled { cursor: default; }
+/* Not decoration: while a sync is running this is the only thing on the card that has changed, and
+   the whole complaint the button answers is that pressing something produced no visible reaction. */
+.src-btn:disabled .src-go { animation: src-spin 900ms linear infinite; display: inline-block; }
+@keyframes src-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .src-btn:disabled .src-go { animation: none; opacity: 1; }
+}
+
 .tap {
   background: var(--teal);
   color: #00201B;
@@ -978,6 +1006,20 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   color: var(--text);
   border: 1px solid var(--line);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* The one thing a sync note sometimes has to offer.
+   
+   Reading like a link rather than a button because it sits inside a sentence that has just
+   explained why you would want it — "Samsung Health last wrote 2h ago" followed by a filled teal
+   slab would be shouting the answer over the top of the reason. */
+.note-act {
+  color: var(--teal) !important;
+  font-size: var(--fs-small) !important;
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Who's in. A board row shape, so the list of people reads the same as the list of habits. */

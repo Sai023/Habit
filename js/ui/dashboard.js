@@ -306,7 +306,28 @@ function habitCard(habit, ctx) {
     reduce ? budgetDots(value, target) : progressBar(value, target),
     ),
     el("div.card-foot",
-      el("span.src", src.icon, " ", src.label),
+      // The source badge IS the sync control, on a card something else fills in.
+      //
+      // There has been a manual sync in this app the whole time: the status pill in the header is
+      // a button. Nobody ever found it, and the reason is that it is shaped like a status — a
+      // green dot and the word "Synced" is a thing you read, not a thing you press. It arrived as
+      // a request for the button that already existed, which is the same report the badges got.
+      //
+      // Here as well, because this is where the doubt is. Somebody who thinks their steps are
+      // wrong is looking at the step count, and the badge under it is already the app's claim that
+      // this number arrives on its own — which is exactly the claim they have stopped believing.
+      // Making that claim tappable puts the answer where the question is.
+      //
+      // Only on automatic cards, and only where there is a shell to ask. A "✋ manual" badge has
+      // no sensor behind it to re-read, and in a browser there is nobody to ask at all.
+      auto && ctx.manualSync
+        ? el("button.src.src-btn", {
+            disabled: !!ctx.syncing,
+            onclick: () => ctx.onSyncNow(),
+            "aria-label": "Check " + (habit.name || "this habit") + " again",
+            title: "Read the sensor again",
+          }, src.icon, " ", src.label, el("span.src-go", "↻"))
+        : el("span.src", src.icon, " ", src.label),
       status === HIT ? el("span", "✓") : null,
       // Pushed to the right of the row, so a card with one and a card without still line up.
       habitPip(habitStreak(ctx.state, habit.habitId, ctx.me, ctx.today), habit),

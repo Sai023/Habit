@@ -194,15 +194,22 @@ const onSyncNow = guard("sync", async () => {
   ui.syncing = true;
   paint();
   try {
-    const { requestSync } = await import("./bridge.js");
+    const { requestSync, openHealthApp } = await import("./bridge.js");
     const message = await requestSync();
     const sync = await import("./sync.js");
     await sync.flush();
     await refresh();
     // The shell's own words, including the figure it just read off the sensor — which is the only
     // thing that can settle whether a stale number is this app's fault or the watch's.
-    if (message) showNote(message);
-    else showProblem("Couldn't reach the app's sync from here.");
+    // Offered beside the reading rather than instead of it, and offered whether or not the data
+    // looks stale, because there is no threshold worth inventing here: the note says how old the
+    // provider's last write is, and how long is too long is the reader's call on the day. What the
+    // app must not do is imply that syncing again would help — this button is the only thing that
+    // makes Samsung Health hand over anything new, and the sync we just ran cannot.
+    const provider = caps().healthApp;
+    if (message) {
+      showNote(message, provider ? { label: "Open " + provider, onClick: openHealthApp } : null);
+    } else showProblem("Couldn't reach the app's sync from here.");
   } finally {
     ui.syncing = false;
     paint();

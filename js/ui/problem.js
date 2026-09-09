@@ -17,9 +17,21 @@ export function showProblem(message) {
  * this is what I read" in red teaches somebody that a successful action looks like a failure.
  * Dismisses itself, because unlike a fault there is nothing here to act on.
  */
-export function showNote(message) {
+export function showNote(message, action = null) {
   const bar = banner(message, "problem is-note", "status");
-  if (bar) setTimeout(() => bar.remove(), 7000);
+  if (!bar) return bar;
+  if (action && action.label) {
+    const act = document.createElement("button");
+    act.className = "note-act";
+    act.textContent = action.label;
+    act.onclick = () => { bar.remove(); action.onClick(); };
+    // Before the ✕, which banner() has already appended and which stays last.
+    bar.insertBefore(act, bar.lastChild);
+    // No timer. Seven seconds is right for something to read and wrong for something to press —
+    // a control that disappears while you reach for it is worse than one that was never offered.
+    return bar;
+  }
+  setTimeout(() => bar.remove(), 7000);
   return bar;
 }
 

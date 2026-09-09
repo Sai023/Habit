@@ -26,6 +26,13 @@ let capabilities = {
   focusSettings: false,
   // Whether syncNow() goes anywhere. False on a shell that has no such method.
   manualSync: false,
+  // The name of the app that fills Health Connect on this phone — "Samsung Health", "Fitbit" —
+  // or "" where the shell has not seen one write yet, or there is no shell at all.
+  //
+  // A name rather than a flag because it is what a button has to say. It is also the honest shape
+  // of the thing: this app reads a STORE that some other app fills, and the store falling behind is
+  // the commonest reason a number looks wrong. Naming the filler is how that stops being a mystery.
+  healthApp: "",
   // Hosted as a native tab rather than opened in a browser. Drives one thing only: the app stops
   // drawing its own bottom bar, because the shell is already drawing one.
   embedded: false,
@@ -112,6 +119,7 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
         // from a shell too old to have the feature, and therefore invisible.
         focusSettings: !!info.focusSettings,
         manualSync: !!info.manualSync,
+        healthApp: typeof info.healthApp === "string" ? info.healthApp : "",
         native: true,
       };
       onReady(info.setup || null);
@@ -339,6 +347,19 @@ export function requestSync() {
     // A shell that takes the call and never answers must not leave a spinner running for ever.
     setTimeout(() => { if (onSyncResult === resolve) { onSyncResult = null; resolve(null); } }, 20000);
   });
+}
+
+/**
+ * Open the app that writes into Health Connect — Samsung Health on a Galaxy.
+ *
+ * The thing worth being clear about: this is not a nicety beside requestSync(), it is the half of
+ * the job requestSync() cannot do. A sync re-reads Health Connect, which is a store somebody else
+ * fills on their own schedule; no API on either side of this bridge can make them fill it. Bringing
+ * that app to the foreground is what makes it reconcile — and is the real reason first connecting
+ * it appears to pull everything instantly, because granting the permission opens it.
+ */
+export function openHealthApp() {
+  return call("openHealthApp", {});
 }
 
 /** Show a notification now, with optional action buttons ("+1", "Resisted"). */
