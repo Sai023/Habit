@@ -710,6 +710,17 @@ html, body { overscroll-behavior-y: contain; }
 .sheet-actions .tap { flex: 1; }
 .sheet-actions .ghost { flex: none; }
 
+/* A full-width action that is not the sheet's main one.
+   
+   "None today" is the answer most people want to give on a ceiling, so it gets a target the size
+   of the primary button — but it must not look like the button that saves what is in the field
+   above it, or the two compete for the same tap. Outlined in the accent rather than filled with it. */
+.tap-quiet {
+  background: none;
+  border: 1px solid var(--teal-dim);
+  color: var(--teal);
+}
+
 /* Big targets either side of the field: this gets used one-handed, often at the exact moment
    somebody would rather not be fiddling with a phone at all. */
 .stepper { display: flex; align-items: stretch; gap: 8px; }

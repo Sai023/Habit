@@ -12,6 +12,21 @@
 //         the total instead would quietly overwrite the first two.
 //   last  "what is it NOW" — a savings balance is already a running total, and adding to it every
 //         time you check would have you saving four times what you did.
+//
+// ---- The answer it could not give ----
+//
+// Zero. "Adding nothing is just cancelling" is right when there is already a number to add to, and
+// it was applied to the case where there is not — so a day with no puffs at all could be typed
+// into the field and then silently discarded on save.
+//
+// That is a scoring bug wearing a UI bug's clothes. A manual habit with no entry is a MISS, on
+// purpose: the vape keeps the count, so silence is an unreported day rather than an unknowable one.
+// Which means the person who actually managed zero got the same verdict as the person who could
+// not face admitting to eighty — a broken streak, Discipline down, and no way at all to say what
+// had really happened.
+//
+// So zero is now sayable, and on a ceiling with nothing logged yet it is a button, because it is
+// the answer people most want to give and typing it was never going to occur to anybody.
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
@@ -44,6 +59,13 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   let amount = isSum ? 1 : (current == null ? "" : (scale ? scale.to(current) : current));
   let busy = false;
   let error = "";
+
+  // A ceiling with nothing against it yet. "None" is the whole of what most people want to say
+  // here, and it is the one thing the sheet used to throw away.
+  //
+  // Only while nothing is logged: once there is a number, "none" would mean UNDOING it, which is a
+  // different action with different consequences and no home in this sheet yet.
+  const canDeclareNone = habit.direction === AT_MOST && current == null;
 
   const sheet = openSheet(host);
   paint();
@@ -86,21 +108,34 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
       ),
       unit ? el("p.note-inline", unit) : null,
 
+      canDeclareNone
+        ? el("button.tap.tap-quiet", { onclick: () => save(0), disabled: busy },
+            "None " + (CADENCE[habit.period] || "today"))
+        : null,
+
       error ? el("p.err", error) : null,
 
       el("div.sheet-actions",
         el("button.ghost", { onclick: () => sheet.close() }, "Cancel"),
-        el("button.tap", { onclick: save, disabled: busy },
+        el("button.tap", { onclick: () => save(), disabled: busy },
           busy ? "Saving…" : isSum ? "Add it" : "Save"),
       ),
     );
   }
 
-  async function save() {
+  /**
+   * @param exact a value chosen by a button rather than typed, so the field is bypassed entirely.
+   *              Passed positionally by "None today"; everything else calls save() with nothing.
+   *              The wrapping arrow matters — handing `save` straight to onclick would make the
+   *              click event the value.
+   */
+  async function save(exact) {
     if (busy) return;
-    const n = Number(amount);
+    const n = exact != null ? exact : Number(amount);
     if (!Number.isFinite(n) || n < 0) { error = "Give it a number."; return paint(); }
-    if (isSum && n === 0) { sheet.close(); return; } // adding nothing is just cancelling
+    // Adding nothing to SOMETHING is just cancelling. Adding nothing to nothing is the day's
+    // answer, and it has to be written down or the day reads as never reported.
+    if (isSum && n === 0 && current != null) { sheet.close(); return; }
 
     busy = true; error = ""; paint();
     try {

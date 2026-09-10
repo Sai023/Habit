@@ -42,8 +42,6 @@ const TYPES = [
     toInput: (v) => Math.round((v / 60) * 100) / 100, fromInput: (v) => Math.round(v * 60),
   },
   {
-    // The number the vape itself keeps, read off and entered once a day. LAST, not SUM: it is a
-    // running total like steps are, and adding today's reading to yesterday's would double it.
     // SUM, not LAST, because puffs are counted AS THEY HAPPEN — a tap at a time through the day,
     // which is how the card is actually used. Taking the last reading would keep only the final
     // tap and report a day of eighty as one.
