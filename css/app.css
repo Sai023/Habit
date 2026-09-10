@@ -203,9 +203,62 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   padding-top: calc(14px + env(safe-area-inset-top));
 }
 
+/* Takes the slack, and gives it back. `min-width: 0` is the whole fix: a flex item defaults to
+   min-width:auto, which refuses to shrink below its longest unbreakable run — and this banner
+   reports Android package names, which have no break opportunities at all. Without both lines the
+   buttons beside it get pushed off the edge of the phone. */
+.problem-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* ---- Pull down on Today to sync ----
+
+   The page must not rubber-band, or the browser takes the drag as its own overscroll and cancels
+   our touch stream a few pixels in — the same fault the sheets hit, written up beside .sheet. */
+html, body { overscroll-behavior-y: contain; }
+
+.ptr {
+  position: fixed;
+  top: calc(6px + env(safe-area-inset-top));
+  left: 50%;
+  z-index: 55;
+  transform: translate(-50%, 0);
+  opacity: 0;
+  pointer-events: none;
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: var(--surface-hi);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+/* Only while springing back. During the drag the transform has to track the finger exactly, and a
+   transition on it would put the indicator permanently a beat behind the thumb. */
+.ptr.is-settling { transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1), opacity 220ms ease; }
+
+.ptr-ring {
+  width: 15px; height: 15px;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  /* One quadrant in the accent, so a static ring still reads as something that is going to spin. */
+  border-top-color: var(--teal-dim);
+}
+/* Far enough: let go and it fires. The only feedback available — there is nothing to press
+   against and no click, so the colour change IS the detent. */
+.ptr.is-armed .ptr-ring { border-color: var(--teal-dim); border-top-color: var(--teal); }
+.ptr.is-busy .ptr-ring {
+  border-color: var(--teal-dim);
+  border-top-color: var(--teal);
+  animation: ptr-spin 700ms linear infinite;
+}
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ptr.is-busy .ptr-ring { animation: none; }
+  .ptr.is-settling { transition: opacity 220ms ease; }
+}
+
 .problem button {
-  margin-left: auto; background: none; border: 0; color: inherit;
+  background: none; border: 0; color: inherit;
   font-size: var(--fs-body); font-weight: 700; cursor: pointer; padding: 0 2px;
+  /* Never the thing that gives way. The ✕ is the only guaranteed way out of this banner. */
+  flex-shrink: 0;
 }
 
 /* The correlation card. Deliberately quieter than a habit card: it is something to read once,

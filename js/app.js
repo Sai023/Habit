@@ -704,6 +704,25 @@ async function boot() {
     onNavigate: (tab) => { ui.tab = tab; paint(); },
   });
 
+  // Pull down on Today to sync.
+  //
+  // Installed once, for the life of the page, rather than per paint — the listeners are on the
+  // document and re-registering them on every render is how you end up with four syncs per swipe.
+  // Whether the gesture is live right now is answered by canPull instead, at the start of each
+  // drag, which is also the only moment it is a fair question to ask.
+  const { installPullToRefresh } = await import("./ui/pulltorefresh.js");
+  installPullToRefresh({
+    onRefresh: () => onSyncNow(),
+    canPull: () => (
+      ui.tab === "today"
+      && caps().manualSync
+      && !ui.syncing
+      && !isDemo
+      // Sheets do their own dragging, and a sheet open over Today is not Today.
+      && !document.querySelector(".sheet-layer")
+    ),
+  });
+
   if (isDemo) {
     ctx = { ...demoState(), demo: true };
     ui.sync = { state: "LOCAL_ONLY", queued: 0 };
