@@ -142,7 +142,12 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     // flat line cannot show a ceiling coming down, which is the entire point of a taper.
     return el("div.hd-chart-wrap",
       el("div.hd-chart",
-        entries.map((e, i) => el("button.hd-bar" + (i === picked ? ".is-picked" : ""), {
+        // The verdict goes on the COLUMN as well as on the fill. A day with nothing recorded has
+        // no height to carry it — the whole track is hatched instead, which says absent rather
+        // than "very nearly zero", and those are not the same day.
+        entries.map((e, i) => el("button.hd-bar"
+          + (TONE[e.status] ? "." + TONE[e.status] : "")
+          + (i === picked ? ".is-picked" : ""), {
           onclick: () => { picked = i; paint(); },
           "aria-label": periodLabel(e),
         },
@@ -160,7 +165,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
       ),
       el("div.hd-ticks", entries.map((e) =>
         el("span.hd-tick" + (e.open ? ".is-now" : ""), tick(e)))),
-      el("p.hd-scale",
+      el("p.hd-scale" + (reduce ? ".is-ceiling" : ""),
         (reduce ? "Ceiling " : "Goal ") + unit(now ? now.target : habit.target)
         + (taperMoving(entries) ? " — coming down" : "")),
     );
@@ -265,7 +270,9 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     const mine = latest && Number.isFinite(latest.target) ? latest.target : habit.target;
 
     sheet.paint(
-      el("div.form",
+      // .hd carries this screen's panel colour. Every tile inside used to be painted --surface,
+      // which is the sheet's OWN background, so none of them were visible at all.
+      el("div.form.hd",
         el("div.hd-head",
           el("span.hd-icon", habit.icon || "◆"),
           el("div.hd-title",

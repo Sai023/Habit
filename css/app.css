@@ -1344,6 +1344,22 @@ button.card-open {
 }
 button.card-open:active { transform: scale(0.99); }
 
+/* ---------- one habit, a layer deeper ----------
+
+   ---- Every panel on this screen was invisible ----
+
+   Reported as "needs some formatting and sprucing up", which is what a screen with no hierarchy
+   looks like from the outside. The cause was one line: the sheet is painted --surface, and so was
+   every tile, panel and row inside it. Same hex. So the three headline numbers, the picked-period
+   panel, the trend, the badge rungs and the group rows all had a background that did nothing, and
+   a screen designed as eight distinct blocks rendered as one flat column of text.
+
+   --surface-hi exists for exactly this and was being used by one banner. Inside a sheet it is the
+   panel colour; --surface is the ground the sheet itself sits on. Stated as a variable rather than
+   swapped hex by hex, so the next panel added here inherits the answer instead of rediscovering
+   the bug. */
+.hd { --panel: var(--surface-hi); }
+
 .hd-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
 .hd-icon { font-size: var(--fs-display); line-height: 1; }
 .hd-title h1 { margin: 0; font-size: var(--fs-title); }
@@ -1353,8 +1369,11 @@ button.card-open:active { transform: scale(0.99); }
    history screen to find, before any chart. */
 .hd-runs { display: flex; gap: 8px; margin: 14px 0; }
 .hd-run {
-  flex: 1; padding: 10px; text-align: center;
-  background: var(--surface); border-radius: var(--r-sm);
+  flex: 1; padding: 11px 8px; text-align: center;
+  background: var(--panel); border-radius: var(--r-sm);
+  /* A hairline as well as a fill. The fill alone is one token away from being invisible again,
+     and this is the row somebody reads first. */
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .hd-run b { display: block; font-size: var(--fs-title); font-variant-numeric: tabular-nums; }
 .hd-run span { font-size: var(--fs-micro); color: var(--dim); }
@@ -1366,7 +1385,9 @@ button.card-open:active { transform: scale(0.99); }
 .hd-chart {
   position: relative;
   display: flex; align-items: flex-end; gap: 3px;
-  height: 96px;
+  /* Taller than it was. Fourteen bars in 96px gave a good day and a scraped-through one about
+     eleven pixels to differ by, which is the whole thing the height is carrying. */
+  height: 124px;
 }
 /* The goal, per bar, at that period's own target. One line across the chart could only ever show
    one number, and the number moves: a taper brings the ceiling down, and each person's target is
@@ -1388,9 +1409,25 @@ button.card-open:active { transform: scale(0.99); }
 .hd-bar-fill { display: block; width: 100%; border-radius: 4px; }
 .hd-bar-fill.is-hit { background: var(--teal); }
 .hd-bar-fill.is-miss { background: var(--danger); }
-/* Silence and rest are drawn, not blank — a missing bar reads as a failure nobody had. */
-.hd-bar-fill.is-quiet { background: var(--line); height: 4px !important; }
-.hd-bar-fill.is-rest { background: var(--teal-dim); height: 4px !important; }
+/* Silence and rest are drawn, not blank — a missing bar reads as a failure nobody had.
+   
+   They were drawn as a four-pixel stub along the floor of the track, which is the same shape a
+   value of almost zero makes and, on this ground, close to invisible: the screenshot that started
+   this had two of them and neither could be seen at all. So the whole COLUMN is marked instead of
+   the value, because "nothing was recorded here" is a fact about the day rather than a small
+   quantity of it. Hatching says absent in a way no height can. */
+.hd-bar.is-quiet, .hd-bar.is-rest {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--line) 0 2px,
+    transparent 2px 6px
+  );
+}
+.hd-bar.is-rest { background-image: repeating-linear-gradient(
+  -45deg, var(--teal-dim) 0 2px, transparent 2px 6px); }
+/* And no stub. The hatch is the whole statement; a bar on top of it would be a quantity again. */
+.hd-bar-fill.is-quiet, .hd-bar-fill.is-rest { display: none; }
+
 .hd-bar.is-picked { outline: 1px solid var(--dim); outline-offset: 1px; }
 
 .hd-ticks { display: flex; gap: 3px; margin-top: 5px; }
@@ -1398,11 +1435,25 @@ button.card-open:active { transform: scale(0.99); }
 .hd-tick.is-now { color: var(--teal); font-weight: 800; }
 
 .hd-chart-wrap { margin-bottom: 12px; }
-.hd-scale { margin: 3px 0 0; font-size: 10px; color: var(--dim); text-align: right; }
+/* The line's own label, beside the line rather than whispering under the right-hand corner at
+   10px. It names the only reference mark on the chart, so it is a legend, not a footnote. */
+.hd-scale {
+  margin: 7px 0 0;
+  font-size: var(--fs-micro);
+  color: var(--dim);
+  display: flex; align-items: center; gap: 6px;
+}
+.hd-scale::before {
+  content: "";
+  flex: 0 0 16px; height: 0;
+  border-top: 1px dashed var(--teal-soft);
+}
+.hd-scale.is-ceiling::before { border-top-color: var(--danger); }
 
 .hd-detail {
   padding: 12px 14px; margin-bottom: 12px;
-  background: var(--surface); border-radius: var(--r-sm);
+  background: var(--panel); border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .hd-detail-top { display: flex; align-items: baseline; gap: 8px; }
 .hd-detail-when { flex: 1; font-size: var(--fs-small); font-weight: 700; }
@@ -1418,7 +1469,7 @@ button.card-open:active { transform: scale(0.99); }
 .hd-trend {
   margin: 0 0 8px; padding: 9px 12px;
   font-size: var(--fs-small); color: var(--dim);
-  background: var(--surface); border-radius: var(--r-sm);
+  background: var(--panel); border-radius: var(--r-sm);
   border-left: 2px solid var(--line);
 }
 .hd-trend.is-better { border-left-color: var(--teal); color: var(--text); }
@@ -1437,7 +1488,7 @@ button.card-open:active { transform: scale(0.99); }
    and not a verdict — nobody failed by having a bad Sunday. */
 .hd-long-line.is-flagged {
   padding: 9px 12px; color: var(--text);
-  background: var(--surface); border-radius: var(--r-sm);
+  background: var(--panel); border-radius: var(--r-sm);
   border-left: 2px solid var(--amber);
 }
 
@@ -1446,13 +1497,17 @@ button.card-open:active { transform: scale(0.99); }
 .hd-rung {
   flex: 1; min-width: 0; display: flex; flex-direction: column;
   align-items: center; gap: 5px; padding: 10px 4px;
-  background: var(--surface); border-radius: var(--r-sm);
+  background: var(--panel); border-radius: var(--r-sm);
 }
 /* Won ones come forward — by GAINING something rather than by everything else losing it. The rungs
    still to climb were at 0.45 opacity, which on this ground is most of the way to gone, and a
    ladder you cannot see the top of is not a ladder. */
+/* A won rung has to differ from an unwon one, and both now sit on --panel — which IS
+   --surface-hi, so "come forward by gaining a fill" quietly stopped gaining anything. It keeps the
+   teal edge and takes the ground BACK a step instead: darker than the tiles around it, which on a
+   dark screen reads as inset rather than as faded. */
 .hd-rung.is-won {
-  background: var(--surface-hi);
+  background: var(--bg);
   box-shadow: inset 0 0 0 1px var(--teal-dim);
 }
 .hd-rung-span { font-size: 9px; color: var(--dim); text-align: center; }
@@ -1463,7 +1518,7 @@ button.card-open:active { transform: scale(0.99); }
 .hd-people { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .hd-person {
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; background: var(--surface); border-radius: var(--r-sm);
+  padding: 9px 12px; background: var(--panel); border-radius: var(--r-sm);
   border: 1px solid transparent;
 }
 .hd-person.is-me { border-color: var(--teal-dim); }
@@ -1481,6 +1536,46 @@ button.card-open:active { transform: scale(0.99); }
 /* Whatever they chose to share, under the count everyone shares. */
 .hd-person-sub { display: block; font-size: 10px; font-weight: 600; color: var(--dim); }
 
-/* The first heading on the habit detail sheet, which needs a little air above it because the
-   header block sits directly on top. */
-.hd-mine { margin-top: 14px; }
+/* ---- Rhythm ----
+
+   This screen is eight sections deep and every heading had the same four pixels of air as the
+   paragraph above it, so it read as one column of text with some words in capitals in it. Bands
+   need to be separable at a glance or the reader has to parse the whole thing to find the part
+   they came for.
+
+   A rule rather than more space, because more space is what pushes the section somebody actually
+   wants below the fold. */
+.hd .sec-title {
+  margin: 20px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+/* Except the first, which follows the header rather than another section — a rule directly under
+   the habit's own name would be dividing it from its screen. */
+.hd .sec-title.hd-mine { margin-top: 14px; border-top: 0; padding-top: 0; }
+
+/* The chart's own caption row already ends that band; the picked period follows it directly. */
+.hd-runs + .hd-chart-wrap { margin-top: 2px; }
+
+/* ---- There is more below ----
+
+   The sheet caps at 88vh and this is the one screen that reliably overflows it, so the last line
+   visible is a line cut in half. That reads as broken rather than as scrollable — it was reported
+   that way. Sticky, so it stays at the foot of the viewport while the content moves under it. */
+.sheet.is-scrollable::after {
+  content: "";
+  display: block;
+  position: sticky;
+  bottom: -1px;
+  /* flex-shrink, not just height. The sheet is a flex column and this only ever appears when it is
+     OVERFLOWING, which is exactly when flex items get shrunk — so a plain height of 28px computed
+     to zero and the fade did not exist at all on the one screen it was written for. */
+  flex: 0 0 28px;
+  height: 28px;
+  margin: -28px 0 0;
+  pointer-events: none;
+  /* transparent, not a hand-written rgba of the same colour: gradients interpolate in
+     premultiplied alpha, so this fades to nothing rather than through grey, and it keeps the
+     sheet's ground named once. */
+  background: linear-gradient(to top, var(--surface), transparent);
+}
