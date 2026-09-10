@@ -20,7 +20,7 @@
 
 import {
   periodKey, periodStart, periodEnd, periodsBetween, addDays, daysBetween,
-  valueForPeriod, targetFor, rawPeriodStatus, walk, isTracking,
+  valueOn, valueForPeriod, targetFor, rawPeriodStatus, walk, isTracking,
   visibilityFor, publicValue,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
@@ -337,4 +337,51 @@ export function groupHistory(state, habit, me, today) {
 /** Is this member even doing this habit? A history screen for one they declined is a blank. */
 export function tracked(state, habit, memberId) {
   return isTracking(state, habit, memberId);
+}
+
+/**
+ * What ANOTHER habit added up to over the same stretch of days.
+ *
+ * ---- What this is for ----
+ *
+ * "Under workouts, could we pull calories burnt per day from Health Connect if that data exists."
+ * Two habits answering the same question from opposite ends — how often you trained, and how hard
+ * — and the useful thing is seeing them together rather than two cards apart.
+ *
+ * ---- Why it is a lookup and not a new pipeline ----
+ *
+ * The obvious build is a side-channel: have the shell read calories whether or not anything asked
+ * for them, and park the number somewhere the workouts screen can find it. That is a second store,
+ * outside the log, holding data nothing replays — and every rule in this app is derived from the
+ * log by replay, which is what keeps three phones agreeing.
+ *
+ * The cheap version needs none of that. If somebody is tracking calories, the numbers are already
+ * in the log, already synced, already scoped to this member. So this asks the log, and asks for
+ * nothing that is not there: no calories habit means no line, which is exactly the "if that data
+ * exists" the request was careful to include.
+ *
+ * ---- Days, not periods ----
+ *
+ * Deliberately summed across a DATE RANGE rather than by period key, because the two habits do not
+ * share a cadence. Workouts is weekly and calories is daily, and the whole point is a week of
+ * workouts against the calories burned inside it.
+ *
+ * Null rather than zero when nothing reported, which is the distinction that cost a release
+ * elsewhere: a watch that said nothing is not a day of burning nothing, and drawing "0 kcal" over
+ * a week the sensor was quiet would be inventing a number.
+ */
+export function companionTotal(state, companion, memberId, from, to) {
+  if (!companion || !from || !to) return null;
+  // daysBetween, not a string compare and NOT habits.js's compareDays — which shares the name and
+  // is a correlation between two habits, nothing to do with ordering two dates.
+  const span = daysBetween(from, to);
+  if (!Number.isFinite(span) || span < 0) return null;
+  let total = null;
+  let d = from;
+  for (let i = 0; i <= span; i += 1) {
+    const v = valueOn(state, companion, memberId, d);
+    if (v != null) total = (total || 0) + v;
+    d = addDays(d, 1);
+  }
+  return total;
 }

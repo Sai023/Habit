@@ -1462,6 +1462,15 @@ button.card-open:active { transform: scale(0.99); }
 .hd-detail-verdict.is-miss { color: var(--danger); }
 .hd-detail-verdict.is-quiet, .hd-detail-verdict.is-rest { color: var(--dim); }
 .hd-detail-num { margin-top: 4px; font-size: var(--fs-head); }
+/* Context under the verdict, not a second verdict beside it. Nobody passes or fails this line, so
+   it is drawn in the quiet colour and separated by a hairline rather than given a panel of its own. */
+.hd-extra {
+  display: flex; align-items: center; gap: 6px;
+  margin: 9px 0 0; padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-small); color: var(--dim);
+}
+.hd-extra-icon { font-size: var(--fs-body); line-height: 1; }
 .hd-detail-num span { color: var(--dim); font-size: var(--fs-small); }
 
 /* Better or worse, said rather than arrowed. An arrow makes the reader translate "up" into good or

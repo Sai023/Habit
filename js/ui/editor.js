@@ -71,6 +71,25 @@ const TYPES = [
     start: 3, period: PERIOD.WEEK,
   },
   {
+    // Calories, which Health Connect already reads and nothing could yet ask it for.
+    //
+    // Sits next to Workouts because that is where it was asked for and where it belongs: the two
+    // answer the same question from opposite ends — how often you trained, and how hard.
+    //
+    // ACTIVE calories, not total, which is the figure Health Connect aggregates and the only one
+    // worth a goal: total includes lying still being alive, so a target on it is mostly a target
+    // on having a body. LAST rather than SUM for the same reason steps are — the provider
+    // re-reports the day's running total on every poll, and adding those up multiplies the day.
+    //
+    // NOT scored, and that is the group's own rule rather than an oversight. SCORED_METRICS is
+    // six events chosen so everybody is judged on the same arithmetic; a metric only some watches
+    // answer would re-weight the day for whoever added it. It still gets a card, a streak, badges
+    // and a history screen. It just does not move the standings, and the editor says so.
+    key: "calories", label: "Calories burned", icon: "🔥", metric: METRIC.ACTIVE_CALORIES,
+    direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "kcal", step: 50,
+    start: 400, period: PERIOD.DAY,
+  },
+  {
     // A savings target is one question asked at the end of the month, not a daily interrogation.
     key: "amount", label: "Savings", icon: "💰", metric: METRIC.AMOUNT,
     direction: AT_LEAST, aggregate: AGGREGATE.LAST, unit: "", step: 100,

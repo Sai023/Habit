@@ -23,10 +23,11 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import {
   habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday, groupHistory,
+  companionTotal,
 } from "../history.js";
 import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
-import { sourceFor, HIT, MISS, NO_DATA, EXEMPT } from "../habits.js";
-import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
+import { sourceFor, isTracking, HIT, MISS, NO_DATA, EXEMPT } from "../habits.js";
+import { AT_MOST, METRIC, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
 import * as fmt from "./format.js";
 
 /** What one period is called, in the fewest characters that stay unambiguous. */
@@ -115,6 +116,21 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   const life = lifetime(state, habit, me, today);
   const worst = worstWeekday(byWeekday(state, habit, me, today));
   const others = groupHistory(state, habit, me, today);
+  // Calories, shown under Workouts when somebody is tracking them.
+  //
+  // The two answer the same question from opposite ends — how often you trained, and how hard —
+  // and a week of workouts is a much better number with the effort inside it. Nothing is read that
+  // is not already in the log: no calories habit means no line, which is exactly the "if that data
+  // exists" the request asked for.
+  //
+  // One direction only. Workouts borrow calories; calories do not borrow workouts, because "3
+  // workouts" under a daily calorie figure is a week's number under a day's and says nothing.
+  const companion = habit.metric === METRIC.SESSIONS
+    ? [...state.habits.values()].find(
+        (h) => h.metric === METRIC.ACTIVE_CALORIES && isTracking(state, h, me),
+      )
+    : null;
+
   const src = sourceFor(state, habit, me);
   const srcLabel = fmt.source(src);
   const automatic = AUTOMATIC_SOURCES.has(src);
@@ -190,7 +206,34 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         el("b", unit(e.value)),
         e.target ? el("span", (reduce ? " of " : " of ") + unit(e.target)) : null,
       ),
+      companionLine(e),
     );
+  }
+
+  /**
+   * The other habit's number for the same stretch of days.
+   *
+   * Under the verdict rather than beside it, and in the quiet style, because it is context and not
+   * a target — nobody passes or fails this line. Silent when the sensor was silent: a week with no
+   * calories reported is not a week of burning none, and drawing a zero there would be inventing
+   * a number rather than reporting one.
+   */
+  function companionLine(e) {
+    if (!companion) return null;
+    const burned = companionTotal(state, companion, me, e.from, e.to);
+    if (burned == null) return null;
+    return el("p.hd-extra",
+      el("span.hd-extra-icon", companion.icon || "🔥"),
+      fmt.value(METRIC.ACTIVE_CALORIES, Math.round(burned)) + " burned over "
+        + (e.period === PERIOD.DAY ? "the day" : "these " + (daysIn(e) + " days")),
+    );
+  }
+
+  /** How many days the picked period covers, so the line can say what it is totalling. */
+  function daysIn(e) {
+    const [y1, m1, d1] = e.from.split("-").map(Number);
+    const [y2, m2, d2] = e.to.split("-").map(Number);
+    return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000) + 1;
   }
 
   /**
