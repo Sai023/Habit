@@ -191,6 +191,30 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
    with four is a question the screen does not answer, and the answer is "waiting", not "broken". */
 .part.is-waiting { opacity: 0.45; }
 
+/* ---------- a rule the group has not adopted ----------
+
+   Quiet, collapsed, and visibly not part of the standings above it. It is a question being asked
+   of real data, and it has to look like one — a panel of percentages styled like the board would
+   read as a second, disagreeing scoreboard. */
+.whatif { margin: 10px 2px 0; }
+.whatif-head {
+  font-size: var(--fs-small); font-weight: 600; color: var(--teal);
+  cursor: pointer; padding: 4px 0; list-style: none;
+}
+.whatif-head::-webkit-details-marker { display: none; }
+.whatif-head::before { content: "B8 "; }
+.whatif[open] .whatif-head::before { content: "BE "; }
+.whatif-body { display: flex; flex-direction: column; gap: 8px; padding: 8px 0 2px; }
+.whatif-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px; align-items: baseline;
+}
+.whatif-name { font-size: var(--fs-small); font-weight: 700; }
+.whatif-move { font-size: var(--fs-small); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.whatif-move s { color: var(--dim); text-decoration-thickness: 1px; }
+.whatif-move b { color: var(--teal); }
+.whatif-why { grid-column: 1 / -1; font-size: var(--fs-micro); color: var(--dim); }
+
 /* ---------- how scoring works ---------- */
 
 .scoring-line { margin: 0; font-size: var(--fs-small); color: var(--dim); line-height: 1.5; }

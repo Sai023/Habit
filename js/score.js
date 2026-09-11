@@ -442,6 +442,45 @@ export function scoreOver(state, memberId, from, to, addDaysFn, today = null) {
 }
 
 /**
+ * The same week, with its lowest day left out.
+ *
+ * ---- What this is for ----
+ *
+ * Asked as "why isn't every day worth 100 points, so one bad day of non-tracking hurts less". The
+ * arithmetic answer is that a sum and an average are the same number — six hundreds and a zero is
+ * 600/700 and 85.7%, and calling it points does not dilute anything. But the question behind it is
+ * real: one bad day costs a seventh of the week, and the fix for that is not a different unit, it
+ * is not counting the day.
+ *
+ * So this computes it, and the app shows it as a comparison rather than applying it. What dropping
+ * the worst day does to a week depends entirely on the SHAPE of that week, which a weekly average
+ * hides: 85% might be seven days at 85, where dropping the worst changes nothing, or six at a
+ * hundred and one at zero, where it changes everything. Nobody can answer it in the abstract,
+ * including me, which is why it is drawn from real days rather than argued about.
+ *
+ * ---- Why it takes `daily` rather than re-deriving ----
+ *
+ * scoreOver already has the per-day scores in hand and throws them away. Walking the week a second
+ * time to recover them would double the board's cost for a panel that is only a question.
+ *
+ * Returns null below two days: dropping the only day that counted leaves nothing to average, and
+ * a week that is one day long has no worst day to speak of.
+ */
+export function withoutWorstDay(daily) {
+  if (!daily || daily.length < 2) return null;
+  let worst = 0;
+  for (let i = 1; i < daily.length; i += 1) {
+    if (daily[i].pct < daily[worst].pct) worst = i;
+  }
+  const kept = daily.filter((_, i) => i !== worst);
+  return {
+    pct: Math.round(kept.reduce((sum, d) => sum + d.pct, 0) / kept.length),
+    dropped: { day: daily[worst].day, pct: daily[worst].pct },
+    days: kept.length,
+  };
+}
+
+/**
  * The same range, but for one category only — what the board's filter shows.
  *
  * Scored on the category's own terms rather than as a share of the day, because "how am I doing on
@@ -534,6 +573,9 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
       name: (member && member.name) || memberId,
       hits, eligible, noData, spentTokens, perHabit,
       streak: bestStreak,
+      // Already computed by scoreOver and otherwise discarded. Carried so a caller asking a
+      // what-if about this week does not have to walk it again.
+      daily: earned.daily,
       pct: earned.pct,
       bonus: earned.bonus,
       bonusWithheld: earned.withheld,

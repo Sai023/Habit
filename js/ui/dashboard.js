@@ -10,7 +10,7 @@ import {
   visibilityFor, travelPeriod,
 } from "../habits.js";
 import {
-  leaderboard, categoryOver, dayScore, expectedBy, categoryFor as categoryOf,
+  leaderboard, categoryOver, dayScore, expectedBy, withoutWorstDay, categoryFor as categoryOf,
   CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
   CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES,
 } from "../score.js";
@@ -770,6 +770,7 @@ function boardTab(ctx) {
     ctx.onScoring
       ? el("button.link", { onclick: () => ctx.onScoring() }, "How scoring works →")
       : null,
+    whatIfPanel(ranked, ctx),
     offBoardNote(ctx),
     pointsExplainer(ctx),
   );
@@ -1137,6 +1138,63 @@ function awardsSection(ctx) {
     habits.length
       ? el("p.note-inline", "Yours alone — these are never announced to the group.")
       : null,
+  );
+}
+
+/**
+ * What dropping each person's worst day would do to this week.
+ *
+ * ---- Why this is a question and not a change ----
+ *
+ * Asked for: "show me what dropping the worst day does to this week." It cannot be answered in the
+ * abstract, and not because the rule is complicated — because the answer depends on the SHAPE of
+ * the week, which the week's own percentage hides. 85% is seven days at 85, where dropping the
+ * worst does nothing, or six at a hundred and one at zero, where it does everything. The only
+ * honest way to show it is against real days.
+ *
+ * So it is drawn as a comparison, in the quiet colour, under the standings it is not part of. A
+ * preview of a rule the group has not adopted, clearly marked as one, and deletable in a single
+ * commit if the answer is no.
+ *
+ * ---- The line that actually decides it ----
+ *
+ * Whether anybody's position moves. A rule that changes three numbers and no rankings is a rule
+ * about how the week FEELS; one that reorders the board is a different proposition, and the
+ * difference is the only thing worth reading here.
+ */
+function whatIfPanel(ranked, ctx) {
+  const rows = ranked
+    .map((r) => ({ row: r, alt: withoutWorstDay(r.daily) }))
+    .filter((x) => x.alt && x.row.pct != null);
+  // Below two people, or before anybody has two days that counted, there is nothing to compare.
+  if (rows.length < 2) return null;
+
+  // Would the order change? Ties break the same way the board does, so a dead heat does not read
+  // as a reshuffle.
+  const now = rows.map((x) => x.row.memberId);
+  const then = rows.slice().sort((a, b) => b.alt.pct - a.alt.pct
+    || b.row.hits - a.row.hits
+    || a.row.name.localeCompare(b.row.name)).map((x) => x.row.memberId);
+  const moves = now.some((id, i) => id !== then[i]);
+
+  return el("details.whatif",
+    el("summary.whatif-head", "What if a week dropped its worst day?"),
+    el("div.whatif-body",
+      rows.map((x) => el("div.whatif-row",
+        el("span.whatif-name", x.row.memberId === ctx.me ? "You" : x.row.name),
+        el("span.whatif-move",
+          el("s", x.row.pct + "%"), " → ", el("b", x.alt.pct + "%")),
+        el("span.whatif-why",
+          "without " + fmt.dayLabel(x.alt.dropped.day) + ", " + x.alt.dropped.pct + "%"),
+      )),
+      el("p.note-inline", moves
+        ? "This would reorder the board."
+        : "Everybody moves up and nobody changes places — it would make the week kinder, not "
+          + "different."),
+      el("p.note-inline",
+        "Not in force. This is what the rule WOULD do, drawn from the days you have actually "
+        + "played this week."),
+    ),
   );
 }
 
