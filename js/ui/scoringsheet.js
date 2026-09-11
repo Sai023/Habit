@@ -102,13 +102,20 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
         : null,
 
       // ---- 4. the two numbers on the board -------------------------------
-      el("h2.sec-title", "The two numbers on the board"),
+      el("h2.sec-title", "Points and percentages are the same thing"),
+      el("p.scoring-line",
+        "A day is worth exactly a hundred, so a share of it and a count of it are the same number. "
+        + "66 out of 100 is 66% and 66 points. There is only one currency here; the screens just "
+        + "show it in whichever form answers the question they are asking."),
       el("dl.scoring-defs",
+        el("dt", "of 100"),
+        el("dd", "Today. What the day has earned so far, out of the hundred it is worth."),
         el("dt", "%"),
-        el("dd", "How a week went, out of a hundred. The average of its days."),
+        el("dd", "A week — the average of its days. It is a percentage rather than a total because "
+          + "it is an average: 85% is 85 points a day, not 85 points for the week."),
         el("dt", "pts"),
-        el("dd", "The season total. Every week you play adds its score to it, so a season is won "
-          + "on steady weeks rather than one good Sunday."),
+        el("dd", "The season, and this one really is a total. Every week you play adds its score "
+          + "to it, so a season is won on steady weeks rather than one good Sunday."),
       ),
 
       // ---- 5. bonus -------------------------------------------------------

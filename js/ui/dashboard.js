@@ -441,12 +441,20 @@ function dayHero(ctx) {
             : "meet every goal today to begin"),
         ),
       ),
+      // The day's total, in the same unit as the three lines that add up to it.
+      //
+      // It said "66%" directly above "29 of 47", "19 of 35" and "18 of 18" — three numbers that
+      // sum to exactly 66, out of three that sum to exactly 100. One screen, one quantity, two
+      // units, and the reader left to spot that a percentage and a points total are the same
+      // thing here. They are: the day is renormalised to be worth exactly a hundred, so a
+      // percentage of it IS its points. Saying so costs one word and closes the arithmetic.
       el("div.hero-row",
         el("span", "Today, across everything"),
         el("span.hero-pct" + (pct >= 100 ? ".is-hit" : ""),
-          pct + "%",
-          // Beside the percentage, never inside it. The day is worth exactly a hundred; this is
-          // what beating the targets earned on top.
+          pct + " of 100",
+          el("span.row-unit", " pts"),
+          // Beside the total, never inside it. The day is worth exactly a hundred; this is what
+          // beating the targets earned on top.
           bonus > 0 ? el("span.row-bonus", " +" + bonus) : null,
         ),
       ),
@@ -748,7 +756,15 @@ function boardTab(ctx) {
     el("div.board", ranked.map((r) => boardRow(r, ctx, unbroken.get(r.memberId)))),
     seasonBeacon(ctx),
     el("p.sec-note", { style: "padding:0 2px" },
-      "Rest days and days with no data are left out of the score — you're measured on the days you were actually asked to show up."),
+      // Asked directly: why is the week a percentage when a day is points? Because it is an
+      // AVERAGE rather than a total, and an average shown as "85 pts" beside a season's "173 pts"
+      // would be two different kinds of number wearing one unit. It is the same currency though,
+      // and that is the sentence that was missing.
+      // Only the week view reaches this line — season and awards return above it — so it is
+      // written for the week rather than branching on a view it can never be asked about.
+      "Each day is scored out of 100, and a week is the average of its days — so 85% is 85 points "
+      + "a day. Rest days and days with no data are left out: you're measured on the days you were "
+      + "actually asked to show up."),
     // The way in, directly under the numbers it explains rather than behind the menu. Somebody
     // wondering what "of 47" means is looking at the board when they wonder it.
     ctx.onScoring
