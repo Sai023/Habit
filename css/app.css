@@ -178,6 +178,18 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .chip-day { flex: 1; min-width: 0; padding-left: 0; padding-right: 0; text-align: center; }
 
 /* Visible, not alarming: an unreported day is a fact about the record, not a verdict. */
+/* A habit never once missed, under the standings it deliberately does not change.
+   
+   Quiet on purpose. It sits beside a percentage it is NOT an argument with — the whole decision
+   was to show this rather than score it — and giving it a colour would make it a verdict. It reads
+   as a note because that is exactly what it is. */
+.row-note {
+  grid-column: 1 / -1;
+  margin-top: 5px;
+  font-size: var(--fs-micro);
+  color: var(--dim);
+}
+
 .row-quiet { color: var(--dim); }
 
 /* The problem banner. Loud on purpose: it exists because two bugs spent a release being invisible,

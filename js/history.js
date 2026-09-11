@@ -218,6 +218,67 @@ export function lifetime(state, habit, memberId, today) {
   };
 }
 
+/**
+ * How long a habit has to have gone unmissed before saying so means anything.
+ *
+ * A habit added on Monday and unmissed by Wednesday is not a fact about anybody. These are roughly
+ * "long enough that it is clearly not luck", in each cadence's own units.
+ */
+export const UNBROKEN_MIN = {
+  [PERIOD.DAY]: 14,
+  [PERIOD.WEEK]: 6,
+  [PERIOD.MONTH]: 3,
+};
+
+/**
+ * Habits this member has never once missed, longest first.
+ *
+ * ---- Why this is shown and not scored ----
+ *
+ * A category is the mean of its habits, so a habit somebody cannot fail lifts the ones they can.
+ * It is worse than it sounds: a ceiling scores its maximum bonus when you are furthest under it,
+ * so a limit that costs you nothing pays the largest bonus available and then drags the category
+ * up behind it. Measured, on two people failing the same real habit equally: 50% for the one who
+ * spent his whole puff allowance, 57% for the one who has never touched a vape.
+ *
+ * The fix chosen was not to change the arithmetic. This row already does the same thing for the
+ * mirror-image problem — "3 not reported" is shown beside a score it deliberately does not affect,
+ * because silence was the cheapest way to avoid a bad week and the answer was to make it visible
+ * rather than to punish it. Same answer here, same reason: the group can see it, and it is the
+ * person's own to explain.
+ *
+ * ---- Why the wording has to stay neutral ----
+ *
+ * "Never missed in 47 days" is a boast and an accusation and the app cannot tell which. Somebody
+ * who actually quit vaping has exactly the record of somebody who never started, and reading it as
+ * a cheat would be the single most insulting thing this app could do to the person it helped most.
+ * So it reports the fact and stops. Anybody who knows the group knows which it is.
+ *
+ * ---- What it deliberately does not show ----
+ *
+ * Values. "Never missed, averaging 0 of 80" is far more telling and is not ours to publish — what
+ * of their numbers the group sees is each person's own choice, and this would route around it. A
+ * count of periods is already public: the board has always shown "5/7 days".
+ */
+export function neverMissed(state, memberId, today) {
+  const out = [];
+  for (const habit of state.habits.values()) {
+    // Their own habits only, and only the ones the group competes on — an unscored habit cannot
+    // lift anybody's category, so naming it here would be gossip rather than information.
+    if (!habit.scored) continue;
+    if (!isTracking(state, habit, memberId)) continue;
+
+    const life = lifetime(state, habit, memberId, today);
+    if (!life) continue;
+    const min = UNBROKEN_MIN[habit.period || PERIOD.DAY] || UNBROKEN_MIN[PERIOD.DAY];
+    if (life.judged < min) continue;
+    if (life.hits < life.judged) continue;
+
+    out.push({ habit, periods: life.judged, period: habit.period || PERIOD.DAY });
+  }
+  return out.sort((a, b) => b.periods - a.periods);
+}
+
 /** How far back "everything" reaches, per cadence. Bounded so a long history stays cheap. */
 const MAX_LOOKBACK = {
   [PERIOD.DAY]: 120,

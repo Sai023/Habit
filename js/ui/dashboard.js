@@ -18,6 +18,7 @@ import { seasonTally, categoryBreakdown, pendingSeason, seasonProgress } from ".
 import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { awards } from "../awards.js";
+import { neverMissed } from "../history.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -694,6 +695,13 @@ function boardTab(ctx) {
   const rows = leaderboard(ctx.state, members, from, ctx.today, ctx.today);
   const filter = ctx.boardCategory || null;
 
+  // Habits nobody has ever missed, worked out once for the whole board rather than per row.
+  //
+  // It walks each habit's whole record, so three members is three passes per paint and thirty
+  // would be thirty. Measured at six months of three people on six habits: 7ms a member. Fine
+  // here, and the reason it is hoisted rather than called inside boardRow.
+  const unbroken = new Map(members.map((m) => [m, neverMissed(ctx.state, m, ctx.today)]));
+
   // Only the categories somebody in the group is actually running. A filter for a category nobody
   // tracks is a tab that leads to an empty screen and a question about whether it is broken.
   const live = CATEGORY_ORDER.filter((c) => [...ctx.state.habits.values()].some(
@@ -737,7 +745,7 @@ function boardTab(ctx) {
     filter ? el("p.sec-note", { style: "padding:0 2px" },
       CATEGORY_LABEL[filter] + " only — scored on its own terms, not as a share of the day.") : null,
     seasonStrip(ctx),
-    el("div.board", ranked.map((r) => boardRow(r, ctx))),
+    el("div.board", ranked.map((r) => boardRow(r, ctx, unbroken.get(r.memberId)))),
     seasonBeacon(ctx),
     el("p.sec-note", { style: "padding:0 2px" },
       "Rest days and days with no data are left out of the score — you're measured on the days you were actually asked to show up."),
@@ -1111,7 +1119,14 @@ function awardsSection(ctx) {
   );
 }
 
-function boardRow(row, ctx) {
+/** "119 days", "12 weeks" — the run said in the habit's own unit. */
+function unbrokenSpan(entry) {
+  const unit = entry.period === PERIOD.WEEK ? "week"
+    : entry.period === PERIOD.MONTH ? "month" : "day";
+  return entry.periods + " " + unit + (entry.periods === 1 ? "" : "s");
+}
+
+function boardRow(row, ctx, unbroken) {
   const classes = ["row"];
   if (row.memberId === ctx.me) classes.push("is-me");
   if (row.crown) classes.push("is-crown");
@@ -1161,6 +1176,25 @@ function boardRow(row, ctx) {
       ctx.state, row.memberId, addDays(ctx.today, -(isoDayOfWeek(ctx.today) - 1)), ctx.today,
     ).map((part) => el("span.part" + (part.pct >= 100 ? ".is-full" : part.pct < 50 ? ".is-low" : ""),
       CATEGORY_ICON[part.category] + " " + part.pct + "%"))) : null,
+    // A habit this person has never once missed.
+    //
+    // Shown, not scored — the same answer this row already gives to "3 not reported", and for the
+    // same reason. A category is the mean of its habits, so one nobody can fail lifts the ones they
+    // can; measured, two people failing the same real habit equally came out 50% and 57%, the
+    // higher belonging to the one for whom the second habit costs nothing. Changing that
+    // arithmetic would move everybody's history, so instead the group can see it.
+    //
+    // Deliberately neutral, and shown for everybody including you. Somebody who actually quit has
+    // exactly the record of somebody who never started, and this app is in no position to tell
+    // them apart — reading it as a cheat would be the worst thing it could say to the person it
+    // helped most. It reports the fact. Anybody who knows the group knows which it is.
+    unbroken && unbroken.length
+      ? el("div.row-note",
+          "Never missed — " + (unbroken[0].habit.name || "a habit")
+          + " " + unbrokenSpan(unbroken[0])
+          + (unbroken.length > 1 ? " · and " + (unbroken.length - 1) + " more" : ""))
+      : null,
+
     // The fairness rule, made visible. If the bottom row had a silent pipeline there is no clown
     // at all this week — and the person is told why, and offered the fix, rather than left to
     // wonder why their numbers look bad.
