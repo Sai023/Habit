@@ -155,3 +155,77 @@ export function progress(session, draft) {
   }
   return { done, of };
 }
+
+/**
+ * Every exercise this member has ever logged under a program, with its sessions in date order.
+ *
+ * ---- The shape ----
+ *
+ *   [{ id, name, unit, perSide, sessions: [{ day, sets, total, best }], trend }]
+ *
+ * One entry per exercise the PROGRAM defines, in program order, whether or not it has been done
+ * yet — a history screen that only lists what you have already done cannot show you what is
+ * still to come. Rope days are one entry, "Rope", whose sessions carry rounds rather than sets.
+ *
+ * `trend` compares the most recent session's total with the one before it: "up", "down", "same",
+ * or null with fewer than two. Total rather than best, because three sets of 10 beating three
+ * sets of 9 is the progression the program asks for, and a best-set comparison would call a
+ * session where you added a whole set a regression if the last one was short.
+ */
+export function exerciseHistory(state, memberId, program) {
+  if (!program) return [];
+  const all = ((state.workouts && state.workouts.get(memberId)) || [])
+    .filter((w) => w.programId === program.id)
+    .slice()
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+
+  // Every exercise the program defines, once, in the order it first appears. The circuit reuses
+  // Monday's movements; those are the same exercise and share a history.
+  const order = [];
+  const byId = new Map();
+  for (const session of Object.values(program.sessions)) {
+    if (session.kind === "intervals") {
+      if (!byId.has(session.id)) {
+        byId.set(session.id, { id: session.id, name: session.name, unit: "rounds", perSide: false, sessions: [] });
+        order.push(session.id);
+      }
+      for (const ex of (session.finisher && session.finisher.exercises) || []) {
+        if (!byId.has(ex.id)) {
+          byId.set(ex.id, { id: ex.id, name: ex.name, unit: unitOf(ex), perSide: !!ex.perSide, sessions: [] });
+          order.push(ex.id);
+        }
+      }
+      continue;
+    }
+    for (const ex of session.exercises || []) {
+      if (!byId.has(ex.id)) {
+        byId.set(ex.id, { id: ex.id, name: ex.name, unit: unitOf(ex), perSide: !!ex.perSide, sessions: [] });
+        order.push(ex.id);
+      }
+    }
+  }
+
+  for (const w of all) {
+    if (Number.isFinite(w.rounds) && byId.has(w.sessionId)) {
+      byId.get(w.sessionId).sessions.push({ day: w.day, sets: [w.rounds], total: w.rounds, best: w.rounds, work: w.work, rest: w.rest });
+    }
+    for (const e of w.exercises || []) {
+      const entry = byId.get(e.id);
+      if (!entry) continue;
+      const sets = e.sets.filter((n) => Number.isFinite(n));
+      if (!sets.length) continue;
+      entry.sessions.push({ day: w.day, sets, total: sets.reduce((a, b) => a + b, 0), best: Math.max(...sets) });
+    }
+  }
+
+  return order.map((id) => {
+    const entry = byId.get(id);
+    const n = entry.sessions.length;
+    let trend = null;
+    if (n >= 2) {
+      const a = entry.sessions[n - 2].total, b = entry.sessions[n - 1].total;
+      trend = b > a ? "up" : b < a ? "down" : "same";
+    }
+    return { ...entry, trend };
+  });
+}

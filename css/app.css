@@ -1809,3 +1809,32 @@ button.card-open:active { transform: scale(0.99); }
 .card-wo { margin-top: 2px; }
 .card-wo-rest { justify-content: space-between; }
 .cardlink.inline { margin: 0; padding: 0; }
+
+/* ---- the program, on the Workouts habit's history ---- */
+
+.hd-program { margin-top: 4px; }
+.hd-program-today {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin-bottom: 10px; font-size: var(--fs-small); color: var(--dim);
+}
+.hd-exlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.hd-exrow {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline;
+  padding: 9px 12px; background: var(--panel); border-radius: var(--r-sm);
+}
+.hd-exrow-head { display: flex; align-items: baseline; gap: 8px; grid-column: 1 / -1; }
+.hd-exrow-name { font-size: var(--fs-small); font-weight: 700; }
+.hd-exrow-trend { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; }
+.hd-exrow-trend.up { color: var(--teal); }
+.hd-exrow-trend.down { color: var(--danger); }
+.hd-exrow-trend.same { color: var(--dim); }
+/* The sets as chips, oldest to newest, the newest lit. A row of "10 · 10 · 9" is the progression
+   made visible; a single number would hide that the third set is where it slips. */
+.hd-exrow-sets { display: flex; flex-wrap: wrap; gap: 5px; }
+.hd-exchip {
+  font-size: var(--fs-micro); font-variant-numeric: tabular-nums; white-space: nowrap;
+  padding: 2px 7px; border-radius: 999px; background: var(--bg); color: var(--dim);
+}
+.hd-exchip.is-last { color: var(--text); box-shadow: inset 0 0 0 1px var(--teal-dim); }
+.hd-exrow-none { font-size: var(--fs-micro); color: var(--dim); font-style: italic; }
+.hd-exrow-total { font-size: var(--fs-micro); color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }

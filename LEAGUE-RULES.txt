@@ -23,7 +23,8 @@ CONTENTS
   9. Badges
  10. Days that do not count
  11. What the log will not let you do
- 12. Things shown but never scored
+ 12. Personal workout programs
+ 13. Things shown but never scored
 
 
 1. THE DAY
@@ -484,7 +485,46 @@ same events to the same state.
                         schema.js — clearLog
 
 
-12. THINGS SHOWN BUT NEVER SCORED
+12. PERSONAL WORKOUT PROGRAMS
+-----------------------------
+
+Two programs, written for two people, live in the app as data: Match Fit and
+Rope Protocol. Follow one from the Workouts card ("Follow a program") and
+today's session appears there. Programs are not edited in the app; when a
+plan changes, the file changes.
+
+A session is logged one set at a time. Each set opens on what you did last
+time in that set — the first time ever, on the program's floor — so Done is
+the whole interaction when nothing changed and + then Done when you beat it.
+Banking a set starts the rest clock. Everything banked survives the app
+closing, until you tap Finish.
+
+Rope days (Rope Protocol) are intervals: work, rest and rounds that step up
+by week, counted from the program's start date of 2 Sep 2026. The timer runs
+the low end of that week's range until you bump it. A core finisher follows
+on the ordinary sets screen; the rope day is one entry in the history.
+
+FINISH COUNTS ON THE BOARD. Finishing a session writes one workout to your
+Workouts habit for that day, with an id built from the day and the session,
+so finishing twice corrects the sets and does not count two workouts. A watch
+that caught the same session is a separate row, as it always was. A typed
+number overrules a sensor for its day, so on a day you also ran, the watch's
+2 shows as the app's 1 — enter the second one by hand if it matters.
+
+Tennis is a rest day the schedule names on purpose. Nothing is logged against
+it.
+
+History is per exercise, on the Workouts habit's history screen: the last few
+sessions as "10 · 10 · 9" chips with the newest lit, and whether the latest
+total is up, down or the same as the one before. The trend is on the TOTAL,
+so adding a set is progress even when it is a short one.
+
+A workout more than 2 days late is refused, like a log.
+
+                        programs.js, workout.js, workoutsheet.js, store.js
+
+
+13. THINGS SHOWN BUT NEVER SCORED
 ---------------------------------
 
   Calories burned     a card, a streak, a history screen, and a line under

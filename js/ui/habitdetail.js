@@ -27,6 +27,7 @@ import {
 } from "../history.js";
 import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { sourceFor, isTracking, HIT, MISS, NO_DATA, EXEMPT } from "../habits.js";
+import { programFor, planFor, exerciseHistory } from "../workout.js";
 import { AT_MOST, METRIC, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
 import * as fmt from "./format.js";
 
@@ -105,7 +106,7 @@ const TONE = {
   [EXEMPT]: "is-rest",
 };
 
-export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone }) {
+export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
 
   const reduce = habit.direction === AT_MOST;
@@ -234,6 +235,74 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     const [y1, m1, d1] = e.from.split("-").map(Number);
     const [y2, m2, d2] = e.to.split("-").map(Number);
     return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000) + 1;
+  }
+
+  /**
+   * Your program, exercise by exercise, on the Workouts habit only.
+   *
+   * Every exercise the program defines, in program order, with its last few sessions as
+   * "10 · 10 · 9" chips — the sets as they were done, so the progression the program is asking
+   * for is visible as a row rather than inferred from a number. The most recent session's total
+   * is compared with the one before it, and said in a word.
+   *
+   * Exercises not yet done are listed too, quietly. A history that only shows what has happened
+   * cannot show what is still to come, and "not yet" beside a name is the honest state.
+   */
+  function programSection() {
+    if (habit.metric !== METRIC.SESSIONS) return null;
+    const program = programFor(state, habit && me ? me : null);
+    if (!program) {
+      return onChooseProgram
+        ? el("div.hd-program",
+            el("h2.sec-title", "Your program"),
+            el("p.note-inline", "Follow a program and today's session shows on the Workouts card, "
+              + "with every set you bank kept here."),
+            el("button.tap.tap-quiet", { onclick: () => { sheet.close(); onChooseProgram(); } },
+              "Follow a program"),
+          )
+        : null;
+    }
+    const plan = planFor(program, today);
+    const rows = exerciseHistory(state, me, program);
+    const SHOW = 5;
+
+    return el("div.hd-program",
+      el("h2.sec-title", program.name),
+      el("div.hd-program-today",
+        el("span", plan && plan.session ? "Today: " + plan.session.name : "Today: " + ((plan && plan.rest) || "rest")),
+        plan && plan.session && onWorkout
+          ? el("button.link", { onclick: () => { sheet.close(); onWorkout(); } }, "Open →")
+          : null,
+      ),
+      el("div.hd-exlist", rows.map((r) => {
+        const recent = r.sessions.slice(-SHOW);
+        const last = r.sessions[r.sessions.length - 1];
+        return el("div.hd-exrow",
+          el("div.hd-exrow-head",
+            el("span.hd-exrow-name", r.name),
+            r.trend
+              ? el("span.hd-exrow-trend." + r.trend,
+                  r.trend === "up" ? "↑ up" : r.trend === "down" ? "↓ down" : "= same")
+              : null,
+          ),
+          recent.length
+            ? el("div.hd-exrow-sets", recent.map((ses) => el("span.hd-exchip" + (ses === last ? ".is-last" : ""),
+                { title: fmt.dayLabel(ses.day) },
+                r.unit === "rounds"
+                  ? ses.sets[0] + " × " + ses.work + "s"
+                  : ses.sets.join(" · "))))
+            : el("span.hd-exrow-none", "not yet"),
+          last
+            ? el("span.hd-exrow-total",
+                r.unit === "rounds" ? last.total + " rounds"
+                  : last.total + (r.unit === "s" ? "s" : " " + r.unit) + " last time")
+            : null,
+        );
+      })),
+      onChooseProgram
+        ? el("button.link", { onclick: () => { sheet.close(); onChooseProgram(); } }, "Change program")
+        : null,
+    );
   }
 
   /**
@@ -432,6 +501,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
               + Math.round(worst.restRate * 100) + "% on the rest.")
           : null,
 
+        programSection(),
         ladder(),
         group(),
 

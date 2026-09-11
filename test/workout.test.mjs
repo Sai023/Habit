@@ -11,7 +11,7 @@ import { replay, addDays } from "../js/habits.js";
 import { PROGRAMS, PROGRAM_LIST } from "../js/programs.js";
 import {
   programFor, planFor, progressionWeek, intervalsFor, lastSession, prefill, prescription,
-  summarise, isComplete, progress, unitOf,
+  summarise, isComplete, progress, unitOf, exerciseHistory,
 } from "../js/workout.js";
 import { ev, T, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
@@ -275,6 +275,78 @@ test("complete means every prescribed set banked", () => {
   const partial = { ...full, plank: [30, 30] };
   assert.equal(isComplete(session, partial), false);
   assert.deepEqual(progress(session, partial), { done: 14, of: 15 });
+});
+
+// ---------------------------------------------------------------------------
+// History, exercise by exercise
+// ---------------------------------------------------------------------------
+
+test("history lists every exercise the program defines, done or not", () => {
+  const s = state([E(ev.program(ME, "match-fit"), at(0))]);
+  const rows = exerciseHistory(s, ME, FIT);
+  const names = rows.map((r) => r.name);
+  assert.ok(names.includes("Push-up") && names.includes("Hollow body hold") && names.includes("Squat jump"));
+  assert.ok(rows.every((r) => r.sessions.length === 0 && r.trend === null));
+});
+
+test("the circuit's push-ups are the same push-ups as Monday's", () => {
+  // One exercise, two sessions that use it. The history is one row, with both days in it.
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [10, 10, 9] }] }), at(0)),
+    E(ev.workout(ME, "match-fit", "circuit", day(4), { exercises: [{ id: "pushup", sets: [12, 12, 12] }] }), at(4)),
+  ]);
+  const pushup = exerciseHistory(s, ME, FIT).find((r) => r.id === "pushup");
+  assert.equal(pushup.sessions.length, 2);
+  assert.equal(exerciseHistory(s, ME, FIT).filter((r) => r.id === "pushup").length, 1, "one row, not two");
+});
+
+test("sessions are in date order and the trend compares the last two totals", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(7), { exercises: [{ id: "pushup", sets: [10, 10, 10] }] }), at(7)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [8, 8, 8] }] }), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(14), { exercises: [{ id: "pushup", sets: [12, 11, 10] }] }), at(14)),
+  ]);
+  const pushup = exerciseHistory(s, ME, FIT).find((r) => r.id === "pushup");
+  assert.deepEqual(pushup.sessions.map((x) => x.total), [24, 30, 33]);
+  assert.equal(pushup.trend, "up");
+});
+
+test("trend is on the total, so adding a set is progress even if it is a short one", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [12, 12] }] }), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(7), { exercises: [{ id: "pushup", sets: [12, 12, 6] }] }), at(7)),
+  ]);
+  const pushup = exerciseHistory(s, ME, FIT).find((r) => r.id === "pushup");
+  assert.equal(pushup.trend, "up", "24 -> 30; a best-set comparison would have said 'same'");
+});
+
+test("a rope day is one row, in rounds", () => {
+  const s = state([
+    E(ev.program(ME, "rope-protocol"), at(0)),
+    E(ev.workout(ME, "rope-protocol", "rope", day(1), { exercises: [{ id: "plank", sets: [25, 25, 25] }], rounds: 8, work: 30, rest: 30 }), at(1)),
+    E(ev.workout(ME, "rope-protocol", "rope", day(4), { exercises: [], rounds: 10, work: 30, rest: 30 }), at(4)),
+  ]);
+  const rows = exerciseHistory(s, ME, ROPE);
+  const rope = rows.find((r) => r.id === "rope");
+  assert.equal(rope.unit, "rounds");
+  assert.deepEqual(rope.sessions.map((x) => x.total), [8, 10]);
+  assert.equal(rope.trend, "up");
+  // And the finisher's plank, stored inside the rope event, has its own row.
+  const plank = rows.find((r) => r.id === "plank");
+  assert.equal(plank.sessions.length, 1);
+  assert.equal(plank.sessions[0].total, 75);
+});
+
+test("another program's workouts are not this program's history", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "rope-protocol", "strength-a", day(0), { exercises: [{ id: "table-row", sets: [10, 10, 10] }] }), at(0)),
+  ]);
+  const row = exerciseHistory(s, ME, FIT).find((r) => r.id === "table-row");
+  assert.equal(row.sessions.length, 0, "Match Fit has a table row too, but this one was logged under Rope Protocol");
 });
 
 if (failures.length) {
