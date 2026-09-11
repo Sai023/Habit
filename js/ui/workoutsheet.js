@@ -34,6 +34,7 @@ import { confirmSheet } from "./confirmsheet.js";
 import { finishWorkout } from "../store.js";
 import {
   planFor, intervalsFor, lastSession, prefill, prescription, unitOf, isComplete, progress,
+  sessionsOf, restDaysOf,
 } from "../workout.js";
 import * as fmt from "./format.js";
 
@@ -68,34 +69,115 @@ function clearDraft(sessionId) {
 }
 
 /**
- * Open today's session for a program. Says so and offers nothing on a rest day.
+ * The program, and every session in it. Today's is suggested; any can be started.
+ *
+ * ---- Why a hub and not "today's session" ----
+ *
+ * The first cut opened straight into whatever the schedule said today was, and on a rest day it
+ * opened into a screen that said so. Which is fine until Monday's session happens on Tuesday —
+ * which it will, because life — and the app has no way to take it. The schedule is the
+ * document's suggestion; the job is to keep the record. So this lists every session, says which
+ * one today suggests, and starts whichever is tapped. What gets logged is that session on the
+ * day it was actually done.
  */
-export function openWorkoutSheet(host, { state, program, me, today, onDone }) {
-  const plan = planFor(program, today);
+export function openWorkoutSheet(host, { state, program, me, today, onDone, onChooseProgram }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
+  hub(sheet, { state, program, me, today, onChooseProgram });
+}
 
-  if (!plan || plan.rest) {
-    sheet.paint(
-      el("div.form",
-        el("div.sheet-head", el("span.sheet-title", program.name)),
-        el("p.wo-rest-title", plan ? plan.rest : "Nothing today"),
-        el("p.sheet-now", plan && plan.note ? plan.note : "Nothing to log today. See you tomorrow."),
-        el("button.tap", { onclick: () => sheet.close() }, "OK"),
-      ),
-    );
-    return;
+function hub(sheet, ctx) {
+  const { state, program, me, today, onChooseProgram } = ctx;
+  const plan = planFor(program, today);
+  const suggested = plan && plan.session ? plan.session.id : null;
+  const sessions = sessionsOf(program);
+  const rests = restDaysOf(program);
+
+  function start(session) {
+    const args = { ...ctx, session, back: () => hub(sheet, ctx) };
+    if (session.kind === "intervals") ropeSession(sheet, args);
+    else setsSession(sheet, args);
   }
 
-  const session = plan.session;
-  if (session.kind === "intervals") return ropeSession(sheet, { state, program, session, me, today });
-  return setsSession(sheet, { state, program, session, me, today });
+  /** One line about the last time this session was done, or that it has not been. */
+  function lastLine(session) {
+    const last = lastSession(state, me, session.id, null);
+    if (!last) return "not done yet";
+    const sets = (last.exercises || []).reduce((n, e) => n + e.sets.filter(Number.isFinite).length, 0);
+    const what = Number.isFinite(last.rounds) ? last.rounds + " rounds" : sets + " sets";
+    return "last " + fmt.dayLabel(last.day) + " \u00b7 " + what;
+  }
+
+  /** The rope session's line names the week's stage rather than its sets. */
+  function ropeLine(session) {
+    const rx = intervalsFor(program, session, today);
+    return rx ? "Week " + rx.week + " \u00b7 " + rx.name : "";
+  }
+
+  const subFor = (session) => session.kind === "intervals"
+    ? ropeLine(session)
+    : session.exercises.length + " exercises \u00b7 " + lastLine(session);
+
+  sheet.paint(
+    el("div.form.wo",
+      el("div.sheet-head", el("span.sheet-title", program.name)),
+      el("p.sheet-now", program.tagline),
+
+      // The document's own warnings, collapsed but present. Somebody who has never trained is
+      // one screen from a set of push-ups, and "stop at sharp joint pain" belongs on the way in.
+      program.before
+        ? el("details.wo-before",
+            el("summary", program.before.title),
+            el("ul.wo-before-list", program.before.points.map((pt) => el("li", pt))),
+          )
+        : null,
+
+      el("h2.sec-title", "Today \u00b7 " + fmt.dayLabel(today).split(",")[0]),
+      plan && plan.session
+        ? el("button.tap.wo-start", { onclick: () => start(plan.session) },
+            el("span.wo-start-name", "Start " + plan.session.name + " \u2192"),
+            el("span.wo-start-sub", subFor(plan.session)),
+          )
+        : el("div.wo-rest-today",
+            el("b", (plan && plan.rest) || "Rest"),
+            plan && plan.note ? el("span", plan.note) : null,
+            el("span", "Or pick any session below. It is logged on the day you do it."),
+          ),
+
+      el("h2.sec-title", "All sessions"),
+      el("div.wo-sessions", sessions.map(({ session, days }) => el("button.wo-session"
+        + (session.id === suggested ? ".is-today" : ""), { onclick: () => start(session) },
+        el("span.wo-session-main",
+          el("span.wo-session-name", session.name),
+          el("span.wo-session-sub", subFor(session)),
+        ),
+        el("span.wo-session-days", days.join(" \u00b7 ")),
+        el("span.wo-session-go", "\u2192"),
+      ))),
+
+      rests.length
+        ? el("div.wo-rests",
+            el("p.wo-rests-line", rests.map((r) => r.day + " " + r.label).join(" \u00b7 ")),
+            program.restNote
+              ? el("details.wo-restnote", el("summary", "Why rest days matter"), el("p", program.restNote))
+              : null,
+          )
+        : null,
+
+      el("div.sheet-actions",
+        el("button.ghost", { onclick: () => sheet.close() }, "Close"),
+        onChooseProgram
+          ? el("button.ghost", { onclick: () => { sheet.close(); onChooseProgram(); } }, "Change program")
+          : null,
+      ),
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Sets and circuits
 // ---------------------------------------------------------------------------
 
-function setsSession(sheet, { state, program, session, me, today, finisherOf = null, onFinished = null, historyId = null }) {
+function setsSession(sheet, { state, program, session, me, today, finisherOf = null, onFinished = null, historyId = null, back = null }) {
   // A finisher's sets are stored inside the rope day's event, so last time is looked up under the
   // rope's id rather than the finisher's own.
   const previous = lastSession(state, me, historyId || session.id, today);
@@ -232,16 +314,27 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   function exerciseCard(ex, i) {
     const isActiveEx = active && active.ex === i;
     const lastTime = previous && previous.exercises.find((e) => e.id === ex.id);
+    // How to do it: open on the FIRST set of each exercise, folded on the rest. Read it once per
+    // session, then it is out of the way of the number — and a person who has never done a hollow
+    // body hold is told what one is before being asked how long they held it.
+    const firstSet = isActiveEx && active.set === 0;
     return el("section.wo-ex" + (isActiveEx ? ".is-active" : ""),
       el("div.wo-ex-head",
         el("span.wo-ex-name", ex.name),
         el("span.wo-ex-rx", prescription(ex)),
       ),
+      isActiveEx && ex.steps && ex.steps.length
+        ? el("details.wo-howto", firstSet ? { open: true } : {},
+            el("summary", "How to do it"),
+            el("ol", ex.steps.map((step) => el("li", step))),
+          )
+        : null,
       el("div.wo-sets", Array.from({ length: ex.sets }, (_, s) => setTile(ex, i, s))),
       isActiveEx ? activeControl(ex) : null,
-      // The cue while it is the thing you are doing; the watch-for underneath, quieter.
+      // The cue while it is the thing you are doing; the watch-for underneath. It is a safety line
+      // as often as a form line, so it is always shown on the active exercise.
       isActiveEx && ex.cue ? el("p.wo-cue", "💡 " + ex.cue) : null,
-      isActiveEx && ex.watch ? el("p.wo-watch", "Watch for: " + ex.watch) : null,
+      isActiveEx && ex.watch ? el("p.wo-watch", "⚠ " + ex.watch) : null,
       lastTime && lastTime.sets.length
         ? el("p.wo-last", "Last time: " + lastTime.sets.filter(Number.isFinite).join(" · ") + " " + unitOf(ex))
         : null,
@@ -258,6 +351,10 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
         ),
         el("div.wo-bar", el("i", { style: "width:" + Math.round((done.done / Math.max(1, done.of)) * 100) + "%" })),
         session.intro ? el("p.sheet-now", session.intro) : null,
+        // Warm-up, before the first set and only then. Once something is banked they have started.
+        program.warmup && done.done === 0 && !finisherOf
+          ? el("p.wo-warmup", "🔥 " + program.warmup)
+          : null,
         previous ? el("p.note-inline", "Prefilled from " + fmt.dayLabel(previous.day) + ". Tap + when you beat it.") : null,
 
         rest
@@ -271,11 +368,12 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
         exercises.map(exerciseCard),
 
         el("div.sheet-actions",
-          el("button.ghost", { onclick: () => { stopRest(); sheet.close(); } }, "Later"),
+          el("button.ghost", { onclick: () => { stopRest(); if (back) back(); else sheet.close(); } },
+            back ? "\u2190 Back" : "Later"),
           el("button.tap", { onclick: finish, disabled: busy },
             busy ? "Saving…" : (finisherOf ? "Finish " + session.name.toLowerCase() : "Finish workout")),
         ),
-        el("p.note-inline", "Closing keeps what you've banked. Finish writes it down and counts the workout."),
+        el("p.note-inline", "Going back keeps what you've banked. Finish writes it down and counts the workout."),
       ),
     );
   }
@@ -287,7 +385,7 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
 // Rope: intervals, then the finisher
 // ---------------------------------------------------------------------------
 
-function ropeSession(sheet, { state, program, session, me, today }) {
+function ropeSession(sheet, { state, program, session, me, today, back = null }) {
   const rx = intervalsFor(program, session, today);
   const saved = loadDraft(program.id, session.id, today);
   // The lengths in force: the low end of the range until the person bumps them.
@@ -420,8 +518,16 @@ function ropeSession(sheet, { state, program, session, me, today }) {
             )
           : null,
 
+        // The basics, open until the first round is banked. After that they are one tap away.
+        session.basics && session.basics.steps
+          ? el("details.wo-howto", completed === 0 && phase === "idle" ? { open: true } : {},
+              el("summary", "Jump rope \u2014 the basics"),
+              el("ol", session.basics.steps.map((step) => el("li", step))),
+            )
+          : null,
         session.basics ? el("p.wo-cue", "💡 " + session.basics.cue) : null,
-        session.basics ? el("p.wo-watch", "Watch for: " + session.basics.watch) : null,
+        session.basics ? el("p.wo-watch", "⚠ " + session.basics.watch) : null,
+        program.warmup && completed === 0 && phase === "idle" ? el("p.wo-warmup", "🔥 " + program.warmup) : null,
 
         el("div.sheet-actions",
           phase === "idle" && completed < target
@@ -431,7 +537,8 @@ function ropeSession(sheet, { state, program, session, me, today }) {
               : el("button.tap", { onclick: finisher }, "Core finisher →"),
         ),
         el("div.sheet-actions",
-          el("button.ghost", { onclick: () => { stop(); sheet.close(); } }, "Later"),
+          el("button.ghost", { onclick: () => { stop(); if (back) back(); else sheet.close(); } },
+            back ? "\u2190 Back" : "Later"),
           el("button.ghost", { onclick: finishNow, disabled: busy }, busy ? "Saving…" : "Finish without finisher"),
         ),
       ),

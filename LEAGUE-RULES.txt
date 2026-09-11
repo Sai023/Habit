@@ -489,9 +489,21 @@ same events to the same state.
 -----------------------------
 
 Two programs, written for two people, live in the app as data: Match Fit and
-Rope Protocol. Follow one from the Workouts card ("Follow a program") and
-today's session appears there. Programs are not edited in the app; when a
-plan changes, the file changes.
+Rope Protocol. Follow one from the Workouts card ("Follow a program"). The
+card then opens the program: today's suggested session at the top, every
+session below it, and the rest days named. Programs are not edited in the
+app; when a plan changes, the file changes.
+
+THE SCHEDULE IS A SUGGESTION. Any session can be started on any day. It is
+logged as that session on the day it was actually done, and the next time
+that session opens it prefills from it — so Monday's session done on a
+Wednesday is not lost, not penalised, and not confused with Wednesday.
+
+Every exercise carries its how-to steps, a cue and a watch-for. The steps
+open on the first set of each exercise in a session and fold after; the cue
+and the watch-for stay on the active exercise throughout, because the second
+is a safety line as often as a form line. Each program's before-you-start
+notes are on the way in, and the warm-up is on screen until the first set.
 
 A session is logged one set at a time. Each set opens on what you did last
 time in that set — the first time ever, on the program's floor — so Done is

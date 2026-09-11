@@ -227,6 +227,7 @@ const onWorkout = guard("workout", async () => {
   openWorkoutSheet(document.body, {
     state: ctx.state, program, me: ctx.me, today: ctx.today,
     onDone: () => refresh(),
+    onChooseProgram,
   });
 });
 

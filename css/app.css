@@ -1838,3 +1838,60 @@ button.card-open:active { transform: scale(0.99); }
 .hd-exchip.is-last { color: var(--text); box-shadow: inset 0 0 0 1px var(--teal-dim); }
 .hd-exrow-none { font-size: var(--fs-micro); color: var(--dim); font-style: italic; }
 .hd-exrow-total { font-size: var(--fs-micro); color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---- the program hub ---- */
+
+/* The document's warnings and how-to steps, folded. A <details> rather than a modal or a link
+   out, because the words belong on the screen where the exercise is about to happen. */
+.wo-before, .wo-howto, .wo-restnote { border-radius: var(--r-sm); background: var(--panel); }
+.wo-before > summary, .wo-howto > summary, .wo-restnote > summary {
+  padding: 10px 14px; cursor: pointer; list-style: none;
+  font-size: var(--fs-small); font-weight: 700; color: var(--text);
+}
+.wo-before > summary::-webkit-details-marker, .wo-howto > summary::-webkit-details-marker,
+.wo-restnote > summary::-webkit-details-marker { display: none; }
+.wo-before > summary::before, .wo-howto > summary::before, .wo-restnote > summary::before {
+  content: "\25B8 "; color: var(--teal);
+}
+.wo-before[open] > summary::before, .wo-howto[open] > summary::before,
+.wo-restnote[open] > summary::before { content: "\25BE "; }
+.wo-before-list, .wo-howto > ol {
+  margin: 0; padding: 0 14px 12px 32px;
+  font-size: var(--fs-small); color: var(--text); line-height: 1.5;
+}
+.wo-before-list li, .wo-howto > ol > li { margin-bottom: 6px; }
+.wo-howto { margin-bottom: 2px; }
+.wo-howto > ol { padding-left: 34px; }
+.wo-restnote > p { margin: 0; padding: 0 14px 12px; font-size: var(--fs-small); color: var(--dim); line-height: 1.5; }
+
+.wo-warmup { margin: 0; font-size: var(--fs-small); color: var(--text); line-height: 1.45; }
+
+/* Today's suggestion: the primary control, two lines, name then context. */
+.wo-start { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 10px; }
+.wo-start-name { font-size: var(--fs-body); }
+.wo-start-sub { font-size: var(--fs-micro); font-weight: 600; opacity: 0.8; }
+.wo-rest-today {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 14px; border-radius: var(--r-sm); background: var(--panel);
+  font-size: var(--fs-small); color: var(--dim);
+}
+.wo-rest-today b { color: var(--text); font-size: var(--fs-body); }
+
+/* Every session, as a row you can start. The suggested one is edged, not filled — it is a
+   suggestion, and a filled row beside a filled button above it would be two primaries. */
+.wo-sessions { display: flex; flex-direction: column; gap: 8px; }
+.wo-session {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 10px; align-items: center;
+  padding: 11px 14px; border-radius: var(--r-sm); text-align: left;
+  background: var(--panel); border: 1px solid transparent; color: var(--text);
+  font: inherit; cursor: pointer;
+}
+.wo-session.is-today { border-color: var(--teal-dim); }
+.wo-session-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wo-session-name { font-size: var(--fs-body); font-weight: 700; }
+.wo-session-sub { font-size: var(--fs-micro); color: var(--dim); }
+.wo-session-days { font-size: var(--fs-micro); color: var(--dim); white-space: nowrap; }
+.wo-session-go { color: var(--teal); font-weight: 700; }
+
+.wo-rests { display: flex; flex-direction: column; gap: 6px; }
+.wo-rests-line { margin: 0; font-size: var(--fs-micro); color: var(--dim); }

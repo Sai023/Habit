@@ -51,6 +51,48 @@ export function progressionWeek(program, day) {
   return Math.floor(elapsed / 7) + 1;
 }
 
+/**
+ * Every session the program has, in the order the week puts them, with which days suggest each.
+ *
+ * ---- Why every session, not today's ----
+ *
+ * The schedule is a suggestion. People shift days — a Monday session done on Tuesday is the same
+ * session, and refusing it because the calendar says otherwise would lose the one thing this
+ * feature exists to keep, which is the record of what was done. So the hub lists all of them,
+ * marks the one the schedule suggests for today, and starts whichever is tapped. What is logged
+ * is the session and the day it was actually done.
+ *
+ * The finisher and the rest days are not sessions; the first belongs to a rope day and the second
+ * to nothing.
+ */
+export function sessionsOf(program) {
+  if (!program) return [];
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const seen = new Map();
+  for (let d = 1; d <= 7; d += 1) {
+    const slot = program.schedule[d];
+    if (typeof slot !== "string") continue;
+    const session = program.sessions[slot];
+    if (!session) continue;
+    if (!seen.has(slot)) seen.set(slot, { session, days: [] });
+    seen.get(slot).days.push(DAYS[d - 1]);
+  }
+  return [...seen.values()];
+}
+
+/** The rest days, as "Wed Rest · Thu Tennis" — the part of the week that is not a session. */
+export function restDaysOf(program) {
+  if (!program) return [];
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const out = [];
+  for (let d = 1; d <= 7; d += 1) {
+    const slot = program.schedule[d];
+    if (slot == null) out.push({ day: DAYS[d - 1], label: "Rest" });
+    else if (typeof slot === "object") out.push({ day: DAYS[d - 1], label: slot.rest, note: slot.note || null });
+  }
+  return out;
+}
+
 /** The rope prescription in force on a day, or null for a program with no intervals. */
 export function intervalsFor(program, session, day) {
   if (!session || session.kind !== "intervals") return null;

@@ -11,7 +11,7 @@ import { replay, addDays } from "../js/habits.js";
 import { PROGRAMS, PROGRAM_LIST } from "../js/programs.js";
 import {
   programFor, planFor, progressionWeek, intervalsFor, lastSession, prefill, prescription,
-  summarise, isComplete, progress, unitOf, exerciseHistory,
+  summarise, isComplete, progress, unitOf, exerciseHistory, sessionsOf, restDaysOf,
 } from "../js/workout.js";
 import { ev, T, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
@@ -275,6 +275,41 @@ test("complete means every prescribed set banked", () => {
   const partial = { ...full, plank: [30, 30] };
   assert.equal(isComplete(session, partial), false);
   assert.deepEqual(progress(session, partial), { done: 14, of: 15 });
+});
+
+// ---------------------------------------------------------------------------
+// The hub: every session, any day
+// ---------------------------------------------------------------------------
+
+test("every session is listed once, in week order, with the days that suggest it", () => {
+  const rows = sessionsOf(FIT);
+  assert.deepEqual(rows.map((r) => r.session.name), ["Push + Core", "Legs + Pull", "Metabolic Circuit"]);
+  assert.deepEqual(rows.map((r) => r.days), [["Mon"], ["Tue"], ["Fri"]]);
+});
+
+test("a session scheduled twice a week is one row with two days", () => {
+  const rope = sessionsOf(ROPE).find((r) => r.session.id === "rope");
+  assert.deepEqual(rope.days, ["Tue", "Fri"]);
+  assert.equal(sessionsOf(ROPE).length, 3, "strength A, rope, strength B");
+});
+
+test("rest days are the rest of the week, named", () => {
+  const rests = restDaysOf(FIT);
+  assert.deepEqual(rests.map((r) => r.day + " " + r.label), ["Wed Rest", "Thu Tennis", "Sat Rest", "Sun Rest"]);
+  assert.equal(rests.find((r) => r.day === "Thu").note, "Nothing to add here — that's the point.");
+});
+
+test("a session done on the wrong day is still that session", () => {
+  // Monday's Push + Core, done on a Wednesday, is Push + Core on Wednesday. Prefill next Monday
+  // reads it, because prefill keys on the session, not the weekday.
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(2), { exercises: [{ id: "pushup", sets: [11, 11, 11] }] }), at(2)),
+  ]);
+  assert.equal(planFor(FIT, day(2)).rest, "Rest", "Wednesday is a rest day on the schedule");
+  const last = lastSession(s, ME, "push-core", day(7));
+  assert.equal(last.day, day(2));
+  assert.equal(prefill(PUSHUP, last, 0), 11);
 });
 
 // ---------------------------------------------------------------------------

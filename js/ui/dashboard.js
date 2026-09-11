@@ -391,14 +391,12 @@ function workoutEntry(ctx) {
     return el("button.cardlink", { onclick: () => ctx.onChooseProgram() }, "Follow a program →");
   }
   const plan = planFor(program, ctx.today);
-  if (!plan || plan.rest) {
-    return el("div.card-foot.card-wo-rest",
-      el("span", program.name + " · " + (plan ? plan.rest : "nothing today")),
-      el("button.cardlink.inline", { onclick: () => ctx.onWorkout() }, "Program →"),
-    );
-  }
+  // Always into the hub, whatever the day. The schedule suggests; the person picks. On a rest day
+  // the button still says so, because a rest day is information and not a locked door.
   return el("button.tap.card-wo", { onclick: () => ctx.onWorkout() },
-    "Start " + plan.session.name + " →");
+    plan && plan.session
+      ? "Today: " + plan.session.name + " \u2192"
+      : (plan ? plan.rest : "Rest") + " today \u00b7 pick a session \u2192");
 }
 
 /**
