@@ -283,8 +283,21 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   function group() {
     if (others.length < 2) return null;
 
+    // What the two numbers on each row ARE.
+    //
+    // "1/6" over "5 825" was two unlabelled figures stacked on each other, and both were being
+    // read as something they are not. The fraction's denominator is the periods that COUNTED,
+    // which is why it does not match the fourteen bars above it — rest days and days a sensor
+    // said nothing are not in it. And the figure underneath is an AVERAGE across those periods,
+    // which everybody reads as today's number.
+    const span = habit.period === PERIOD.DAY ? "days"
+      : habit.period === PERIOD.WEEK ? "weeks" : "months";
+
     return el("div.hd-group",
       el("h2.sec-title", "Everyone on this"),
+      el("p.note-inline",
+        "The " + span + " each person met their own goal, out of the " + span + " that counted — "
+        + "rest " + span + " and ones with nothing from a sensor are left out."),
       el("div.hd-people", others.map((r) => el("div.hd-person" + (r.isMe ? ".is-me" : ""),
         el("span.hd-person-name", r.isMe ? "You" : r.name),
         el("span.hd-person-bar",
@@ -292,10 +305,14 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         el("span.hd-person-num",
           r.hits + "/" + r.judged,
           // Their number, their percentage, or nothing — whichever they chose to share.
+          //
+          // Said to be an average, every time it is shown. It is the mean across the periods that
+          // counted, and without the word it reads as today's figure, or their latest, or their
+          // best — three different numbers, none of them this one.
           r.shown && "value" in r.shown
-            ? el("span.hd-person-sub", unit(Math.round(r.shown.value)))
+            ? el("span.hd-person-sub", "avg " + unit(Math.round(r.shown.value)))
             : r.shown && "pct" in r.shown
-              ? el("span.hd-person-sub", r.shown.pct + "% of goal")
+              ? el("span.hd-person-sub", "avg " + r.shown.pct + "% of goal")
               : null,
         ),
       ))),

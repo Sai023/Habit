@@ -53,7 +53,7 @@ export function openSeasonsSheet(host, { state, me, today, onNewSeason, onDone }
           r.bonus ? " · " + r.bonus + " from bonus" : "",
         ),
       ),
-      el("div.row-pct", String(r.points)),
+      el("div.row-pct", String(r.points), el("span.row-unit", " pts")),
     )));
   }
 

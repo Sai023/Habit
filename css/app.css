@@ -183,6 +183,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
    Quiet on purpose. It sits beside a percentage it is NOT an argument with — the whole decision
    was to show this rather than score it — and giving it a colour would make it a verdict. It reads
    as a note because that is exactly what it is. */
+/* The unit on a big number. Smaller and dimmer, so "312 pts" still reads as 312 at a glance but
+   is never just a number floating in a column. */
+.row-unit { font-size: var(--fs-micro); font-weight: 600; color: var(--dim); }
+
 .row-note {
   grid-column: 1 / -1;
   margin-top: 5px;

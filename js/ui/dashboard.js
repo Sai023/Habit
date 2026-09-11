@@ -991,7 +991,7 @@ function seasonSection(ctx, members) {
               r.bonus ? " · " + r.bonus + " from bonus" : "",
             ),
           ),
-          el("div.row-pct", String(r.points)),
+          el("div.row-pct", String(r.points), el("span.row-unit", " pts")),
         ))),
     weeks > 0 ? el("p.sec-note", { style: "padding:0 2px" },
       "Every week you play adds its score to your total, so the season is won on points rather "
@@ -1145,12 +1145,21 @@ function boardRow(row, ctx, unbroken) {
       el("div.row-bar", el("i", { style: "width:" + (row.pct == null ? 0 : row.pct) + "%" })),
       el("div.row-meta",
         // Filtered, the only honest count is how many days this category was asked about — hits
-        // belong to the whole day and would be answering a question nobody asked here.
+        // belong to the whole day and would be answering a question nobody asked here. That one
+        // really is days: categoryOver walks the calendar.
         row.filtered
           ? (row.eligible ? row.eligible + (row.eligible === 1 ? " day scored" : " days scored")
             : "nothing scored yet")
-          : row.eligible ? row.hits + "/" + row.eligible + " days" : "nothing scored yet",
-        row.streak ? " · 🔥 " + row.streak : "",
+          // "10/15 days" was not days, and a seven-day week claiming fifteen of them said so on
+          // its face. leaderboard() counts every scored habit in every period it closed, so five
+          // habits over three days is fifteen — and a weekly habit contributes one for the week
+          // and a monthly one for the month, so the total is not even in a single unit.
+          //
+          // "Goals met" is what it has always been counting: one habit, one period, one goal.
+          : row.eligible ? row.hits + " of " + row.eligible + " goals met" : "nothing scored yet",
+        // The longest run going on any ONE habit, not a run of whole days — which is what a bare
+        // flame beside a day count reads as.
+        row.streak ? " · 🔥 " + row.streak + " best run" : "",
         row.spentTokens ? " · 🛡 spent " + row.spentTokens : "",
         // Days nothing was reported. They cost nothing on purpose — a watch that stopped is not a
         // failure — but nothing was the same as saying so, which made silence the cheapest way to
