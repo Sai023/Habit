@@ -25,6 +25,8 @@ export const T = {
   HABIT_DELETE: "habit_def_delete",   // retire a habit; its logs stay for history
   LOG:          "habit_log",          // ONE observation for one member, habit and day
   LOG_CLEAR:    "habit_log_clear",    // withdraw what one member TYPED for one habit-day
+  PROGRAM:      "habit_program",      // which workout program one member follows (last wins)
+  WORKOUT:      "habit_workout",      // one finished session: the sets done, per exercise
   EXEMPT:       "habit_exempt",       // travel mode / planned rest — a range of days
   BINDING:      "habit_source",       // which source feeds one habit FOR ONE MEMBER
   GOAL:         "habit_goal",         // one member's own target, and whether they track it
@@ -387,6 +389,25 @@ export const ev = {
    */
   clearLog: (habitId, memberId, day, source = SOURCE.MANUAL) =>
     ({ type: T.LOG_CLEAR, payload: p({ habitId, memberId, day, source }) }),
+
+  /** Which program a member follows. One per member; the latest wins. `null` to follow none. */
+  program: (memberId, programId) =>
+    ({ type: T.PROGRAM, payload: p({ memberId, programId }) }),
+
+  /**
+   * One finished workout.
+   *
+   * `exercises` is `[{ id, sets: [n, n, n] }]` — the number done in each set, reps or seconds as
+   * the exercise defines. Rope days carry `rounds`, `work` and `rest` as well, since what was done
+   * there is a count of intervals at a length rather than a count of reps.
+   *
+   * Keyed in replay on member + day + session, latest wins, so finishing the same session twice in
+   * a day corrects rather than duplicates. The Workouts habit sees it through a separate LOG event
+   * written alongside — see store.finishWorkout — because "a workout happened" is the habit's
+   * business and "what the sets were" is this event's.
+   */
+  workout: (memberId, programId, sessionId, day, fields = {}) =>
+    ({ type: T.WORKOUT, payload: p({ memberId, programId, sessionId, day, ...fields }) }),
 };
 
 /** Is this a habit event this build understands? Used by replay() to skip the rest. */

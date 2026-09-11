@@ -323,6 +323,8 @@ export function replay(events) {
   const habits = new Map();
   const members = new Map();
   const logs = new Map();     // "habit|member|day" -> [{ source, value, ts, externalId }]
+  const programs = new Map(); // member -> programId
+  const workouts = new Map(); // member -> [{ programId, sessionId, day, exercises, rounds, ... }]
   const exemptions = [];
   const bindings = new Map();  // "member|habit" -> source
   const goals = new Map();     // "member|habit" -> { target, active }
@@ -460,6 +462,42 @@ export function replay(events) {
         if (p.memberId && p.habitId && p.source) bindings.set(p.memberId + "|" + p.habitId, p.source);
         break;
 
+      case T.PROGRAM:
+        if (!p.memberId) break;
+        if (p.programId) programs.set(p.memberId, String(p.programId));
+        else programs.delete(p.memberId);
+        break;
+
+      case T.WORKOUT: {
+        if (!p.memberId || !p.sessionId || !p.day) break;
+        // Same backfill rule as a log. A workout written for last week is the same rewrite of
+        // history that a log for last week would be, and the habit it feeds is guarded that way.
+        const authoredDay = dayKey(authoredAt(e), HABIT_DEFAULTS.tz, HABIT_DEFAULTS.dayStartHour);
+        if (daysBetween(p.day, authoredDay) > MAX_BACKFILL_DAYS) break;
+
+        const list = workouts.get(p.memberId) || [];
+        const entry = {
+          programId: p.programId || null,
+          sessionId: String(p.sessionId),
+          day: p.day,
+          exercises: Array.isArray(p.exercises)
+            ? p.exercises.map((x) => ({
+                id: String(x.id),
+                sets: Array.isArray(x.sets) ? x.sets.map((n) => Number(n)) : [],
+              }))
+            : [],
+          rounds: Number.isFinite(p.rounds) ? p.rounds : null,
+          work: Number.isFinite(p.work) ? p.work : null,
+          rest: Number.isFinite(p.rest) ? p.rest : null,
+          ts: authoredAt(e),
+        };
+        // Latest wins for the same session on the same day — a second Finish is a correction.
+        const i = list.findIndex((w) => w.day === entry.day && w.sessionId === entry.sessionId);
+        if (i >= 0) list[i] = entry; else list.push(entry);
+        workouts.set(p.memberId, list);
+        break;
+      }
+
       case T.GOAL: {
         if (!p.memberId || !p.habitId) break;
         const key = p.memberId + "|" + p.habitId;
@@ -563,7 +601,7 @@ export function replay(events) {
     }
   }
 
-  return { meta, habits, members, logs, exemptions, bindings, goals };
+  return { meta, habits, members, logs, exemptions, bindings, goals, programs, workouts };
 }
 
 // ============================================================================

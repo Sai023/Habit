@@ -7,8 +7,8 @@
 // sync engine drains the queue whenever it can, and merges what other people wrote.
 
 import { db } from "./db.js";
-import { replay, addDays } from "./habits.js";
-import { ev, T, SOURCE } from "./schema.js";
+import { replay, addDays, isTracking } from "./habits.js";
+import { ev, T, SOURCE, METRIC } from "./schema.js";
 import { uuid, groupCode as newGroupCode, normalizeGroupCode } from "./id.js";
 import { samplesToEvents, discreteEvent } from "./ingest.js";
 import { encodeSetup, encodeInvite } from "./setup-code.js";
@@ -407,6 +407,52 @@ export async function logValue(habitId, day, value, source = "manual") {
 export async function clearManual(habitId, day) {
   const { memberId } = await identity();
   return commit(ev.clearLog(habitId, memberId, day, "manual"));
+}
+
+// ---- workouts ----
+
+/** Follow a program, or none. */
+export async function chooseProgram(programId) {
+  const { memberId } = await identity();
+  return commit(ev.program(memberId, programId || null));
+}
+
+/**
+ * Finish a session: write what was done, and tell the Workouts habit a workout happened.
+ *
+ * ---- Two events, on purpose ----
+ *
+ * The sets are the workout's business and live in T.WORKOUT. "A workout happened today" is the
+ * Workouts HABIT's business, and the habit does not read workouts — it reads its own log, from
+ * whatever source feeds it. So a second event goes into that log, the ordinary way, as one
+ * session on this day, carrying the workout's own event id as its externalId. The engine
+ * de-duplicates sessions on that id, so finishing twice corrects the sets and does not count a
+ * second workout; and a watch that caught the same session under its own id is a separate row,
+ * which is how it has always been.
+ *
+ * Only if this member is tracking a Workouts habit. Somebody following a program without
+ * competing on workouts still gets their history; the board just never hears about it.
+ */
+export async function finishWorkout({ programId, sessionId, day, exercises, rounds, work, rest }) {
+  const state = await getState();
+  const { memberId } = await identity();
+
+  const fields = { exercises };
+  if (Number.isFinite(rounds)) fields.rounds = rounds;
+  if (Number.isFinite(work)) fields.work = work;
+  if (Number.isFinite(rest)) fields.rest = rest;
+  const done = await commit(ev.workout(memberId, programId, sessionId, day, fields));
+
+  const workouts = [...state.habits.values()].find(
+    (h) => h.metric === METRIC.SESSIONS && isTracking(state, h, memberId),
+  );
+  if (workouts) {
+    // externalId is the day + session rather than the event id, so a second Finish on the same
+    // day is the same session as far as the habit is concerned and dedupes, exactly as the sets
+    // above replace rather than stack.
+    await commit(ev.log(workouts.habitId, memberId, day, 1, SOURCE.MANUAL, "workout:" + day + ":" + sessionId));
+  }
+  return done;
 }
 
 /** One discrete thing that just happened — an urge resisted, a workout done. */

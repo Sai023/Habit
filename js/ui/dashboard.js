@@ -19,6 +19,7 @@ import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { awards } from "../awards.js";
 import { neverMissed } from "../history.js";
+import { programFor, planFor } from "../workout.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -368,7 +369,36 @@ function habitCard(habit, ctx, price) {
     PAUSE_METRICS.has(habit.metric) && ctx.focusSettings
       ? el("button.cardlink", { onclick: () => ctx.onOpenFocus() }, "Adjust limits →")
       : null,
+
+    // Today's session from a personal program, on the Workouts card, because that is where a
+    // workout is. With no program chosen the card offers to choose one; on a rest day it says so
+    // and offers nothing, and "Tennis" is a rest day the program names on purpose.
+    habit.metric === METRIC.SESSIONS ? workoutEntry(ctx) : null,
   );
+}
+
+/**
+ * The way into today's session, or the reason there is not one.
+ *
+ * A primary control when there is a session, because it is the thing you came to the card to do;
+ * a quiet line when there is not, because "Rest day" is information and not an action. "Choose a
+ * program" is the way in the first time, and the only time the card asks anything.
+ */
+function workoutEntry(ctx) {
+  if (!ctx.onWorkout || ctx.demo) return null;
+  const program = programFor(ctx.state, ctx.me);
+  if (!program) {
+    return el("button.cardlink", { onclick: () => ctx.onChooseProgram() }, "Follow a program →");
+  }
+  const plan = planFor(program, ctx.today);
+  if (!plan || plan.rest) {
+    return el("div.card-foot.card-wo-rest",
+      el("span", program.name + " · " + (plan ? plan.rest : "nothing today")),
+      el("button.cardlink.inline", { onclick: () => ctx.onWorkout() }, "Program →"),
+    );
+  }
+  return el("button.tap.card-wo", { onclick: () => ctx.onWorkout() },
+    "Start " + plan.session.name + " →");
 }
 
 /**

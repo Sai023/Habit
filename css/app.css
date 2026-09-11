@@ -1696,3 +1696,116 @@ button.card-open:active { transform: scale(0.99); }
      sheet's ground named once. */
   background: linear-gradient(to top, var(--surface), transparent);
 }
+
+/* ==========================================================================
+   Workouts — today's session, one set at a time
+   ==========================================================================
+
+   Designed for a wet thumb. One set is active and big; the rest are tiles you can tap to make
+   active. Nothing here is smaller than 44px in its shorter dimension except text. */
+
+.wo { --panel: var(--surface-hi); }
+.wo .sheet-head { align-items: baseline; }
+.wo-progress { margin-left: auto; font-size: var(--fs-micro); font-weight: 700; color: var(--dim); font-variant-numeric: tabular-nums; }
+.wo-bar { height: 4px; border-radius: 999px; background: var(--surface-hi); overflow: hidden; margin-top: -6px; }
+.wo-bar > i { display: block; height: 100%; background: var(--teal); border-radius: 999px; transition: width 200ms ease; }
+
+.wo-rest-title { margin: 6px 0 0; font-size: var(--fs-display); font-weight: 800; }
+
+/* The rest clock, pinned at the top of the flow. Loud on purpose: it is the one thing on the
+   screen that is changing, and the reason you are looking at your phone between sets. */
+.wo-rest {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 10px 14px; border-radius: var(--r-sm);
+  background: var(--bg); box-shadow: inset 0 0 0 1px var(--teal-dim);
+}
+.wo-rest-label { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.wo-rest-clock { font-size: var(--fs-display); font-variant-numeric: tabular-nums; color: var(--teal); }
+.wo-rest .link { margin-left: auto; }
+
+/* One exercise. Quiet until it is the active one, then it gets the panel and the controls. */
+.wo-ex { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.wo-ex:first-of-type { border-top: 0; }
+.wo-ex.is-active { padding: 12px 14px; margin: 0 -4px; border-radius: var(--r-sm); background: var(--panel); border-top: 0; }
+.wo-ex-head { display: flex; align-items: baseline; gap: 10px; }
+.wo-ex-name { font-size: var(--fs-body); font-weight: 700; }
+.wo-ex-rx { margin-left: auto; font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Set tiles. The number is what the set is or will be; the small mark underneath is which set it
+   is until it is done, and a tick after. */
+.wo-sets { display: flex; gap: 8px; }
+.wo-set {
+  flex: 1; min-width: 0; height: 56px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--bg); color: var(--dim);
+  font: inherit; cursor: pointer;
+}
+.wo-set-n { font-size: var(--fs-head); font-weight: 800; font-variant-numeric: tabular-nums; }
+.wo-set-i { font-size: 10px; font-weight: 700; }
+.wo-set.is-done { color: var(--text); border-color: var(--teal-dim); background: var(--surface); }
+.wo-set.is-done .wo-set-i { color: var(--teal); }
+.wo-set.is-active { border-color: var(--teal); color: var(--text); box-shadow: 0 0 0 1px var(--teal); }
+
+/* The active set's controls. The number is the biggest thing on the screen because it is the
+   thing being decided. */
+.wo-active { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+.wo-stepper { display: flex; align-items: stretch; gap: 8px; }
+.wo-stepper .step { width: 64px; height: 60px; font-size: 28px; }
+.wo-value {
+  flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 4px;
+  font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.wo-unit { font-size: var(--fs-small); font-weight: 600; color: var(--dim); letter-spacing: 0; }
+.wo-done { padding: 12px 10px; font-size: var(--fs-body); }
+
+.wo-cue { margin: 0; font-size: var(--fs-small); color: var(--text); line-height: 1.45; }
+.wo-watch { margin: 0; font-size: var(--fs-micro); color: var(--dim); line-height: 1.45; }
+.wo-last { margin: 0; font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* ---- rope ---- */
+
+.wo-stage { margin: 0; font-size: var(--fs-head); font-weight: 700; }
+.wo-clock-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 18px 12px; border-radius: var(--r);
+  background: var(--panel); box-shadow: inset 0 0 0 1px var(--line);
+}
+.wo-clock-wrap.is-work { box-shadow: inset 0 0 0 2px var(--teal); }
+.wo-clock-wrap.is-rest { box-shadow: inset 0 0 0 2px var(--amber); }
+.wo-clock-wrap.is-done { box-shadow: inset 0 0 0 2px var(--teal-dim); }
+.wo-clock-phase { font-size: var(--fs-micro); font-weight: 800; letter-spacing: 0.14em; color: var(--dim); }
+.is-work .wo-clock-phase { color: var(--teal); }
+.is-rest .wo-clock-phase { color: var(--amber); }
+.wo-clock { font-size: 56px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1.05; }
+.wo-clock-round { font-size: var(--fs-small); color: var(--dim); font-variant-numeric: tabular-nums; }
+
+.wo-lens { display: flex; gap: 10px; }
+.wo-len { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wo-len-label { font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+.wo-len-ctl { display: flex; align-items: center; gap: 8px; }
+.wo-len-ctl b { min-width: 44px; text-align: center; font-size: var(--fs-head); font-variant-numeric: tabular-nums; }
+.step.small { width: 44px; height: 44px; font-size: var(--fs-head); }
+.step:disabled { opacity: 0.35; }
+.wo-len-range { font-size: 10px; color: var(--dim); }
+
+/* ---- choosing a program ---- */
+
+.prog-list { display: flex; flex-direction: column; gap: 8px; }
+.prog {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 12px 14px; border-radius: var(--r-sm); text-align: left;
+  background: var(--surface-hi); border: 1px solid var(--line); color: var(--text);
+  font: inherit; cursor: pointer;
+}
+.prog.is-on { border-color: var(--teal); }
+.prog-name { font-size: var(--fs-body); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.prog-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); }
+.prog-tagline { font-size: var(--fs-small); color: var(--dim); line-height: 1.4; }
+.prog-week { font-size: var(--fs-micro); color: var(--dim); line-height: 1.5; }
+
+/* The card's way in. A real button when there is a session, a quiet line when there is not. */
+.card-wo { margin-top: 2px; }
+.card-wo-rest { justify-content: space-between; }
+.cardlink.inline { margin: 0; padding: 0; }

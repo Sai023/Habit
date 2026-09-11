@@ -66,7 +66,7 @@ function paint() {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
     focusSettings: caps().focusSettings,
     manualSync: caps().manualSync,
-    onScoring,
+    onScoring, onWorkout, onChooseProgram,
     syncing: ui.syncing,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason, onSeasons, onHabitDetail,
     onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
@@ -215,6 +215,29 @@ const onSyncNow = guard("sync", async () => {
     ui.syncing = false;
     paint();
   }
+});
+
+/** Today's session from the program this member follows. */
+const onWorkout = guard("workout", async () => {
+  if (demoBlocked()) return;
+  const { programFor } = await import("./workout.js");
+  const program = programFor(ctx.state, ctx.me);
+  if (!program) return onChooseProgram();
+  const { openWorkoutSheet } = await import("./ui/workoutsheet.js");
+  openWorkoutSheet(document.body, {
+    state: ctx.state, program, me: ctx.me, today: ctx.today,
+    onDone: () => refresh(),
+  });
+});
+
+/** Pick which program to follow. Two to choose from, and the choice is one event. */
+const onChooseProgram = guard("program", async () => {
+  if (demoBlocked()) return;
+  const { openProgramSheet } = await import("./ui/programsheet.js");
+  openProgramSheet(document.body, {
+    state: ctx.state, me: ctx.me,
+    onDone: () => refresh(),
+  });
 });
 
 /** The rules of the game, on one screen, with the reader's own day as the worked example. */
