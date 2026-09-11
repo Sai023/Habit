@@ -66,6 +66,7 @@ function paint() {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
     focusSettings: caps().focusSettings,
     manualSync: caps().manualSync,
+    onScoring,
     syncing: ui.syncing,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason, onSeasons, onHabitDetail,
     onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
@@ -214,6 +215,14 @@ const onSyncNow = guard("sync", async () => {
     ui.syncing = false;
     paint();
   }
+});
+
+/** The rules of the game, on one screen, with the reader's own day as the worked example. */
+const onScoring = guard("scoring", async () => {
+  const { openScoringSheet } = await import("./ui/scoringsheet.js");
+  openScoringSheet(document.body, {
+    state: ctx.state, me: ctx.me, today: ctx.today, onDone: () => {},
+  });
 });
 
 /** Take a duplicate identity off the board. Confirmed by the sheet that offers it. */

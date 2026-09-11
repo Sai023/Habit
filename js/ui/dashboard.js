@@ -749,6 +749,11 @@ function boardTab(ctx) {
     seasonBeacon(ctx),
     el("p.sec-note", { style: "padding:0 2px" },
       "Rest days and days with no data are left out of the score — you're measured on the days you were actually asked to show up."),
+    // The way in, directly under the numbers it explains rather than behind the menu. Somebody
+    // wondering what "of 47" means is looking at the board when they wonder it.
+    ctx.onScoring
+      ? el("button.link", { onclick: () => ctx.onScoring() }, "How scoring works →")
+      : null,
     offBoardNote(ctx),
     pointsExplainer(ctx),
   );
@@ -1183,8 +1188,15 @@ function boardRow(row, ctx, unbroken) {
     // percentage says the same thing twice and looks like a second, disagreeing number.
     row.pct != null && !row.filtered ? el("div.row-parts", categoryBreakdown(
       ctx.state, row.memberId, addDays(ctx.today, -(isoDayOfWeek(ctx.today) - 1)), ctx.today,
-    ).map((part) => el("span.part" + (part.pct >= 100 ? ".is-full" : part.pct < 50 ? ".is-low" : ""),
-      CATEGORY_ICON[part.category] + " " + part.pct + "%"))) : null,
+    ).map((part) => (part.judged
+      ? el("span.part" + (part.pct >= 100 ? ".is-full" : part.pct < 50 ? ".is-low" : ""),
+          CATEGORY_ICON[part.category] + " " + part.pct + "%")
+      // Greyed rather than gone. A row showing three chips where the row above it shows four is a
+      // question with no answer on the screen — and the answer is not "no data", it is "not being
+      // judged yet", which is a rule working rather than a gap. A dash says waiting; an absence
+      // says broken.
+      : el("span.part.is-waiting", { title: CATEGORY_LABEL[part.category] + " isn't being judged yet" },
+          CATEGORY_ICON[part.category] + " —")))) : null,
     // A habit this person has never once missed.
     //
     // Shown, not scored — the same answer this row already gives to "3 not reported", and for the

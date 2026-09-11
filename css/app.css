@@ -187,6 +187,56 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
    is never just a number floating in a column. */
 .row-unit { font-size: var(--fs-micro); font-weight: 600; color: var(--dim); }
 
+/* A category that has nothing to judge yet. Greyed, not gone: a row with three chips beside one
+   with four is a question the screen does not answer, and the answer is "waiting", not "broken". */
+.part.is-waiting { opacity: 0.45; }
+
+/* ---------- how scoring works ---------- */
+
+.scoring-line { margin: 0; font-size: var(--fs-small); color: var(--dim); line-height: 1.5; }
+
+/* The hundred, drawn. Four segments sized by their real weights, so the split is a shape before it
+   is a list of numbers — which is the whole reason this screen exists. */
+.scoring-split {
+  display: flex; gap: 2px; height: 12px; margin: 2px 0 0;
+  border-radius: 999px; overflow: hidden;
+}
+.scoring-seg { display: block; }
+.seg-fitness    { background: var(--teal); }
+.seg-discipline { background: var(--amber); }
+.seg-rest       { background: var(--teal-dim); }
+.seg-money      { background: var(--dim); }
+
+.scoring-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.scoring-key {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-micro); color: var(--dim);
+}
+.scoring-key b { color: var(--text); font-variant-numeric: tabular-nums; }
+.scoring-dot { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 8px; }
+
+/* Their own day's arithmetic, which is the line that turns a rule into a recognition. */
+.scoring-now {
+  margin: 0; padding: 10px 12px;
+  background: var(--surface-hi); border-radius: var(--r-sm);
+  border-left: 2px solid var(--teal-dim);
+  font-size: var(--fs-small); color: var(--text); line-height: 1.5;
+}
+
+.scoring-defs { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+.scoring-defs dt {
+  font-size: var(--fs-body); font-weight: 700; color: var(--teal);
+  font-variant-numeric: tabular-nums;
+}
+.scoring-defs dd {
+  margin: 0; font-size: var(--fs-small); color: var(--dim); line-height: 1.5;
+}
+
+/* The headings carry the structure on this screen, so they get air rather than rules — six short
+   sections with a line between each would be a form, and this is meant to be read. */
+.scoring .sec-title { margin: 16px 0 0; }
+.scoring .sec-title:first-of-type { margin-top: 6px; }
+
 .row-note {
   grid-column: 1 / -1;
   margin-top: 5px;

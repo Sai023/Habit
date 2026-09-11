@@ -18,7 +18,7 @@
 // Tuesday moves the season the moment it lands, backwards if that is what actually happened.
 
 import { periodsBetween, periodStart, periodEnd, addDays, daysBetween, isoWeekKey } from "./habits.js";
-import { leaderboard, categoryOver, CATEGORY_ORDER } from "./score.js";
+import { leaderboard, categoryOver, categoryFor, CATEGORY_ORDER } from "./score.js";
 import { PERIOD } from "./schema.js";
 
 /**
@@ -389,7 +389,24 @@ export function seasonTally(state, memberIds, today, window = null) {
  * do about it on Monday.
  */
 export function categoryBreakdown(state, memberId, from, to) {
+  // Two different kinds of absent, and only one of them is worth drawing.
+  //
+  // A category the group does not RUN is not part of this group's game — a savings chip on a board
+  // where nobody tracks money is a permanent blank asking a question with no answer. Those stay
+  // filtered out, which is what they have always done.
+  //
+  // A category that exists but has nothing to judge YET is the opposite: it is a rule working.
+  // Savings is monthly, so on the tenth there is nothing to say about it and its points are being
+  // carried by the others. Removing it left one row showing three chips beside another showing
+  // four, with nothing anywhere saying why. Those are drawn, and the board greys them.
+  //
+  // The Today screen has separated these two for a while, for exactly this reason; this is the
+  // same fix one screen later.
+  const played = new Set(
+    [...state.habits.values()].filter((h) => h.scored).map((h) => categoryFor(h)),
+  );
   return CATEGORY_ORDER
+    .filter((category) => played.has(category))
     .map((category) => ({ category, ...categoryOver(state, memberId, from, to, category, addDays) }))
-    .filter((c) => c.pct !== null);
+    .map((c) => ({ ...c, judged: c.pct !== null }));
 }
