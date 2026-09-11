@@ -479,14 +479,19 @@ function watchTheClock() {
   // cost with nothing to show for it. Comparing two day strings is not.
   function tick() {
     if (!ctx) return;
+    // Not in the demo. Its state is generated, not stored, so refresh() finds no group and shows
+    // onboarding over it — which is how "look around with example data" ended at midnight, and at
+    // every foreground, on a screen asking you to start a group.
+    if (isDemo) return;
     if (todayKey(ctx.state) !== ctx.today) refresh().catch(() => {});
     else schedule();
   }
 
   function catchUp() {
     // Cheap enough to run unconditionally: it is a replay of a log already in memory. Guarded only
-    // against running before the first load has finished.
-    if (ctx) refresh().catch(() => {});
+    // against running before the first load has finished — and against the demo, for the reason
+    // above; onData has carried the same guard all along.
+    if (ctx && !isDemo) refresh().catch(() => {});
   }
 
   onAppResume(catchUp);

@@ -1244,18 +1244,18 @@ function boardRow(row, ctx, unbroken) {
           // and a monthly one for the month, so the total is not even in a single unit.
           //
           // "Goals met" is what it has always been counting: one habit, one period, one goal.
-          : row.eligible
-            ? row.pct + " a day · " + row.hits + " of " + row.eligible + " goals met"
-            : "nothing scored yet",
+          // Non-breaking inside the phrase: the meta line wraps between items, never inside one, so
+          // a flame is never orphaned from its number at the end of a line.
+          : row.eligible ? row.hits + " of " + row.eligible + " goals met" : "nothing scored yet",
         // The longest run going on any ONE habit, not a run of whole days — which is what a bare
         // flame beside a day count reads as.
-        row.streak ? " · 🔥 " + row.streak + " best run" : "",
-        row.spentTokens ? " · 🛡 spent " + row.spentTokens : "",
+        row.streak ? " · 🔥" + " " + row.streak + " best run" : "",
+        row.spentTokens ? " · 🛡" + " spent " + row.spentTokens : "",
         // Days nothing was reported. They cost nothing on purpose — a watch that stopped is not a
         // failure — but nothing was the same as saying so, which made silence the cheapest way to
         // avoid a bad week. Shown rather than scored: the group can see it, and the number is the
         // person's own to explain.
-        row.noData ? el("span.row-quiet", " · " + row.noData + " not reported") : null,
+        row.noData ? el("span.row-quiet", " · " + row.noData + " not reported") : null,
       ),
     ),
     // The week's points, out of 700, which is what the row is ranked on — and beside it what
@@ -1266,6 +1266,11 @@ function boardRow(row, ctx, unbroken) {
       row.pct == null ? "—" : String(row.points),
       row.pct == null ? null : el("span.row-unit", " " + fmt.XP),
       row.bonusPoints ? el("span.row-bonus", " +" + row.bonusPoints) : null,
+      // The average, directly under the total it is the average of. It was the first item on
+      // the meta line, which pushed "13 of 15 goals met · 🔥 21 best run · 🛡 spent 1" onto two
+      // lines with the last item orphaned — and separated the two numbers that most belong
+      // together. Here they read as one thing: where you stand, and the rate that got you there.
+      row.pct == null ? null : el("span.row-avg", row.pct + " a day"),
     ),
 
     // Which category carried the week and which sank it. The percentage says where somebody came;
@@ -1310,16 +1315,19 @@ function boardRow(row, ctx, unbroken) {
     // somebody their sync was broken rather than leaving them to wonder why the numbers looked
     // bad. The clown is gone; the diagnostic stays, on any row with days that went unreported.
     // Under a points total those days earn nothing, which makes the fix worth more, not less.
-    row.noData > 0
+    //
+    // Only on the reader's own row. It drew on every row with a silent sensor, and on a real
+    // group with patchy Health Connect that is every row, every week — three amber boxes
+    // dominating a board that is supposed to be about the standings. Other people's rows already
+    // say "3 not reported" in the meta line, which is the fact; what to do about it is theirs.
+    row.noData > 0 && row.memberId === ctx.me
       ? el("div.note",
           el("div",
-            el("b", row.memberId === ctx.me ? "Nothing came through from your phone"
-              : "Nothing came through from " + (row.name || "them")),
+            el("b", "Nothing came through from your phone"),
             " on " + row.noData + (row.noData === 1 ? " goal" : " goals")
             + " this week — those earned nothing.",
           ),
-          el("button", { onclick: () => ctx.onFixSync(row) },
-            row.memberId === ctx.me ? "Why? →" : "What they should check →"),
+          el("button", { onclick: () => ctx.onFixSync(row) }, "Why? →"),
         )
       : null,
   );
