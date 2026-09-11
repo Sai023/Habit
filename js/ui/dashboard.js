@@ -317,7 +317,7 @@ function habitCard(habit, ctx, price) {
     // the hero above is a number the reader can see how to close.
     price
       ? el("div.card-worth" + (price.earned >= price.worth - 0.5 ? ".is-full" : ""),
-          Math.round(price.earned) + " of " + Math.round(price.worth) + " pts",
+          Math.round(price.earned) + " of " + Math.round(price.worth) + " " + fmt.XP,
           price.bonus >= 0.5 ? el("span.row-bonus", " +" + Math.round(price.bonus)) : null)
       : null,
     el("div.card-foot",
@@ -513,7 +513,7 @@ function dayHero(ctx, scored) {
         el("span", "Today, across everything"),
         el("span.hero-pct" + (pct >= 100 ? ".is-hit" : ""),
           pct + " of 100",
-          el("span.row-unit", " pts"),
+          el("span.row-unit", " " + fmt.XP),
           // Beside the total, never inside it. The day is worth exactly a hundred; this is what
           // beating the targets earned on top.
           bonus > 0 ? el("span.row-bonus", " +" + bonus) : null,
@@ -529,7 +529,7 @@ function dayHero(ctx, scored) {
       // so it is also a number they can see how to close.
       scored && scored.scored
         ? el("p.hero-gap" + (pct >= 100 ? ".is-hit" : ""),
-            pct >= 100 ? "A perfect day." : (100 - pct) + " points from a perfect day.")
+            pct >= 100 ? "A perfect day." : (100 - pct) + " " + fmt.XP + " from a perfect day.")
         : null,
 
       // The taper penalty, said out loud.
@@ -541,7 +541,7 @@ function dayHero(ctx, scored) {
       scored.bonusForfeited
         ? el("p.hero-penalty", scored.bonusWithheld > 0
             ? "No bonus this week — you missed three days, so your limit holds and the "
-              + Math.round(scored.bonusWithheld) + " points you'd have earned don't count."
+              + Math.round(scored.bonusWithheld) + " " + fmt.XP + " you'd have earned don't count."
             : "No bonus this week — you missed three days, so your limit holds where it is.")
         : null,
 
@@ -834,10 +834,10 @@ function boardTab(ctx) {
       // and that is the sentence that was missing.
       // Only the week view reaches this line — season and awards return above it — so it is
       // written for the week rather than branching on a view it can never be asked about.
-      "Each day is worth 100 points and the week is the total, out of 700. Beating your goals "
+      "Each day is worth 100 " + fmt.XP + " and the week is the total, out of 700. Beating your goals "
       + "earns bonus on top, shown beside it and never inside it. A day you did not play earns "
       + "nothing — a rest day, travel, or a sensor that said nothing all add zero, so showing up "
-      + "is worth points on its own."),
+      + "is worth " + fmt.XP + " on its own."),
     // The way in, directly under the numbers it explains rather than behind the menu. Somebody
     // wondering what "of 47" means is looking at the board when they wonder it.
     ctx.onScoring
@@ -845,7 +845,6 @@ function boardTab(ctx) {
       : null,
     whatIfPanel(ranked, ctx),
     offBoardNote(ctx),
-    pointsExplainer(ctx),
   );
 }
 
@@ -956,93 +955,12 @@ function offBoardNote(ctx) {
     + " on Today, and the streak is real.");
 }
 
-/**
- * How a day becomes points, in the group's own numbers.
- *
- * ---- Why this is not a static block of prose ----
- *
- * Every figure below is read from the engine — the weights out of CATEGORY_WEIGHT, the ceiling out
- * of BONUS_CAP, the miss limit out of TAPER_MISS_LIMIT. Written out by hand it would be correct on
- * the day it shipped and quietly wrong after the next rule change, which is worse than having no
- * explanation at all: a leaderboard nobody understands is merely opaque, one that explains itself
- * incorrectly is untrustworthy.
- *
- * Collapsed by default, and a plain <details> rather than a scripted accordion — it is reference
- * material somebody opens once when they start arguing about the standings.
- */
-function pointsExplainer(ctx) {
-  const bonusMax = Math.round((BONUS_CAP - 1) * 100);
-  const weights = CATEGORY_ORDER.map((c) => ({
-    key: c,
-    label: CATEGORY_LABEL[c],
-    icon: CATEGORY_ICON[c],
-    weight: CATEGORY_WEIGHT[c],
-    bonus: BONUS_CATEGORIES.has(c),
-  }));
-
-  const rule = (title, body) => el("div.rule", el("b", title), " ", body);
-
-  return el("details.explainer",
-    el("summary", "How points work"),
-
-    el("p.rule-lede",
-      "A DAY is worth exactly 100 — never a habit, never a week. A week is the average of its "
-      + "days, and the season is every week added up."),
-
-    el("div.rules",
-      rule("The four shares",
-        "Each day's 100 is split by what the group agreed. Nobody can change these, because a "
-        + "dial on how much your own easiest habit counts is a dial on your own scoreline."),
-
-      el("table.weights",
-        weights.map((w) => el("tr",
-          el("td", w.icon + " " + w.label),
-          el("td.w", String(w.weight)),
-          el("td.b", w.bonus ? "bonus" : "no bonus"),
-        )),
-      ),
-
-      rule("Only what you're actually doing counts",
-        "The shares are re-spread over the categories you're being judged on that day, so a day "
-        + "is out of 100 whether you run two of them or all four. Resting, or a sensor going "
-        + "quiet, removes a category rather than scoring it zero — and never raises your score."),
-
-      rule("Habits inside a category split it equally",
-        "Two fitness habits get half of Core fitness each. Tracking more never lowers your "
-        + "ceiling; it just divides that category between them."),
-
-      rule("Beating a goal pays a bonus, up to " + bonusMax + " more",
-        "Kept separate from the 100 so the percentage keeps meaning what it says. It's shared out "
-        + "by weight like everything else, and " + CATEGORY_LABEL[CATEGORY.REST] + " earns none — "
-        + "sleeping past your goal isn't an achievement to pay for, and paying for it would make "
-        + "a low sleep goal the cheapest way up the board."),
-
-      rule("A ceiling is pass or fail on the day",
-        "Under your limit is full marks, and further under earns more of the bonus. One over is "
-        + "zero for that habit that day — the limit is the point."),
-
-      rule("Missing " + TAPER_MISS_LIMIT + " days holds your taper, and costs the week's bonus",
-        "Your vape ceiling stops coming down that week, on every habit you have. Holding is "
-        + "easier than not holding, so it has to cost something — otherwise the strongest play is "
-        + "to miss " + TAPER_MISS_LIMIT + " days a week for ever and keep the opening allowance."),
-
-      rule("A silent sensor is not a failure",
-        "A watch that reported nothing is a broken pipeline, and it costs nothing. A habit you "
-        + "log by hand and didn't log IS a miss — the number existed, and reporting it was the "
-        + "task. Workouts are the exception: you can always type those in yourself."),
-
-      rule("Monthly goals are judged when the month ends",
-        "A savings goal isn't scored while the month can still be saved, so an early deposit "
-        + "never drags your day down. When the month closes it colours all of its days at once. "
-        + "Hitting it early is paid on the day."),
-
-      rule("The season is won on points",
-        "Crowns only break a tie. Three near-misses used to be worth the same as three terrible "
-        + "weeks, which decided the season on a handful of Sundays and left nothing to play for "
-        + "once somebody was clear."),
-    ),
-  );
-}
+// ---- There used to be a second explainer here ----
+//
+// A collapsed "How points work" block, under the week's standings, beside a link to the scoring
+// sheet that explains the same rules. Two explanations of one engine is how one of them ends up
+// wrong: this one still said "a week is the average of its days" a commit after the week became
+// a total. The scoring sheet is the one place now, and it is the one linked above.
 
 /**
  * The long game: every completed week has a winner, and the crowns stack up.
@@ -1086,11 +1004,11 @@ function seasonSection(ctx, members) {
               r.bonus ? " · " + r.bonus + " from bonus" : "",
             ),
           ),
-          el("div.row-pct", String(r.points), el("span.row-unit", " pts")),
+          el("div.row-pct", String(r.points), el("span.row-unit", " " + fmt.XP)),
         ))),
     weeks > 0 ? el("p.sec-note", { style: "padding:0 2px" },
-      "Every week you play adds its score to your total, so the season is won on points rather "
-      + "than on a handful of Sundays — and bonus points, which only come from beating a goal "
+      "Every week you play adds its score to your total, so the season is won on " + fmt.XP + " rather "
+      + "than on a handful of Sundays — and bonus " + fmt.XP + ", which only come from beating a goal "
       + "rather than meeting it, are how somebody behind closes a gap. Crowns break a tie. "
       + weeks + (weeks === 1 ? " week" : " weeks") + " counted so far.") : null,
 
@@ -1346,7 +1264,7 @@ function boardRow(row, ctx, unbroken) {
     // week is going while the big number answers where you stand.
     el("div.row-pct",
       row.pct == null ? "—" : String(row.points),
-      row.pct == null ? null : el("span.row-unit", " pts"),
+      row.pct == null ? null : el("span.row-unit", " " + fmt.XP),
       row.bonusPoints ? el("span.row-bonus", " +" + row.bonusPoints) : null,
     ),
 

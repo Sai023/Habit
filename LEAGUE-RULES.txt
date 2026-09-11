@@ -29,19 +29,22 @@ CONTENTS
 1. THE DAY
 ----------
 
-Every day is worth exactly 100 points, for everybody, whatever they track.
+Every day is worth exactly 100 XP, for everybody, whatever they track.
+
+XP is experience points. It is the only currency in the app: a day earns up to
+100 of it, a week adds its days, a season adds its weeks.
 
 The 100 is split across four categories by fixed weights (section 2). Inside a
 category, the habits share it equally. A category with nothing to judge that
 day is dropped, and its weight is shared out among the categories that remain,
 so the day is still worth exactly 100.
 
-A day's percentage and a day's points are therefore the same number. 66 out of
-100 is 66% and 66 points. There is one currency.
+A day's percentage and its XP are therefore the same number. 66 out of 100 is
+66% and 66 XP. There is one currency.
 
 Every card on Today says what that habit is worth today and how much of it you
-have taken — "18 of 23 pts" — and the cards always add up to the day. Under the
-day's total is the distance to a perfect one: "7 points from a perfect day."
+have taken — "18 of 23 XP" — and the cards always add up to the day. Under the
+day's total is the distance to a perfect one: "7 XP from a perfect day."
 
 The day boundary is 4am (dayStartHour), not midnight, so the small hours
 belong to the night before.
@@ -60,8 +63,8 @@ belong to the night before.
 The weights are the group's and nobody can change their own.
 
 Inside a category, habits are averaged. Two Discipline habits means each is
-worth half of 30. Adding a habit to a category does not add points — it splits
-the points already there.
+worth half of 30. Adding a habit to a category does not add XP — it splits
+the XP already there.
 
 Renormalisation: if Savings has nothing to judge (a monthly goal mid-month),
 its 15 is shared among the other three in proportion to their weights, which
@@ -157,7 +160,7 @@ shows on Today and keeps a streak, but moves nobody's score (section 12).
      Aggregation   LAST
      Silence       NO_DATA
      Bonus         NO. Rest & recovery is the one category that earns no
-                   bonus points. Sleeping 15% past your target is not an
+                   bonus XP. Sleeping 15% past your target is not an
                    achievement, and paying for it would make "set a low
                    sleep goal" the easiest way up the board.
      Badges        14 / 30 / 60 / 120 days unmissed
@@ -283,7 +286,7 @@ shows on Today and keeps a streak, but moves nobody's score (section 12).
      lump, not a daily drip, and a straight-line pace would zero the
      category for the three weeks before anybody is paid. So there is no
      penalty while the month can still be saved, and Savings shows as
-     "counts at month end" with its 15 points shared among the others.
+     "counts at month end" with its 15 XP shared among the others.
 
      Two exceptions to "not judged":
        - hit the target early and the month holds its maximum from that day
@@ -309,7 +312,7 @@ top is shown SEPARATELY as "+N", so the number everybody reads means what
 everybody agreed a day is worth. The week and the season sum the bonus the
 same way — beside the total, never inside it.
 
-Bonus stays inside its category. A category's points are capped at its share
+Bonus stays inside its category. A category's XP is capped at its share
 of the day, and only the excess above that is banked as bonus. A big Steps
 day cannot pay for a blown Locked-apps day. Inside a category, one habit's
 overshoot can cover a sibling's shortfall — Steps at 115% and Workouts at 85%
@@ -340,11 +343,11 @@ quiet was a scoring advantage; a total settles both — 200 does not beat 693.
 The cost is stated rather than hidden: a day that earned nothing adds
 nothing. A rest day, travel, or a sensor that said nothing all add zero. They
 are still not MISSES — they do not break a streak and they are not held
-against you — but they do not earn either. Showing up is worth points on its
+against you — but they do not earn either. Showing up is worth XP on its
 own.
 
 The board row:
-  460 pts +22        the week's total, and beside it the week's bonus
+  460 XP +22         the week's total, and beside it the week's bonus
   92 a day           the average, in the small print
   13 of 15 goals met every scored habit in every period that closed this
                      week: one habit, one period, one goal. A daily habit
@@ -354,11 +357,11 @@ The board row:
   4 not reported     habit-periods that were NO_DATA. Shown, and under a
                      total they earned nothing, so the row offers the fix.
 
-The bar is the share of the points available so far this week that this
+The bar is the share of the XP available so far this week that this
 person has taken: 100 for every day of the week that has begun, whoever you
 are. A full bar is a hundred on every day so far.
 
-Ranking: by points; then by the average, so two people level on points are
+Ranking: by XP; then by the average, so two people level on XP are
 separated by who did it in fewer days; then by best streak; then by name.
 The top row wears the crown. Nothing marks the bottom row — the board is
 ranked, and last place is visible without a costume.
@@ -373,7 +376,7 @@ for everybody including you.
 7. THE SEASON
 -------------
 
-A season is a stretch of whole weeks. Every completed week adds its points
+A season is a stretch of whole weeks. Every completed week adds its XP
 to your total, so a week is worth between 0 and 700 and a season runs to
 thousands. Bonus is tallied beside it in its own column. This is the running
 tally: it only ever goes up, and it keeps going up across seasons.

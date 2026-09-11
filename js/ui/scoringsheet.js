@@ -32,6 +32,7 @@ import {
   dayScore, CATEGORY_WEIGHT, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER, BONUS_CAP,
 } from "../score.js";
 import { TAPER_MISS_LIMIT } from "../habits.js";
+import { XP, XP_LONG } from "./format.js";
 
 /** Joins names the way a person would say them. */
 function nameList(names) {
@@ -60,9 +61,10 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
       el("div.sheet-head", el("span.sheet-title", "How scoring works")),
 
       // ---- 1. the anchor -------------------------------------------------
-      el("h2.sec-title", "A day is worth 100"),
+      el("h2.sec-title", "A day is worth 100 " + XP),
       el("p.scoring-line",
-        "Every day, for everybody. What changes is how those hundred are split."),
+        XP + " is " + XP_LONG + ". Every day is worth a hundred of them, for everybody. What "
+        + "changes is how those hundred are split."),
 
       el("div.scoring-split", CATEGORY_ORDER.map((c) => el("i.scoring-seg.seg-" + c, {
         style: "flex:" + CATEGORY_WEIGHT[c],
@@ -79,14 +81,14 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
       el("p.scoring-line",
         "Two habits in Discipline means each is worth half of "
         + CATEGORY_WEIGHT.discipline + ". Three means a third each. "
-        + "Adding a habit does not add points \\u2014 it splits the ones already there."),
+        + "Adding a habit does not add " + XP + " — it splits what is already there."),
 
       // ---- 3. the 47 -----------------------------------------------------
-      el("h2.sec-title", "A category with nothing to judge hands its points over"),
+      el("h2.sec-title", "A category with nothing to judge hands its " + XP + " over"),
       el("p.scoring-line",
         "Savings is monthly, so on most days there is nothing to say about it. Rather than scoring "
         + "you out of " + (total - CATEGORY_WEIGHT.money) + ", its "
-        + CATEGORY_WEIGHT.money + " is shared among the rest \\u2014 so the day is still worth exactly "
+        + CATEGORY_WEIGHT.money + " is shared among the rest \— so the day is still worth exactly "
         + "a hundred. That is why a category can be worth more than its usual number."),
 
       // Their own day, which is the whole point of doing this here rather than in a help article.
@@ -105,15 +107,15 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
       el("h2.sec-title", "One currency, three sizes"),
       el("p.scoring-line",
         "A day is worth exactly a hundred. A week is its days added up, out of 700. A season is "
-        + "its weeks added up. Every number on the board is points; only the size of the pot "
+        + "its weeks added up. Every number on the board is " + XP + "; only the size of the pot "
         + "changes."),
       el("dl.scoring-defs",
         el("dt", "of 100"),
         el("dd", "Today. What the day has earned so far, out of the hundred it is worth. Each "
           + "card underneath says what that habit is worth and how much of it you have taken."),
-        el("dt", "pts"),
+        el("dt", XP),
         el("dd", "The week, out of 700 — and the season, which adds every week you play. A day "
-          + "you did not play adds nothing, so showing up is worth points on its own."),
+          + "you did not play adds nothing, so showing up is worth " + XP + " on its own."),
         el("dt", "a day"),
         el("dd", "The small print: your average. \"85 a day\" is how the week is going; the total "
           + "beside it is where you stand."),
@@ -125,7 +127,9 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
         "Up to " + Math.round((BONUS_CAP - 1) * 100) + " a day for beating your goals, shown beside "
         + "the total and never inside it — a day is worth exactly a hundred, and the number "
         + "everybody reads has to mean the number everybody agreed to. It stays inside its "
-        + "category: a big Steps day cannot pay for a blown Locked-apps day. "
+        + "category: a big Steps day cannot pay for a blown Locked-apps day. Rest & recovery "
+        + "earns none — sleeping past your goal is not an achievement to pay for, and paying "
+        + "for it would make a low sleep goal the cheapest way up the board. "
         // Only with a taper switched on. Writing the rules document caught this line claiming
         // that any three misses forfeit the bonus; bonusForfeited is gated on a taper being HELD,
         // so without one, missed days cost those days and nothing more.
@@ -136,7 +140,7 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
       el("h2.sec-title", "Days nobody asked you about do not count"),
       el("p.scoring-line",
         "Rest days, travel, and days a sensor reported nothing are left out of the score entirely "
-        + "\\u2014 not marked as failures. You are measured on the days you were actually asked to show "
+        + "\— not marked as failures. You are measured on the days you were actually asked to show "
         + "up, which is why two people can have different numbers of days scored in the same week."),
 
       el("button.tap", { onclick: () => sheet.close() }, "Got it"),

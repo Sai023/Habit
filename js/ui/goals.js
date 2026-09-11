@@ -280,12 +280,12 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
     if (!couldBeAutomatic(habit.metric)) return "You log this one yourself.";
     if (!canAuto) {
       return PAUSE_METRICS.has(habit.metric)
-        ? "Only Goal Buddy on your phone can count this \u2014 here, you log it."
+        ? "Only Goal Buddy on your phone can count this — here, you log it."
         : "This device can't read health data, so you log it here.";
     }
     if (r.tracked) return "Quiet days show as no data rather than a miss.";
     return habit.direction === AT_MOST
-      ? "A day you don't log counts as a miss \u2014 log a zero for a clean day."
+      ? "A day you don't log counts as a miss — log a zero for a clean day."
       : "A day you don't log counts as a miss.";
   }
 

@@ -440,7 +440,7 @@ function onFixSync(row) {
   showProblem(
     who + " phone hasn't reported this week. "
     + "On that phone, in Goal Buddy: open the group settings and read what the delivery card says. "
-    + "It is usually battery optimisation putting the app to sleep \u2014 on Samsung, check "
+    + "It is usually battery optimisation putting the app to sleep — on Samsung, check "
     + "Settings \u2192 Battery \u2192 Background usage limits and make sure Goal Buddy is not sleeping.",
   );
 }

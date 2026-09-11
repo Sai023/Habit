@@ -56,6 +56,16 @@ const SOURCE_LABEL = {
  * Shown on every row on purpose. Manual entry is unfalsifiable in a group of friends, so rather
  * than trying to prevent it, the app makes the difference visible and lets that do the work.
  */
+/**
+ * What the currency is called on screen.
+ *
+ * "XP" — experience points. One constant rather than the word typed in eleven places, because it
+ * was "pts" in eleven places and renaming it meant finding all eleven; the next rename should be
+ * one line. `XP_LONG` is the spelled-out form for the first mention on an explanatory screen.
+ */
+export const XP = "XP";
+export const XP_LONG = "experience points";
+
 export function source(src) {
   return SOURCE_LABEL[src] || SOURCE_LABEL[SOURCE.MANUAL];
 }

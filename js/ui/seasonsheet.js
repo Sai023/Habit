@@ -65,7 +65,7 @@ export function seasonSheet(host, { monday, today, weeks: playedWeeks }) {
 
         el("p.sheet-now",
           playedWeeks > 0
-            ? "Crowns, points and weeks won go back to zero for everybody. "
+            ? "Crowns, XP and weeks won go back to zero for everybody. "
             : "The standings go back to zero for everybody. ",
           // Said plainly, because "reset" is a word people have learned to read as "lose
           // everything", and the whole point of this is that it only clears the scoreboard.

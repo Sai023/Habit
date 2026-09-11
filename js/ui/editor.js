@@ -170,7 +170,7 @@ function categoryMap(metric) {
 
     el("p.note-inline", counts
       ? "Every day is worth 100, split like this. A category you're not tracking is left out and "
-        + "the rest grow to fill it — so skipping one never costs you points, it just means the "
+        + "the rest grow to fill it — so skipping one never costs you XP, it just means the "
         + "others carry more."
       // Said here rather than discovered later. Somebody adding a habit of their own is entitled
       // to know before they set a goal against it that it is not part of the contest.
@@ -301,7 +301,7 @@ export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
         + "stops doesn't cost you the board.";
     }
     return form.type.direction === AT_MOST
-      ? "A day you don't log counts as a miss \u2014 log a zero for a clean day."
+      ? "A day you don't log counts as a miss — log a zero for a clean day."
       : "A day you don't log counts as a miss.";
   }
 
