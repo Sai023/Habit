@@ -1,0 +1,470 @@
+GOAL BUDDY — LEAGUE ENGINE RULES
+=================================
+
+Every rule below is taken from the code as it runs today, with the file that
+owns it named so it can be checked. Where a number appears, it is the number
+in the code. If this document and the app ever disagree, the app is right and
+this document is out of date.
+
+Companion to RULES.md, which is the developer's index of where each rule is
+enforced. This is the player's rulebook.
+
+
+CONTENTS
+--------
+  1. The day
+  2. The four categories
+  3. How one habit is scored
+  4. The six habits, one by one
+  5. Bonus
+  6. The week
+  7. The season
+  8. Streaks and grace
+  9. Badges
+ 10. Days that do not count
+ 11. What the log will not let you do
+ 12. Things shown but never scored
+
+
+1. THE DAY
+----------
+
+Every day is worth exactly 100 points, for everybody, whatever they track.
+
+The 100 is split across four categories by fixed weights (section 2). Inside a
+category, the habits share it equally. A category with nothing to judge that
+day is dropped, and its weight is shared out among the categories that remain,
+so the day is still worth exactly 100.
+
+A day's percentage and a day's points are therefore the same number. 66 out of
+100 is 66% and 66 points. There is one currency.
+
+The day boundary is 4am (dayStartHour), not midnight, so the small hours
+belong to the night before.
+
+                                            score.js — dayScore, categoryScores
+
+
+2. THE FOUR CATEGORIES
+----------------------
+
+  Core fitness       40     Steps, Workouts
+  Discipline         30     Vape puffs, Locked apps
+  Rest & recovery    15     Sleep
+  Savings            15     Savings
+
+The weights are the group's and nobody can change their own.
+
+Inside a category, habits are averaged. Two Discipline habits means each is
+worth half of 30. Adding a habit to a category does not add points — it splits
+the points already there.
+
+Renormalisation: if Savings has nothing to judge (a monthly goal mid-month),
+its 15 is shared among the other three in proportion to their weights, which
+is why Core fitness is often shown as "of 47" rather than "of 40":
+40 / (40+30+15) = 47%. The day is still out of 100.
+
+                                       score.js — CATEGORY_WEIGHT, categoryScores
+
+
+3. HOW ONE HABIT IS SCORED
+--------------------------
+
+Every habit-period (a day, a week, or a month, depending on the habit) ends in
+one of four states:
+
+  HIT       met the goal
+  MISS      did not
+  NO_DATA   an automatic source reported nothing
+  EXEMPT    a rest day, travel, or a grace token spent
+
+Only HIT and MISS are scored. NO_DATA and EXEMPT are left out of the
+denominator entirely — they cost nothing and earn nothing.
+
+Silence means different things depending on who was supposed to report:
+
+  Automatic habit, nothing reported  ->  NO_DATA   (a watch that stopped is
+                                                    not a person who failed)
+  Manual habit, nothing entered      ->  MISS      (the number existed; you
+                                                    did not report it)
+
+This is the rule that makes "just never open the app" not a strategy.
+
+Direction decides how the number turns into a score:
+
+  FLOOR  (at least)   score = value / target, capped at 1.15
+  CEILING (at most)   over the limit      -> 0, no partial credit
+                      exactly at it       -> 1.00
+                      under it            -> between 1.00 and 1.15, in
+                                             proportion to how far under
+                      nothing at all      -> 1.15 (the full bonus)
+
+A typed number overrules every sensor for its day. That is how you correct a
+watch that over-counted. It is also permanent for that day unless you take it
+back (section 11).
+
+Each person sets their own target. The group agrees on WHAT is tracked; the
+number is yours. A target change starts counting from the next day. A first
+target counts from the day it is set.
+
+                          habits.js — rawPeriodStatus, valueOn, targetFor
+                          score.js  — habitScore
+
+
+4. THE SIX HABITS, ONE BY ONE
+-----------------------------
+
+These are the six the group competes on. Everything else you might track
+shows on Today and keeps a streak, but moves nobody's score (section 12).
+
+
+4.1  STEPS
+     Category      Core fitness
+     Cadence       daily
+     Direction     floor (at least)
+     Seed target   10 000, adjusted in steps of 500
+     Source        Health Connect on a phone that has it; typed by hand
+                   otherwise
+     Aggregation   LAST — the provider re-reports the day's running total
+                   on every poll, so the newest reading wins
+     Silence       NO_DATA if your source is Health Connect; MISS if you
+                   log it by hand
+     Bonus         yes — walking past the target earns up to 15% extra
+     Badges        14 / 30 / 60 / 120 days unmissed
+
+     Health Connect de-duplicates across providers when it aggregates, so a
+     phone and a watch describing the same walk count it once. The sync
+     reports which apps wrote the day's steps and when, so a low number can
+     be traced to its source. If only the handset's own counter is writing,
+     the app says so — that means Samsung Health is not writing into Health
+     Connect and steps are only being counted while the phone is on you.
+
+                                     HealthConnectSource.kt — readDay, stepOrigins
+
+
+4.2  SLEEP
+     Category      Rest & recovery
+     Cadence       daily
+     Direction     floor (at least)
+     Seed target   7h 00m (420 minutes), adjusted in quarter hours
+     Source        Health Connect if a watch reported a night; otherwise the
+                   phone's own estimate; typed by hand only if you have
+                   deliberately bound it to yourself
+     Aggregation   LAST
+     Silence       NO_DATA
+     Bonus         NO. Rest & recovery is the one category that earns no
+                   bonus points. Sleeping 15% past your target is not an
+                   achievement, and paying for it would make "set a low
+                   sleep goal" the easiest way up the board.
+     Badges        14 / 30 / 60 / 120 days unmissed
+
+     The phone estimate: the longest stretch the phone was left alone that
+     covers 3am, between 3 and 14 hours long, measured from screen-off to the
+     first UNLOCK (not the first time the screen lit up — a glance at the
+     clock or a snooze does not end the night). Attributed to the day you
+     woke up. A real reading from a watch is never overwritten by the
+     estimate. If neither exists, nothing is reported and the day is
+     NO_DATA.
+
+     There is no button to type sleep in. Nobody knows how long they slept
+     to the minute, and a guess replacing a measurement is a worse number
+     wearing the same badge.
+
+                  SleepEstimate.kt, QuietGap.kt, PauseSource.kt, score.js
+
+
+4.3  VAPE PUFFS
+     Category      Discipline
+     Cadence       daily
+     Direction     ceiling (at most)
+     Seed target   80, adjusted in steps of 5
+     Source        typed by hand — nothing can read a vape
+     Aggregation   SUM — puffs are counted as they happen, a tap at a time
+     Silence       MISS. The vape keeps the count; not entering it is an
+                   unreported day, not an unknowable one.
+     Bonus         yes — the further under the limit, the more, up to 15%
+     Taper         optional. Lowers the limit by 1 every 7 days until it
+                   reaches 0. Held for a week when you miss 3 days of the
+                   week before — and while held, NO bonus is earned on any
+                   habit (section 5).
+     Badges        14 / 30 / 60 / 120 days unmissed
+
+     Zero is a real entry. "None today" logs a zero, and a logged zero is a
+     HIT; nothing logged is a MISS. They are different days.
+
+     Because the score is SUM, you can only ever add. A mistyped 30 cannot be
+     corrected downward by logging — take it back (section 11) and re-enter.
+
+     A ceiling you have never used pays its maximum bonus every day, because
+     zero is as far under the limit as it goes. That lifts the Discipline
+     average for anybody who tracks this and does not vape. The scoring has
+     not been changed for this; instead the board names any habit somebody
+     has never missed over a meaningful stretch, so the group can see it.
+
+                                          score.js — habitScore; logsheet.js
+
+
+4.4  LOCKED APPS
+     Category      Discipline
+     Cadence       daily
+     Direction     ceiling (at most)
+     Seed target   2h 00m (120 minutes), adjusted in quarter hours
+     Source        the Pause shell on this phone — the accessibility service
+                   that raises the breathe screen
+     Aggregation   LAST
+     Silence       reported as 0 when the phone has been in use and no
+                   slowed app was opened; NO_DATA only if the service was
+                   not running
+     Bonus         yes — time left under the limit earns up to 15%
+     Taper         optional, same rule as Vape puffs
+     Badges        14 / 30 / 60 / 120 days unmissed
+
+     It counts minutes inside the apps you asked to be slowed — never the
+     whole phone. A map, a book or a call costs nothing. Somebody who slows
+     nothing is not winning it; they are not playing it.
+
+     Minutes are counted per VISIT, and a visit survives hopping out: leave
+     Instagram for WhatsApp and come back inside 90 seconds and the clock
+     resumes rather than restarting. Going out through Recents or the shade
+     and coming straight back is the same. A keyboard appearing is never
+     "leaving". The screen going off ends the leg.
+
+                            AppBlockerService.kt, Visit.kt, Overlay.kt, Prefs.kt
+
+
+4.5  WORKOUTS
+     Category      Core fitness
+     Cadence       WEEKLY
+     Direction     floor (at least)
+     Seed target   3 a week
+     Source        Health Connect exercise sessions of 10 minutes or more;
+                   or typed by hand
+     Aggregation   SUM of discrete sessions, de-duplicated on the session id
+                   so a re-poll never counts one workout twice
+     Silence       JUDGED, even for an automatic source. A week with no
+                   workouts is behind pace, not an outage — you can always
+                   log a workout by hand, so a broken watch does not excuse
+                   the one habit you could most easily have reported.
+     Bonus         yes
+     Badges        4 / 12 / 26 / 52 weeks unmissed
+
+     Scored on PACE from Monday, in whole units, rounded UP: on Wednesday
+     (day 3 of 7) you are expected to be at ceil(3 x 3/7) = 2, and scored
+     against that. Behind pace on Tuesday is the point of running a week. Finish
+     the three early and the week holds its maximum for the rest of it —
+     three by Wednesday is three, and being asked to keep proving it until
+     Sunday would make an early finish worth less than a late one.
+
+     A weekly habit contributes ONE goal to the week's "goals met" count,
+     not seven.
+
+     If somebody also tracks Calories burned, the Workouts history screen
+     shows the calories inside each week — as context, never as a score.
+
+                        HealthConnectSource.kt — MIN_WORKOUT_MINUTES; score.js
+
+
+4.6  SAVINGS
+     Category      Savings
+     Cadence       MONTHLY
+     Direction     floor (at least)
+     Seed target   1 000, adjusted in steps of 100
+     Source        typed by hand
+     Aggregation   LAST — a balance, not a sum; logging sets the total
+     Silence       not judged until the month closes (see below)
+     Bonus         yes
+     Badges        3 / 6 / 12 / 24 months unmissed  (HABIT_TIERS.month)
+
+     NOT JUDGED while the month is still running. Money arrives as a payday
+     lump, not a daily drip, and a straight-line pace would zero the
+     category for the three weeks before anybody is paid. So there is no
+     penalty while the month can still be saved, and Savings shows as
+     "counts at month end" with its 15 points shared among the others.
+
+     Two exceptions to "not judged":
+       - hit the target early and the month holds its maximum from that day
+       - once the month is OVER, the outcome colours EVERY day in it at once.
+         A month you never saved in is a MISS on all of its days, not on
+         the last one.
+
+     The second is what stops "wait and see" from being free: nothing is
+     lost by waiting, and nothing is gained by it either.
+
+                                                        score.js — habitScore
+
+
+5. BONUS
+--------
+
+Beating a target earns up to 15% on top of the habit's score (BONUS_CAP =
+1.15). Inside a category the bonus is real — it is what lets a strong Steps
+day rescue a soft Workouts week within Core fitness.
+
+The day's displayed score is capped at 100. What beating targets earned on
+top is shown SEPARATELY as "+N", so the number everybody reads means what
+everybody agreed a day is worth. A week's bonus is averaged like the
+percentage beside it, so a week reads as pct + bonus out of 115.
+
+Bonus POINTS are paid in Core fitness, Discipline and Savings. Not in Rest &
+recovery — see Sleep above.
+
+Bonus is forfeit for the whole week, across every habit, when a TAPER is
+held. A taper holds when you missed 3 days of the previous week. Without a
+taper switched on, missing days costs those days and nothing more.
+
+                              score.js — BONUS_CAP, BONUS_CATEGORIES, dayScore
+                              habits.js — TAPER_MISS_LIMIT, bonusForfeited
+
+
+6. THE WEEK
+-----------
+
+A week is the AVERAGE of its scored days, not the sum. Monday to Sunday (ISO
+weeks). The season strip on the board can start on a different weekday; the
+week being scored does not.
+
+It is an average so that somebody with five days that counted is comparable
+to somebody with seven. A sum would rank people by how many days they had
+available to earn on. The same is true of a single bad day: six hundreds and
+a zero is 600/700 and it is 85.7% — calling it points would not dilute it.
+
+Ranking: by percentage; then by goals met; then by best streak; then by
+name. The top row wears the crown. The bottom row wears the clown — unless
+that row had silent sensors, in which case nobody does, and the tag is not
+promoted upward to somebody who did better.
+
+"10 of 15 goals met" counts every scored habit in every period that closed
+this week: one habit, one period, one goal. A daily habit contributes up to
+seven; a weekly one contributes one.
+
+"4 not reported" is how many habit-periods were NO_DATA. Shown, not scored.
+
+"Never missed — Vape puffs 47 days" names a habit this person has never
+once missed over at least 14 days / 6 weeks / 3 months. Shown, not scored,
+for everybody including you.
+
+                               score.js — scoreOver, leaderboard; dashboard.js
+
+
+7. THE SEASON
+-------------
+
+A season is a stretch of whole weeks. Every completed week adds its score to
+your total: pct + bonus, so a week is worth between 0 and 115 points.
+
+Season standings are on POINTS — a total, which is why the All-time tab
+shows "173 pts" where the week tab shows "85%". Crowns (weeks won) break a
+tie. It used to rank on crowns alone; three near-misses were worth exactly
+nothing under that rule.
+
+Scoring starts at the first WHOLE week. The stub before it is a warm-up.
+A chosen length always delivers that many whole weeks. Only one season is
+active at a time; booking a new one replaces a pending one and does not
+erase a finished one — every past season is readable from the strip on the
+board.
+
+                                                 season.js — seasonTally, endFor
+
+
+8. STREAKS AND GRACE
+--------------------
+
+A streak is consecutive habit-periods that were HIT or EXEMPT. A MISS with
+nothing banked resets it to zero. NO_DATA neither breaks it nor extends it.
+
+The period still running is never a miss — a streak survives the morning.
+
+Grace tokens: earn one every 7 clean days (daily habits; 4 weeks for
+weekly, 3 months for monthly). Hold at most 2 (1 for weekly and monthly). A
+MISS with a token in the bank spends the token and becomes EXEMPT: the day
+drops out of scoring and the streak survives. Shown on the board as
+"spent 1".
+
+This is earned insurance, which is why it is not exploitable — you paid a
+premium of seven clean days for it.
+
+The group streak (the flame on Today) counts days on which EVERY habit was
+on goal. Its tiers are the four group badges below.
+
+                                habits.js — walk; schema.js — GRACE_BY_PERIOD
+
+
+9. BADGES
+---------
+
+Group tiers, on the all-habits streak:
+     Bronze     7 days     Silver    20 days
+     Gold      50 days     Diamond  100 days
+
+Per-habit levels, in the habit's own cadence:
+     Daily      14 / 30 / 60 / 120 days
+     Weekly      4 / 12 / 26 /  52 weeks
+     Monthly     3 /  6 / 12 /  24 months
+
+Badges count CROSSINGS, so one can be won twice. Every rung is drawn, won or
+not — a ladder you cannot see the top of is not a ladder.
+
+                                        milestones.js — TIERS, HABIT_TIERS
+
+
+10. DAYS THAT DO NOT COUNT
+--------------------------
+
+  Rest days       a daily habit scheduled on Mon/Wed/Fri is EXEMPT on the
+                  other days
+  Travel          booked from today onwards, never backdated. Ending a trip
+                  early may only bring the last day forward. Notifications
+                  go quiet for the trip and resume after.
+  Grace spent     section 8
+  NO_DATA         section 3
+  The open day    never judged until it closes
+  A month running section 4.6
+
+An exempt period preserves a streak and is left out of every average. A
+week is exempt only when every day in it is.
+
+                                habits.js — rawPeriodStatus; travelsheet.js
+
+
+11. WHAT THE LOG WILL NOT LET YOU DO
+------------------------------------
+
+The log is append-only. Nothing is ever deleted; every phone replays the
+same events to the same state.
+
+  A log more than 2 days late is refused. Last week's crown is not
+  winnable on Tuesday.
+
+  Travel cannot be backdated at all.
+
+  A target change counts from tomorrow. Lowering the number tonight does
+  not rescue today.
+
+  Opting out of a habit is judged as of when you opted out; it does not
+  excuse the days before.
+
+  Every guard reads min(claimed time, server arrival), so a phone with its
+  clock set forward cannot buy anything.
+
+  A typed number can be TAKEN BACK for that day. This appends a withdrawal
+  rather than deleting anything, and only removes what you typed — the
+  sensor's own reading underneath takes over again. It is subject to the
+  same 2-day window as a log.
+
+                        habits.js — replay, MAX_BACKFILL_DAYS, authoredAt
+                        schema.js — clearLog
+
+
+12. THINGS SHOWN BUT NEVER SCORED
+---------------------------------
+
+  Calories burned     a card, a streak, a history screen, and a line under
+                      Workouts. Outside all four categories by the group's
+                      own rule: only the six above are scored so that
+                      everybody is judged on the same arithmetic.
+  "Not reported"      on the board row
+  "Never missed"      on the board row
+  What-if panel       what dropping each person's worst day would do to
+                      this week. A preview of a rule not in force.
+
+                                                    schema.js — SCORED_METRICS

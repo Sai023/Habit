@@ -124,7 +124,11 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
         "Up to " + Math.round((BONUS_CAP - 1) * 100) + " on top of the hundred, and it is shown "
         + "separately \\u2014 the day is worth exactly a hundred, so folding the bonus in would make the "
         + "number everybody reads mean something different from the number everybody agreed to. "
-        + "Miss " + TAPER_MISS_LIMIT + " days of a week and the bonus for that week is gone."),
+        // Only with a taper switched on. Writing the rules document caught this line claiming
+        // that any three misses forfeit the bonus; bonusForfeited is gated on a taper being HELD,
+        // so without one, missed days cost those days and nothing more.
+        + "If you have a taper on and miss " + TAPER_MISS_LIMIT + " days of a week, it holds "
+        + "for a week and no bonus is earned on anything while it does."),
 
       // ---- 6. what is left out --------------------------------------------
       el("h2.sec-title", "Days nobody asked you about do not count"),
