@@ -438,6 +438,18 @@ html, body { overscroll-behavior-y: contain; }
 .dots > i { width: 8px; height: 8px; border-radius: 50%; background: var(--teal-dim); }
 .dots > i.spent { background: var(--danger); }
 
+/* The price of the habit today. Tabular so a column of cards lines up, teal once the habit has
+   taken everything it was worth — the moment the offer has been accepted. */
+.card-worth {
+  font-size: var(--fs-micro); font-weight: 700; color: var(--dim);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+}
+.card-worth.is-full { color: var(--teal); }
+
+/* The distance to a perfect day, under the day's bar. A number to close, not a share reached. */
+.hero-gap { margin: 6px 0 0; font-size: var(--fs-small); color: var(--dim); }
+.hero-gap.is-hit { color: var(--teal); font-weight: 700; }
+
 .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-micro); color: var(--dim); }
 
 /* The second line of a monthly goal: the clock, not the number. Quieter than the shortfall above

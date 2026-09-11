@@ -179,7 +179,6 @@ export function buildSummary(state, me, today, memberIds = null) {
           of: rows.length,
           pct: mine.pct,
           crown: !!mine.crown,
-          clown: !!mine.clown,
           hits: mine.hits,
           eligible: mine.eligible,
           noData: mine.noData,

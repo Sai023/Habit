@@ -39,6 +39,10 @@ so the day is still worth exactly 100.
 A day's percentage and a day's points are therefore the same number. 66 out of
 100 is 66% and 66 points. There is one currency.
 
+Every card on Today says what that habit is worth today and how much of it you
+have taken — "18 of 23 pts" — and the cards always add up to the day. Under the
+day's total is the distance to a perfect one: "7 points from a perfect day."
+
 The day boundary is 4am (dayStartHour), not midnight, so the small hours
 belong to the night before.
 
@@ -302,8 +306,14 @@ day rescue a soft Workouts week within Core fitness.
 
 The day's displayed score is capped at 100. What beating targets earned on
 top is shown SEPARATELY as "+N", so the number everybody reads means what
-everybody agreed a day is worth. A week's bonus is averaged like the
-percentage beside it, so a week reads as pct + bonus out of 115.
+everybody agreed a day is worth. The week and the season sum the bonus the
+same way — beside the total, never inside it.
+
+Bonus stays inside its category. A category's points are capped at its share
+of the day, and only the excess above that is banked as bonus. A big Steps
+day cannot pay for a blown Locked-apps day. Inside a category, one habit's
+overshoot can cover a sibling's shortfall — Steps at 115% and Workouts at 85%
+average to a full Core fitness.
 
 Bonus POINTS are paid in Core fitness, Discipline and Savings. Not in Rest &
 recovery — see Sleep above.
@@ -319,25 +329,39 @@ taper switched on, missing days costs those days and nothing more.
 6. THE WEEK
 -----------
 
-A week is the AVERAGE of its scored days, not the sum. Monday to Sunday (ISO
+A week is the SUM of its days' scores, out of 700. Monday to Sunday (ISO
 weeks). The season strip on the board can start on a different weekday; the
 week being scored does not.
 
-It is an average so that somebody with five days that counted is comparable
-to somebody with seven. A sum would rank people by how many days they had
-available to earn on. The same is true of a single bad day: six hundreds and
-a zero is 600/700 and it is 85.7% — calling it points would not dilute it.
+It is a total, not an average, because a league scores appearances. Two
+perfect days used to outrank seven near-perfect ones, and a watch that went
+quiet was a scoring advantage; a total settles both — 200 does not beat 693.
 
-Ranking: by percentage; then by goals met; then by best streak; then by
-name. The top row wears the crown. The bottom row wears the clown — unless
-that row had silent sensors, in which case nobody does, and the tag is not
-promoted upward to somebody who did better.
+The cost is stated rather than hidden: a day that earned nothing adds
+nothing. A rest day, travel, or a sensor that said nothing all add zero. They
+are still not MISSES — they do not break a streak and they are not held
+against you — but they do not earn either. Showing up is worth points on its
+own.
 
-"10 of 15 goals met" counts every scored habit in every period that closed
-this week: one habit, one period, one goal. A daily habit contributes up to
-seven; a weekly one contributes one.
+The board row:
+  460 pts +22        the week's total, and beside it the week's bonus
+  92 a day           the average, in the small print
+  13 of 15 goals met every scored habit in every period that closed this
+                     week: one habit, one period, one goal. A daily habit
+                     contributes up to seven; a weekly one contributes one.
+  🔥 21 best run     the longest run going on any one habit
+  🛡 spent 1         grace tokens spent this week
+  4 not reported     habit-periods that were NO_DATA. Shown, and under a
+                     total they earned nothing, so the row offers the fix.
 
-"4 not reported" is how many habit-periods were NO_DATA. Shown, not scored.
+The bar is the share of the points available so far this week that this
+person has taken: 100 for every day of the week that has begun, whoever you
+are. A full bar is a hundred on every day so far.
+
+Ranking: by points; then by the average, so two people level on points are
+separated by who did it in fewer days; then by best streak; then by name.
+The top row wears the crown. Nothing marks the bottom row — the board is
+ranked, and last place is visible without a costume.
 
 "Never missed — Vape puffs 47 days" names a habit this person has never
 once missed over at least 14 days / 6 weeks / 3 months. Shown, not scored,
@@ -349,13 +373,14 @@ for everybody including you.
 7. THE SEASON
 -------------
 
-A season is a stretch of whole weeks. Every completed week adds its score to
-your total: pct + bonus, so a week is worth between 0 and 115 points.
+A season is a stretch of whole weeks. Every completed week adds its points
+to your total, so a week is worth between 0 and 700 and a season runs to
+thousands. Bonus is tallied beside it in its own column. This is the running
+tally: it only ever goes up, and it keeps going up across seasons.
 
-Season standings are on POINTS — a total, which is why the All-time tab
-shows "173 pts" where the week tab shows "85%". Crowns (weeks won) break a
-tie. It used to rank on crowns alone; three near-misses were worth exactly
-nothing under that rule.
+Season standings are on POINTS. Crowns (weeks won) break a tie. It used to
+rank on crowns alone; three near-misses were worth exactly nothing under
+that rule.
 
 Scoring starts at the first WHOLE week. The stub before it is a warm-up.
 A chosen length always delivers that many whole weeks. Only one season is
@@ -420,8 +445,9 @@ not — a ladder you cannot see the top of is not a ladder.
   The open day    never judged until it closes
   A month running section 4.6
 
-An exempt period preserves a streak and is left out of every average. A
-week is exempt only when every day in it is.
+An exempt period preserves a streak and is never a MISS. Under the week's
+total it earns nothing either — a day you did not play adds zero, whatever
+the reason. A week is exempt only when every day in it is.
 
                                 habits.js — rawPeriodStatus; travelsheet.js
 

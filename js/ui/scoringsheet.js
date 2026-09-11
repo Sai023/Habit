@@ -102,28 +102,30 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
         : null,
 
       // ---- 4. the two numbers on the board -------------------------------
-      el("h2.sec-title", "Points and percentages are the same thing"),
+      el("h2.sec-title", "One currency, three sizes"),
       el("p.scoring-line",
-        "A day is worth exactly a hundred, so a share of it and a count of it are the same number. "
-        + "66 out of 100 is 66% and 66 points. There is only one currency here; the screens just "
-        + "show it in whichever form answers the question they are asking."),
+        "A day is worth exactly a hundred. A week is its days added up, out of 700. A season is "
+        + "its weeks added up. Every number on the board is points; only the size of the pot "
+        + "changes."),
       el("dl.scoring-defs",
         el("dt", "of 100"),
-        el("dd", "Today. What the day has earned so far, out of the hundred it is worth."),
-        el("dt", "%"),
-        el("dd", "A week — the average of its days. It is a percentage rather than a total because "
-          + "it is an average: 85% is 85 points a day, not 85 points for the week."),
+        el("dd", "Today. What the day has earned so far, out of the hundred it is worth. Each "
+          + "card underneath says what that habit is worth and how much of it you have taken."),
         el("dt", "pts"),
-        el("dd", "The season, and this one really is a total. Every week you play adds its score "
-          + "to it, so a season is won on steady weeks rather than one good Sunday."),
+        el("dd", "The week, out of 700 — and the season, which adds every week you play. A day "
+          + "you did not play adds nothing, so showing up is worth points on its own."),
+        el("dt", "a day"),
+        el("dd", "The small print: your average. \"85 a day\" is how the week is going; the total "
+          + "beside it is where you stand."),
       ),
 
       // ---- 5. bonus -------------------------------------------------------
       el("h2.sec-title", "Beating a goal earns a bonus"),
       el("p.scoring-line",
-        "Up to " + Math.round((BONUS_CAP - 1) * 100) + " on top of the hundred, and it is shown "
-        + "separately \\u2014 the day is worth exactly a hundred, so folding the bonus in would make the "
-        + "number everybody reads mean something different from the number everybody agreed to. "
+        "Up to " + Math.round((BONUS_CAP - 1) * 100) + " a day for beating your goals, shown beside "
+        + "the total and never inside it — a day is worth exactly a hundred, and the number "
+        + "everybody reads has to mean the number everybody agreed to. It stays inside its "
+        + "category: a big Steps day cannot pay for a blown Locked-apps day. "
         // Only with a taper switched on. Writing the rules document caught this line claiming
         // that any three misses forfeit the bonus; bonusForfeited is gated on a taper being HELD,
         // so without one, missed days cost those days and nothing more.

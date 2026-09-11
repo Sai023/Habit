@@ -438,7 +438,24 @@ export function scoreOver(state, memberId, from, to, addDaysFn, today = null) {
   const withheld = daily.length
     ? Math.round(daily.reduce((sum, d) => sum + d.bonusWithheld, 0) / daily.length)
     : 0;
-  return { pct, bonus, withheld, days: daily.length, daily };
+  // The week as a TOTAL, which is what the board ranks on now.
+  //
+  // A league scores appearances. The average above is fair across unequal exposure — somebody
+  // with five days that counted against somebody with seven — and it was chosen for that. What it
+  // could not do is reward showing up: two perfect days outranked seven near-perfect ones, and a
+  // watch that went quiet was a scoring advantage. Summing closes both, at a cost that is stated
+  // rather than hidden: a day that earned nothing, for whatever reason, adds nothing.
+  //
+  // Each day is worth 100, so a week runs to 700. Bonus is NOT inside it: a day is worth exactly a
+  // hundred, and the number everybody reads has to mean the number everybody agreed to. What
+  // beating the targets earned is summed alongside as its own running figure — the same currency,
+  // kept in a separate column, exactly as the day does with pct and bonus.
+  //
+  // Kept beside the average rather than replacing it, because "85 a day" is still the honest
+  // answer to how the week is going, and "425 so far" is the answer to where you stand.
+  const points = daily.reduce((sum, d) => sum + d.pct, 0);
+  const bonusPoints = daily.reduce((sum, d) => sum + d.bonus, 0);
+  return { pct, bonus, withheld, points, bonusPoints, days: daily.length, daily };
 }
 
 /**
@@ -577,24 +594,30 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
       // what-if about this week does not have to walk it again.
       daily: earned.daily,
       pct: earned.pct,
+      points: earned.points,
+      bonusPoints: earned.bonusPoints,
       bonus: earned.bonus,
       bonusWithheld: earned.withheld,
       scoredDays: earned.days,
     };
   });
 
-  // Rank by completion. Someone with no measurable days ranks last but is never crowned or clowned.
+  // Rank on POINTS — the week's running total. Someone with no measurable days ranks last but is
+  // never crowned.
   //
-  // Ties break on days actually completed, then on streak. Percentage alone would hand the crown
-  // to whoever had the fewest days measured — a week where three of five days were rest days or
-  // travel is 100%, and it should not beat a perfect seven out of seven. Name is only ever the
-  // last resort, so that ordering stays deterministic across devices.
+  // It ranked on the average, with days completed as a tie-break, and the tie-break only ever
+  // fired on an exact tie: two perfect days at 100% beat seven days at 99%, because 100 is not 99.
+  // A total settles that without a tie-break at all — 200 does not beat 693 — which is the
+  // actuarial reason for it. The league reason is simpler: a league scores appearances.
+  //
+  // Then the average, so two people level on points are separated by who did it in fewer days;
+  // then streak; then name, so the order is deterministic across devices.
   const ranked = rows.slice().sort((a, b) => {
     if (a.pct === null && b.pct === null) return a.name.localeCompare(b.name);
     if (a.pct === null) return 1;
     if (b.pct === null) return -1;
+    if (a.points !== b.points) return b.points - a.points;
     if (a.pct !== b.pct) return b.pct - a.pct;
-    if (a.hits !== b.hits) return b.hits - a.hits;
     if (a.streak !== b.streak) return b.streak - a.streak;
     return a.name.localeCompare(b.name);
   });
@@ -603,22 +626,19 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
   const measurable = ranked.filter((r) => r.pct !== null);
   const crown = measurable.length > 0 ? measurable[0] : null;
 
-  // Nobody is the clown for coming bottom of a field of one. And when the bottom row had a silent
-  // pipeline, the week produces NO clown at all — the tag is NOT promoted to the person above
-  // them, who by definition did better. Suppressing upward would punish a good week to keep a
-  // joke alive, which is precisely the unfairness this rule exists to remove.
-  let clown = null, clownSuppressedFor = null;
-  if (measurable.length > 1) {
-    const last = measurable[measurable.length - 1];
-    if (last.noData > 0) clownSuppressedFor = last.memberId;
-    else if (!crown || last.memberId !== crown.memberId) clown = last;
-  }
-
+  // ---- There is no clown any more ----
+  //
+  // The bottom row wore a 🤡, and a fairness rule around it grew to some size: never for a field of
+  // one, never when the bottom row had a silent sensor, never promoted upward to somebody who did
+  // better. All of it correct, and all of it in service of telling one person, every day, with an
+  // emoji, that they were last.
+  //
+  // Upward comparison motivates while the gap looks closeable and predicts dropout once it does
+  // not — and the person it lands on is the one the group can least afford to lose. The board is
+  // ranked; last place is visible without a costume. The crown stays, because being told you are
+  // winning has no such cost.
   for (const r of ranked) {
     r.crown = !!crown && r.memberId === crown.memberId;
-    r.clown = !!clown && r.memberId === clown.memberId;
-    // Why this row is NOT wearing the tag, so the UI can say so and offer the fix.
-    r.clownSuppressed = r.memberId === clownSuppressedFor;
   }
 
   return ranked;

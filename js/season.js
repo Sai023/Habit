@@ -338,13 +338,16 @@ export function seasonTally(state, memberIds, today, window = null) {
         continue;
       }
       t.weeks += 1;
-      // Base plus bonus. A week is worth its percentage and up to fifteen more for beating the
-      // targets rather than merely meeting them — which is what makes a season winnable from
-      // behind by somebody having an exceptional month, without ever letting a single day be
-      // worth more than a hundred.
-      const earned = row.pct + (row.bonus || 0);
+      // The week's points, as the board now shows them: every day's hundred, summed, so a week
+      // runs to 700 and a season to thousands — the running tally the change was for. It used to
+      // add the week's AVERAGE, so a season week was worth at most a hundred; same currency, no
+      // longer the same size.
+      //
+      // Bonus is tallied beside it, never inside it. A day is worth exactly a hundred and the
+      // total has to keep meaning that; what beating the targets earned is its own column.
+      const earned = row.points;
       t.points += earned;
-      t.bonus += row.bonus || 0;
+      t.bonus += row.bonusPoints || 0;
       if (!t.best || earned > t.best.pct) t.best = { week, pct: earned };
       if (row.crown) {
         t.crowns += 1;

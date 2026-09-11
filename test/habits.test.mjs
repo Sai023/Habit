@@ -371,29 +371,47 @@ function threeMembers({ carolSource = SOURCE.MANUAL, carolLogs = [0, 1, 2] } = {
   return replay(events);
 }
 
-test("crown goes to the top completion, clown to the bottom", () => {
+test("crown goes to the top of the board, and nothing goes to the bottom", () => {
+  // There used to be a clown. It was removed on purpose: the bottom row is visible without a
+  // costume, and telling one person every day with an emoji that they are last is the surest way
+  // to lose the person the group can least afford to. The crown stays — being told you are
+  // winning has no such cost.
   const s = threeMembers();
   const rows = leaderboard(s, ["m1", "m2", "m3"], day(0), day(6), day(6));
   assert.deepEqual(rows.map((r) => r.name), ["Alice", "Bob", "Carol"]);
   assert.equal(rows[0].pct, 100);
   assert.equal(rows[0].crown, true);
-  assert.equal(rows[2].clown, true);
+  assert.equal("clown" in rows[2], false, "the field is gone, not merely false");
+  assert.equal(rows.filter((r) => r.crown).length, 1);
 });
 
-test("a silent pipeline suppresses the clown entirely — it is never promoted upward", () => {
+test("a silent pipeline is still reported, so the diagnostic can offer the fix", () => {
   // Carol's habit is automatic and she logged only 2 of 7 days, so 5 days are NO_DATA rather
-  // than misses. She must not be clowned for a broken watch — and neither must Bob, who did
-  // better than her.
+  // than misses. The clown's suppression rule used to be the one place the app told somebody
+  // their sync was broken; the clown is gone and the diagnostic keys on noData directly.
   const s = threeMembers({ carolSource: SOURCE.HEALTH_CONNECT, carolLogs: [0, 1] });
   const rows = leaderboard(s, ["m1", "m2", "m3"], day(0), day(6), day(6));
   const carol = rows.find((r) => r.name === "Carol");
-  const bob = rows.find((r) => r.name === "Bob");
 
   assert.ok(carol.noData > 0, "Carol should have NO_DATA days");
-  assert.equal(carol.clown, false);
-  assert.equal(carol.clownSuppressed, true, "the UI needs to explain why, and offer the fix");
-  assert.equal(bob.clown, false, "the tag must not be promoted to someone who did better");
-  assert.equal(rows.filter((r) => r.clown).length, 0);
+  // And under a points total, those days earned nothing — which is what makes the fix worth
+  // offering rather than merely noting.
+  assert.ok(carol.points < rows[0].points, "days that went unreported added nothing");
+});
+
+test("the week is ranked on points, and points are out of a hundred a day", () => {
+  // Two perfect days used to beat seven days at ninety-nine, because the tie-break on days only
+  // fired on an exact tie. A total settles it without one: 200 does not beat 693.
+  const s = threeMembers({ carolSource: SOURCE.HEALTH_CONNECT, carolLogs: [0, 1] });
+  const rows = leaderboard(s, ["m1", "m2", "m3"], day(0), day(6), day(6));
+  const alice = rows.find((r) => r.name === "Alice");
+  const carol = rows.find((r) => r.name === "Carol");
+  assert.equal(alice.points, alice.pct * alice.scoredDays, "points are the day scores summed");
+  assert.ok(alice.points <= 700, "a week caps at seven hundreds");
+  assert.ok(carol.pct >= alice.pct - 1 || carol.points < alice.points,
+    "a short perfect record cannot outrank a long near-perfect one on points");
+  // Bonus rides alongside, never inside.
+  for (const r of rows) assert.ok(r.points <= 100 * r.scoredDays, "bonus is not in the total");
 });
 
 test("EXEMPT and NO_DATA days leave the denominator", () => {

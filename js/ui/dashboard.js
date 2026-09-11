@@ -121,15 +121,21 @@ function todayTab(ctx) {
     );
   }
 
+  // The day, scored once, and every card priced off it. dayHero used to score it for itself;
+  // pricing the cards needs the same result, and scoring the day twice per paint would be paying
+  // for the same walk to get the same answer.
+  const scored = dayScore(ctx.state, ctx.me, ctx.today, ctx.today);
+  const prices = priceHabits(scored);
+
   return [
     travelBanner(ctx),
-    dayHero(ctx),
+    dayHero(ctx, scored),
     el("section.sec",
       el("div.sec-hd",
         el("h2.sec-title", "Your day"),
         el("span.sec-note", timeLeft(ctx)),
       ),
-      el("div.cards", habits.map((h) => habitCard(h, ctx))),
+      el("div.cards", habits.map((h) => habitCard(h, ctx, prices.get(h.habitId)))),
       streakLine(habits, ctx),
     ),
     correlationSection(habits, ctx),
@@ -219,7 +225,7 @@ function timeLeft(ctx) {
  * target; a reduce habit drains a budget of dots. A full bar means success in one and failure in
  * the other, so they must not look alike.
  */
-function habitCard(habit, ctx) {
+function habitCard(habit, ctx, price) {
   // A weekly habit's card is about the WEEK. Showing today's number for "gym three times a week"
   // would read as though you had failed on every rest day.
   const key = periodKey(ctx.today, habit.period);
@@ -306,6 +312,14 @@ function habitCard(habit, ctx) {
     ),
     reduce ? budgetDots(value, target) : progressBar(value, target),
     ),
+    // The price. What this habit can put on today, and how much of that it has so far — so the
+    // card says what the action is worth before it is taken, and the distance to a perfect day on
+    // the hero above is a number the reader can see how to close.
+    price
+      ? el("div.card-worth" + (price.earned >= price.worth - 0.5 ? ".is-full" : ""),
+          Math.round(price.earned) + " of " + Math.round(price.worth) + " pts",
+          price.bonus >= 0.5 ? el("span.row-bonus", " +" + Math.round(price.bonus)) : null)
+      : null,
     el("div.card-foot",
       // The source badge IS the sync control, on a card something else fills in.
       //
@@ -419,9 +433,56 @@ function travelBanner(ctx) {
   );
 }
 
-function dayHero(ctx) {
+/**
+ * What each habit is worth today, in points, and what it has earned of that so far.
+ *
+ * ---- Why this is the change that makes it a game ----
+ *
+ * The engine has always known these numbers and never shown one. A category's share, divided by
+ * the habits in it, is exactly what one of those habits can put on the day — 47 for Core fitness
+ * over two habits is 23.5 each — and the habit's own score says how much of that it has taken.
+ * Without it the loop was "do things, then see a number": the reward was computed afterwards and
+ * shown as an aggregate, which teaches nothing about which thing moved it.
+ *
+ * With it, a card is an offer rather than a status. "Worth 23 today" before you act; "18 of 23"
+ * as you go. The contingency is visible, which is the one thing habit formation actually runs on.
+ *
+ * Earned is capped at the worth, like the category is capped at its share: the bonus is banked
+ * beside it, not inside it, so a habit never reads as "26 of 23".
+ */
+function priceHabits(scored) {
+  const out = new Map();
+  for (const c of scored.categories || []) {
+    const live = c.habits.filter((h) => h.eligible);
+    if (!live.length || !(c.share > 0)) continue;
+    // Whole points that add up to the category as the hero shows it. 47 over two habits is 23.5
+    // each, which rounds to 24 + 24 = 48 under a heading that says 47 — exactly the kind of
+    // number that does not add up which this whole screen exists to stop. Largest remainder: the
+    // rounded share is split evenly, and the leftover points go one each to the habits with the
+    // biggest fractional claim, so the cards always sum to the line above them.
+    const worths = splitWhole(Math.round(c.share), live.length);
+    live.forEach((h, i) => {
+      const worth = worths[i];
+      const score = Number.isFinite(h.score) ? h.score : 0;
+      out.set(h.habit.habitId, {
+        worth,
+        earned: worth * Math.min(1, score),
+        bonus: BONUS_CATEGORIES.has(c.category) ? worth * Math.max(0, Math.min(BONUS_CAP, score) - 1) : 0,
+      });
+    });
+  }
+  return out;
+}
+
+/** n whole numbers summing to total, as equal as whole numbers allow, larger ones first. */
+function splitWhole(total, n) {
+  const base = Math.floor(total / n);
+  const extra = total - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+function dayHero(ctx, scored) {
   const streak = onGoalStreak(ctx.state, ctx.me, ctx.today);
-  const scored = dayScore(ctx.state, ctx.me, ctx.today, ctx.today);
   const pct = Math.round(scored.pct || 0);
   const bonus = Math.round(scored.bonus || 0);
 
@@ -459,6 +520,17 @@ function dayHero(ctx) {
         ),
       ),
       el("div.bar", { role: "presentation" }, el("i", { style: "width:" + Math.min(100, pct) + "%" })),
+
+      // The distance to a perfect day, said as a number to close rather than a percentage reached.
+      //
+      // Proximity to a target reliably increases effort, and "66%" hides the distance while
+      // "34 to go" names it. The whole point of a day being worth exactly a hundred is that the
+      // gap is a number somebody can picture — and the cards below each say what they are worth,
+      // so it is also a number they can see how to close.
+      scored && scored.scored
+        ? el("p.hero-gap" + (pct >= 100 ? ".is-hit" : ""),
+            pct >= 100 ? "A perfect day." : (100 - pct) + " points from a perfect day.")
+        : null,
 
       // The taper penalty, said out loud.
       //
@@ -734,7 +806,7 @@ function boardTab(ctx) {
           };
         })
         .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1))
-        .map((r, i) => ({ ...r, rank: i + 1, crown: false, clown: false }))
+        .map((r, i) => ({ ...r, rank: i + 1, crown: false }))
     : rows;
 
   if (ctx.boardView === "season") return seasonSection(ctx, members);
@@ -762,9 +834,10 @@ function boardTab(ctx) {
       // and that is the sentence that was missing.
       // Only the week view reaches this line — season and awards return above it — so it is
       // written for the week rather than branching on a view it can never be asked about.
-      "Each day is scored out of 100, and a week is the average of its days — so 85% is 85 points "
-      + "a day. Rest days and days with no data are left out: you're measured on the days you were "
-      + "actually asked to show up."),
+      "Each day is worth 100 points and the week is the total, out of 700. Beating your goals "
+      + "earns bonus on top, shown beside it and never inside it. A day you did not play earns "
+      + "nothing — a rest day, travel, or a sensor that said nothing all add zero, so showing up "
+      + "is worth points on its own."),
     // The way in, directly under the numbers it explains rather than behind the menu. Somebody
     // wondering what "of 47" means is looking at the board when they wonder it.
     ctx.onScoring
@@ -1198,6 +1271,21 @@ function whatIfPanel(ranked, ctx) {
   );
 }
 
+/**
+ * How much of this week's available points a row has taken, 0–100, for the bar.
+ *
+ * Available = 100 for every day of the week that has begun, whoever you are. Not "days you were
+ * judged on": a league puts the same points on offer to everybody, and a day you did not appear
+ * for is a day you did not score. That is the rule the total was chosen for, and the bar is where
+ * it is visible — a full bar means a hundred on every day so far, not a hundred on the days that
+ * happened to count.
+ */
+function weekShare(row, ctx) {
+  if (row.pct == null) return 0;
+  const daysSoFar = Math.max(1, isoDayOfWeek(ctx.today));
+  return Math.min(100, Math.round((row.points / (100 * daysSoFar)) * 100));
+}
+
 /** "119 days", "12 weeks" — the run said in the habit's own unit. */
 function unbrokenSpan(entry) {
   const unit = entry.period === PERIOD.WEEK ? "week"
@@ -1215,13 +1303,16 @@ function boardRow(row, ctx, unbroken) {
     el("div.row-main",
       el("div.row-name",
         row.crown ? el("span.tagemoji", { title: "Top of the board" }, "👑") : null,
-        row.clown ? el("span.tagemoji", { title: "Bottom of the board" }, "🤡") : null,
         row.memberId === ctx.me ? "You" : row.name,
         // Beside the name rather than in the meta line below it. A badge is about the person, and
         // it is the one thing on this row worth seeing before the percentage.
         tierBadge(onGoalStreak(ctx.state, row.memberId, ctx.today)),
       ),
-      el("div.row-bar", el("i", { style: "width:" + (row.pct == null ? 0 : row.pct) + "%" })),
+      // The bar is the share of the points available SO FAR this week that this person has taken.
+      // A day is worth 100, so by Friday there have been 500 on offer; 425 of them is 85%. A day
+      // that went unreported took none of its hundred, and the bar says so — which is the whole
+      // difference between a total and an average, made visible.
+      el("div.row-bar", el("i", { style: "width:" + weekShare(row, ctx) + "%" })),
       el("div.row-meta",
         // Filtered, the only honest count is how many days this category was asked about — hits
         // belong to the whole day and would be answering a question nobody asked here. That one
@@ -1235,7 +1326,9 @@ function boardRow(row, ctx, unbroken) {
           // and a monthly one for the month, so the total is not even in a single unit.
           //
           // "Goals met" is what it has always been counting: one habit, one period, one goal.
-          : row.eligible ? row.hits + " of " + row.eligible + " goals met" : "nothing scored yet",
+          : row.eligible
+            ? row.pct + " a day · " + row.hits + " of " + row.eligible + " goals met"
+            : "nothing scored yet",
         // The longest run going on any ONE habit, not a run of whole days — which is what a bare
         // flame beside a day count reads as.
         row.streak ? " · 🔥 " + row.streak + " best run" : "",
@@ -1247,12 +1340,14 @@ function boardRow(row, ctx, unbroken) {
         row.noData ? el("span.row-quiet", " · " + row.noData + " not reported") : null,
       ),
     ),
-    // The percentage, and beside it what beating the targets earned on top. Two numbers rather
-    // than one on purpose: a day is worth exactly a hundred, so folding the bonus in would make
-    // the figure everybody reads mean something different from the figure everybody agreed to.
+    // The week's points, out of 700, which is what the row is ranked on — and beside it what
+    // beating the targets earned, as its own number, exactly the way the day shows "93 of 100
+    // pts +4". The average sits in the meta line underneath, where "85 a day" answers how the
+    // week is going while the big number answers where you stand.
     el("div.row-pct",
-      row.pct == null ? "—" : row.pct + "%",
-      row.bonus ? el("span.row-bonus", " +" + row.bonus) : null,
+      row.pct == null ? "—" : String(row.points),
+      row.pct == null ? null : el("span.row-unit", " pts"),
+      row.bonusPoints ? el("span.row-bonus", " +" + row.bonusPoints) : null,
     ),
 
     // Which category carried the week and which sank it. The percentage says where somebody came;
@@ -1290,15 +1385,20 @@ function boardRow(row, ctx, unbroken) {
           + (unbroken.length > 1 ? " · and " + (unbroken.length - 1) + " more" : ""))
       : null,
 
-    // The fairness rule, made visible. If the bottom row had a silent pipeline there is no clown
-    // at all this week — and the person is told why, and offered the fix, rather than left to
-    // wonder why their numbers look bad.
-    row.clownSuppressed
+    // A silent sensor, said out loud and offered the fix.
+    //
+    // This used to be the clown's fairness note — "nothing to score, so nobody is the clown this
+    // week" — and it was the useful half of that whole apparatus: the one place the app told
+    // somebody their sync was broken rather than leaving them to wonder why the numbers looked
+    // bad. The clown is gone; the diagnostic stays, on any row with days that went unreported.
+    // Under a points total those days earn nothing, which makes the fix worth more, not less.
+    row.noData > 0
       ? el("div.note",
           el("div",
             el("b", row.memberId === ctx.me ? "Nothing came through from your phone"
               : "Nothing came through from " + (row.name || "them")),
-            " — nothing to score, so nobody is the clown this week.",
+            " on " + row.noData + (row.noData === 1 ? " goal" : " goals")
+            + " this week — those earned nothing.",
           ),
           el("button", { onclick: () => ctx.onFixSync(row) },
             row.memberId === ctx.me ? "Why? →" : "What they should check →"),
