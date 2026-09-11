@@ -24,6 +24,7 @@ export const T = {
   HABIT_DEF:    "habit_def",          // a habit's definition (last write wins per habitId)
   HABIT_DELETE: "habit_def_delete",   // retire a habit; its logs stay for history
   LOG:          "habit_log",          // ONE observation for one member, habit and day
+  LOG_CLEAR:    "habit_log_clear",    // withdraw what one member TYPED for one habit-day
   EXEMPT:       "habit_exempt",       // travel mode / planned rest — a range of days
   BINDING:      "habit_source",       // which source feeds one habit FOR ONE MEMBER
   GOAL:         "habit_goal",         // one member's own target, and whether they track it
@@ -355,6 +356,37 @@ export const ev = {
    */
   exempt: (memberId, from, to, reason = "travel", habitId = null, exemptId = null) =>
     ({ type: T.EXEMPT, payload: p({ memberId, habitId, from, to, reason, exemptId }) }),
+
+  /**
+   * Take back a number you typed, for one habit on one day.
+   *
+   * ---- Why it is an event and not a delete ----
+   *
+   * The log only appends, and every device derives everything by replaying it. There is nothing to
+   * delete: the row is on three phones and a server. So withdrawal is a thing that HAPPENED, in
+   * the same way ending a trip early is — see `exempt`, which ends a period by writing a second
+   * event rather than by removing the first.
+   *
+   * That also keeps the history honest. "Sam logged 3 puffs and took it back" is what occurred,
+   * and a log that could forget the first half would be a log you could quietly launder.
+   *
+   * ---- Why it names a source ----
+   *
+   * Because the point is to reveal what is UNDERNEATH. A manual number overrules every sensor for
+   * its day, deliberately — typing one in is how you overrule a watch that over-counted. The cost
+   * is that it overrules for ever, including after the watch catches up and is right again.
+   * Clearing the manual entry alone puts the sensor's own reading back in charge, rather than
+   * blanking the day.
+   *
+   * ---- What an older build does with it ----
+   *
+   * Skips it, via isKnown, and goes on showing the withdrawn number. That is a real divergence and
+   * it is the better of the two available ones: the alternative shape — a LOG carrying a marker —
+   * reads on an old build as a logged ZERO, which is a number nobody entered, and on a ceiling it
+   * is a perfect day nobody had. A stale reading is at least a state that once existed.
+   */
+  clearLog: (habitId, memberId, day, source = SOURCE.MANUAL) =>
+    ({ type: T.LOG_CLEAR, payload: p({ habitId, memberId, day, source }) }),
 };
 
 /** Is this a habit event this build understands? Used by replay() to skip the rest. */

@@ -427,6 +427,35 @@ export function replay(events) {
         break;
       }
 
+      /**
+       * Take back what this member typed for one habit-day.
+       *
+       * Filters the entries accumulated SO FAR. Everything is in replay order, so a log written
+       * after the withdrawal is simply pushed afterwards and survives — which is what makes
+       * "clear it, then enter the right number" work as two ordinary events rather than needing a
+       * replace operation of its own.
+       *
+       * The same backfill guard as T.LOG, and for the same reason: without it, last week's crown
+       * is winnable on Tuesday by withdrawing the days that lost it.
+       */
+      case T.LOG_CLEAR: {
+        if (!p.habitId || !p.memberId || !p.day) break;
+        const h = habits.get(p.habitId);
+        const tz = (h && h.tz) || HABIT_DEFAULTS.tz;
+        const startHour = h ? h.dayStartHour : HABIT_DEFAULTS.dayStartHour;
+        const authoredDay = dayKey(authoredAt(e), tz, startHour);
+        if (daysBetween(p.day, authoredDay) > MAX_BACKFILL_DAYS) break;
+
+        const k = logKey(p.habitId, p.memberId, p.day);
+        const list = logs.get(k);
+        if (!list) break;
+        const source = p.source || SOURCE.MANUAL;
+        const kept = list.filter((x) => x.source !== source);
+        if (kept.length) logs.set(k, kept);
+        else logs.delete(k);
+        break;
+      }
+
       case T.BINDING:
         if (p.memberId && p.habitId && p.source) bindings.set(p.memberId + "|" + p.habitId, p.source);
         break;
@@ -549,6 +578,47 @@ export function replay(events) {
  * workouts) after de-duplicating on externalId. Across sources we take the MAX: two pipelines
  * describing the same day must not double it, and the fuller record is the honest one.
  */
+/**
+ * What one source's entries for one day add up to.
+ *
+ * Extracted because a second reader needed it and copying it would have made the same mistake this
+ * codebase keeps making: `sum` de-duplicates on externalId and `last` takes the newest, and a
+ * second copy of that would have drifted the first time either changed.
+ */
+function aggregateEntries(habit, list) {
+  if (habit.aggregate !== "sum") {
+    return list[list.length - 1].value; // entries are already in replay order
+  }
+  const seen = new Set();
+  let v = 0;
+  for (const e of list) {
+    if (e.externalId) {
+      if (seen.has(e.externalId)) continue;
+      seen.add(e.externalId);
+    }
+    v += e.value;
+  }
+  return v;
+}
+
+/**
+ * What this member TYPED IN for this day, or null if they typed nothing.
+ *
+ * Asked by the log sheet so it can offer to take it back, and so it can say which number it is
+ * offering to take back — "Remove the 3 you entered" is a different proposition from "Remove
+ * entry", because only one of them tells you what you are about to lose.
+ *
+ * Deliberately not "the day's value". On an automatic habit those differ exactly when this matters:
+ * the day shows what you typed, and underneath it the watch has its own answer waiting.
+ */
+export function manualOn(state, habit, memberId, day) {
+  const entries = state.logs.get(logKey(habit.habitId, memberId, day));
+  if (!entries || !entries.length) return null;
+  const typed = entries.filter((e) => e.source === SOURCE.MANUAL);
+  if (!typed.length) return null;
+  return aggregateEntries(habit, typed);
+}
+
 export function valueOn(state, habit, memberId, day) {
   const entries = state.logs.get(logKey(habit.habitId, memberId, day));
   if (!entries || !entries.length) return null;
@@ -560,23 +630,7 @@ export function valueOn(state, habit, memberId, day) {
   }
 
   const perSource = new Map();
-  for (const [source, list] of bySource) {
-    let v;
-    if (habit.aggregate === "sum") {
-      const seen = new Set();
-      v = 0;
-      for (const e of list) {
-        if (e.externalId) {
-          if (seen.has(e.externalId)) continue;
-          seen.add(e.externalId);
-        }
-        v += e.value;
-      }
-    } else {
-      v = list[list.length - 1].value; // entries are already in replay order
-    }
-    perSource.set(source, v);
-  }
+  for (const [source, list] of bySource) perSource.set(source, aggregateEntries(habit, list));
 
   // A number somebody typed in WINS outright, rather than joining the max.
   //

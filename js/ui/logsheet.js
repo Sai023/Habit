@@ -30,11 +30,26 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { logValue } from "../store.js";
-import { valueForPeriod, targetFor, periodKey, periodEnd } from "../habits.js";
-import { AGGREGATE, AT_MOST, METRIC, PERIOD } from "../schema.js";
+import { logValue, clearManual } from "../store.js";
+import {
+  valueForPeriod, targetFor, periodKey, periodEnd, manualOn, sourceFor,
+} from "../habits.js";
+import { AGGREGATE, AT_MOST, AUTOMATIC_SOURCES, METRIC, PERIOD, SOURCE } from "../schema.js";
 
 const CADENCE = { [PERIOD.DAY]: "today", [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
+
+/**
+ * What is underneath a number you typed, named for a sentence rather than for a badge.
+ *
+ * fmt.source labels these "auto", "on this phone", "estimated" — right on a card where the icon
+ * carries the meaning, and unreadable inside "the day goes back to whatever auto reported".
+ */
+const UNDERNEATH = {
+  [SOURCE.HEALTH_CONNECT]: "your watch",
+  [SOURCE.PAUSE]: "this phone",
+  [SOURCE.PHONE]: "the phone's estimate",
+  [SOURCE.STRAVA]: "Strava",
+};
 
 /** Sleep is stored in minutes; nobody enters sleep in minutes. */
 const SCALE = {
@@ -63,9 +78,18 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   // A ceiling with nothing against it yet. "None" is the whole of what most people want to say
   // here, and it is the one thing the sheet used to throw away.
   //
-  // Only while nothing is logged: once there is a number, "none" would mean UNDOING it, which is a
-  // different action with different consequences and no home in this sheet yet.
+  // Only while nothing is logged. Once there is a number, "none" would mean undoing it, which is
+  // the separate action below — and offering both at once would be two buttons for one thought.
   const canDeclareNone = habit.direction === AT_MOST && current == null;
+
+  // What you typed for TODAY, if anything, and what the day would say without it.
+  //
+  // Today rather than the period, because today is the only day this sheet can write to, and an
+  // undo that reached further than the thing it undoes is not an undo.
+  const typed = manualOn(state, habit, me, today);
+  const src = sourceFor(state, habit, me);
+  const automatic = AUTOMATIC_SOURCES.has(src);
+  const underneath = UNDERNEATH[src] || "the sensor";
 
   const sheet = openSheet(host);
   paint();
@@ -113,6 +137,35 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
             "None " + (CADENCE[habit.period] || "today"))
         : null,
 
+      // Take back what you typed.
+      //
+      // Two things made this necessary and neither is obvious from inside the sheet. A number you
+      // type overrules every sensor for its day, permanently — which is right when a watch has
+      // over-counted and wrong ten minutes later when the watch has caught up and is correct. And
+      // on a habit that ADDS, nothing you type can ever bring a total down, so a mistyped 30 was
+      // there for good.
+      //
+      // Named with the number, because "Remove entry" does not tell you what you are about to
+      // lose, and this is the one control here that destroys something.
+      typed != null
+        ? el("button.link.danger",
+            { onclick: () => undo(), disabled: busy },
+            "Remove the " + (scale ? scale.to(typed) : typed) + " you entered today")
+        : null,
+      // What the day will say afterwards, before it says it.
+      //
+      // The two outcomes are nothing alike and only one of them is what anybody pictures. On an
+      // automatic habit the watch's own reading is underneath and takes back over. On one you keep
+      // by hand there is nothing underneath, and a day with no entry is a MISS — which is a rule
+      // this app applies on purpose and a surprise to meet by accident, through a button you
+      // pressed to fix something.
+      typed != null
+        ? el("p.note-inline", automatic
+            ? "The day goes back to whatever " + underneath + " reported."
+            : "That leaves nothing logged for today, which counts as a miss until you enter "
+              + "something.")
+        : null,
+
       error ? el("p.err", error) : null,
 
       el("div.sheet-actions",
@@ -129,6 +182,29 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
    *              The wrapping arrow matters — handing `save` straight to onclick would make the
    *              click event the value.
    */
+  /**
+   * Withdraw today's typed number and close.
+   *
+   * Appends a withdrawal rather than deleting — the log only appends, on three phones and a
+   * server. What the day says afterwards is whatever is underneath: the sensor's own reading on an
+   * automatic habit, or nothing at all on one you keep by hand, which is an unreported day and is
+   * scored as one. The note beside the button says which of those it will be, because they are
+   * nothing alike and only one of them is what anybody pictures.
+   */
+  async function undo() {
+    if (busy) return;
+    busy = true; error = ""; paint();
+    try {
+      await clearManual(habit.habitId, today);
+      sheet.close();
+      onSaved();
+    } catch (err) {
+      error = "Couldn't remove it: " + (err && err.message ? err.message : err);
+      busy = false;
+      paint();
+    }
+  }
+
   async function save(exact) {
     if (busy) return;
     const n = exact != null ? exact : Number(amount);

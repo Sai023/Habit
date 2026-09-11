@@ -394,6 +394,21 @@ export async function logValue(habitId, day, value, source = "manual") {
   return commit(ev.log(habitId, memberId, day, value, source));
 }
 
+/**
+ * Take back what you typed for one habit-day.
+ *
+ * Appends a withdrawal rather than removing anything — the row is on three phones and a server,
+ * and everything here is derived by replaying the log. See ev.clearLog.
+ *
+ * Only the MANUAL entries. The sensor's own rows are left exactly where they are, which is the
+ * point: a typed number overrules a watch for its day, and taking it back is how you hand the day
+ * back to the watch once it has caught up.
+ */
+export async function clearManual(habitId, day) {
+  const { memberId } = await identity();
+  return commit(ev.clearLog(habitId, memberId, day, "manual"));
+}
+
 /** One discrete thing that just happened — an urge resisted, a workout done. */
 export async function logDiscrete(habitId, day, amount = 1, source = "pause") {
   const state = await getState();
