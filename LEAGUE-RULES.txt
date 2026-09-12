@@ -531,9 +531,30 @@ sessions as "10 · 10 · 9" chips with the newest lit, and whether the latest
 total is up, down or the same as the one before. The trend is on the TOTAL,
 so adding a set is progress even when it is a short one.
 
+PERSONAL BESTS. Each exercise keeps its best single set (the record) and its
+best session total, with the day each was set. On the session screen every
+exercise shows last time and the record beside its tiles — "Last 10 · 10 · 9
+· PB 10 reps (Mon)". A set that is strictly greater than the record turns its
+tile amber, marks it PB, buzzes differently, and writes "New personal best"
+under the card. Matching the record is not beating it. Records are read when
+the session opens and not moved until it is finished, so two sets in one
+session that both beat the old record are both celebrated — which is what
+they both did.
+
+YOUR TRAINING is shown on the program's front page and on the Insights tab
+(the same numbers, worked out once): sessions, weeks in a row, sets banked,
+reps lifted, minutes held, rope rounds; then, once there are 3 sessions to
+go on, the favourite exercise (finished in full most often), the least
+favourite (cut short most often — not named when everything is always
+finished), the most improved (latest session total against the first), the
+weekday sessions actually land on (only when one day clearly leads), and the
+longest rope interval. "Weeks in a row" counts back from this week, and a
+week that has not had its session YET is not a gap. None of this is scored;
+the board only ever sees the finished workout.
+
 A workout more than 2 days late is refused, like a log.
 
-                        programs.js, workout.js, workoutsheet.js, store.js
+              programs.js, workout.js, workoutsheet.js, store.js, summary.js
 
 
 13. THINGS SHOWN BUT NEVER SCORED

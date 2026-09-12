@@ -14,7 +14,7 @@
 // single "+" over last time, which is also exactly what the program asks for.
 
 import { PROGRAMS } from "./programs.js";
-import { isoDayOfWeek, daysBetween } from "./habits.js";
+import { isoDayOfWeek, daysBetween, addDays, isoWeekKey } from "./habits.js";
 
 /** The program a member follows, or null. */
 export function programFor(state, memberId) {
@@ -270,4 +270,201 @@ export function exerciseHistory(state, memberId, program) {
     }
     return { ...entry, trend };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Personal bests, and what the record says about you
+// ---------------------------------------------------------------------------
+
+/**
+ * The best single set and the best session total, per exercise, with the day each was set.
+ *
+ * Two bests, not one, because they answer different questions. The best SET is the number to beat
+ * on the next rep — it is what the session screen shows beside the stepper. The best TOTAL is the
+ * best session, which is what "am I getting stronger" actually means for three sets of push-ups;
+ * a single lucky set of 15 followed by two of 6 is not a better day than 12, 12, 12.
+ *
+ * Only exercises with at least one logged set appear. Keyed by exercise id.
+ */
+export function personalBests(state, memberId, program) {
+  const out = new Map();
+  for (const row of exerciseHistory(state, memberId, program)) {
+    let bestSet = null, bestTotal = null;
+    for (const ses of row.sessions) {
+      if (row.unit === "rounds") {
+        if (!bestTotal || ses.total > bestTotal.value) bestTotal = { value: ses.total, day: ses.day };
+        if (!bestSet || ses.total > bestSet.value) bestSet = { value: ses.total, day: ses.day };
+        continue;
+      }
+      if (!bestSet || ses.best > bestSet.value) bestSet = { value: ses.best, day: ses.day };
+      if (!bestTotal || ses.total > bestTotal.value) bestTotal = { value: ses.total, day: ses.day };
+    }
+    if (bestSet) out.set(row.id, { id: row.id, name: row.name, unit: row.unit, set: bestSet, total: bestTotal });
+  }
+  return out;
+}
+
+/**
+ * Would banking `value` on this exercise be a new best set?
+ *
+ * Strictly greater: matching a best is not a new one. `pbs` is the map from personalBests, taken
+ * BEFORE the session started, so a set banked earlier in this session that already beat the record
+ * still reads as the record being beaten again — which is right, and is what makes the second
+ * "new PB" of a good day feel like the second rather than a repeat.
+ */
+export function beatsBest(pbs, exerciseId, value) {
+  const pb = pbs && pbs.get(exerciseId);
+  if (!pb || !pb.set) return false;
+  return Number.isFinite(value) && value > pb.set.value;
+}
+
+/** How many sets have to be behind a claim before it is worth making. */
+export const MIN_INSIGHT_SESSIONS = 3;
+
+/**
+ * What the record says, in a handful of facts a person would actually want to be told.
+ *
+ * ---- What "favourite" means here, and why it is said ----
+ *
+ * The app cannot know what anybody enjoys. What it can see is which exercise gets finished in full
+ * every time and which gets cut short — and those are what favourite and least favourite are
+ * measured as: the completion rate of prescribed sets across every session the exercise appeared
+ * in. The screen says "never cut short" and "cut short most" rather than pretending to read minds,
+ * and only once there are enough sessions for a rate to mean anything.
+ *
+ * ---- Everything else ----
+ *
+ *   sessions        how many finished, and how many in the last 30 days
+ *   sets            lifetime sets banked
+ *   volume          lifetime reps and lifetime seconds held, separately, because adding them
+ *                   would be adding apples to a clock
+ *   mostImproved    the exercise whose latest total is furthest above its first, as a percentage,
+ *                   with both numbers so the claim can be checked
+ *   busiestDay      the weekday you actually train on most — which the schedule does not decide
+ *   streakWeeks     consecutive weeks, counting back from the current one, with at least one
+ *                   finished session in each. The current week counts if it has one.
+ *   rope            for a rope program: total rounds, the longest work interval reached, and the
+ *                   week of the progression today falls in
+ *   pbs             the personalBests map, so a screen can list records without a second pass
+ */
+export function workoutInsights(state, memberId, program, today) {
+  const empty = { sessions: 0, recent: 0, sets: 0, volume: { reps: 0, seconds: 0 },
+    favourite: null, leastFavourite: null, mostImproved: null, busiestDay: null,
+    streakWeeks: 0, rope: null, pbs: new Map(), days: [] };
+  if (!program) return empty;
+
+  const all = ((state.workouts && state.workouts.get(memberId)) || [])
+    .filter((w) => w.programId === program.id)
+    .slice()
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+  if (!all.length) return empty;
+
+  // Prescribed sets per exercise per session, so completion can be measured against it.
+  const prescribed = new Map();
+  for (const session of Object.values(program.sessions)) {
+    for (const ex of session.exercises || []) prescribed.set(session.id + "|" + ex.id, ex.sets);
+    for (const ex of (session.finisher && session.finisher.exercises) || []) {
+      prescribed.set(session.id + "|" + ex.id, ex.sets);
+    }
+  }
+  const secondsExercises = new Set();
+  for (const session of Object.values(program.sessions)) {
+    for (const ex of [...(session.exercises || []), ...((session.finisher && session.finisher.exercises) || [])]) {
+      if (ex.seconds) secondsExercises.add(ex.id);
+    }
+  }
+
+  let sets = 0, reps = 0, seconds = 0;
+  const completion = new Map();   // exerciseId -> { name, done, of, appearances }
+  const names = new Map();
+  for (const row of exerciseHistory(state, memberId, program)) names.set(row.id, row.name);
+  const weekdays = [0, 0, 0, 0, 0, 0, 0];
+  const weeks = new Set();
+  let rounds = 0, longestWork = 0;
+
+  for (const w of all) {
+    weekdays[isoDayOfWeek(w.day) - 1] += 1;
+    weeks.add(isoWeekKey(w.day));
+    if (Number.isFinite(w.rounds)) {
+      rounds += w.rounds;
+      if (Number.isFinite(w.work)) longestWork = Math.max(longestWork, w.work);
+    }
+    for (const e of w.exercises || []) {
+      const done = e.sets.filter(Number.isFinite);
+      const of = prescribed.get(w.sessionId + "|" + e.id) || done.length;
+      sets += done.length;
+      const sum = done.reduce((a, b) => a + b, 0);
+      if (secondsExercises.has(e.id)) seconds += sum; else reps += sum;
+      const c = completion.get(e.id) || { id: e.id, name: names.get(e.id) || e.id, done: 0, of: 0, appearances: 0 };
+      c.done += done.length; c.of += of; c.appearances += 1;
+      completion.set(e.id, c);
+    }
+  }
+
+  // Favourite and least favourite: completion rate, only where there is enough to go on. Ties on
+  // rate break on appearances — the one you have shown up for more is the stronger claim.
+  const rated = [...completion.values()]
+    .filter((c) => c.appearances >= MIN_INSIGHT_SESSIONS && c.of > 0)
+    .map((c) => ({ ...c, rate: c.done / c.of }));
+  let favourite = null, leastFavourite = null;
+  if (rated.length >= 2) {
+    const sorted = rated.slice().sort((a, b) => b.rate - a.rate || b.appearances - a.appearances);
+    favourite = sorted[0];
+    leastFavourite = sorted[sorted.length - 1];
+    // If everything is always finished in full there is no least favourite worth naming.
+    if (leastFavourite.rate >= 0.999) leastFavourite = null;
+  }
+
+  // Most improved: latest total over first total, per exercise, needing two sessions at least.
+  let mostImproved = null;
+  for (const row of exerciseHistory(state, memberId, program)) {
+    if (row.sessions.length < 2 || row.unit === "rounds") continue;
+    const first = row.sessions[0].total, last = row.sessions[row.sessions.length - 1].total;
+    if (first <= 0) continue;
+    const gain = (last - first) / first;
+    if (gain > 0 && (!mostImproved || gain > mostImproved.gain)) {
+      mostImproved = { id: row.id, name: row.name, unit: row.unit, from: first, to: last, gain };
+    }
+  }
+
+  // Busiest weekday, only if it is actually busier than the rest.
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let busiestDay = null;
+  const top = Math.max(...weekdays);
+  if (top >= 2 && weekdays.filter((n) => n === top).length === 1) {
+    busiestDay = { day: DAYS[weekdays.indexOf(top)], count: top };
+  }
+
+  // Weeks in a row with a session, counting back from this week.
+  let streakWeeks = 0;
+  let cursor = today;
+  for (let i = 0; i < 260; i += 1) {
+    if (!weeks.has(isoWeekKey(cursor))) {
+      // The current week has not had one YET; that does not break a streak that ran up to last
+      // week. Only a gap before that does.
+      if (i === 0) { cursor = addDays(cursor, -7); continue; }
+      break;
+    }
+    streakWeeks += 1;
+    cursor = addDays(cursor, -7);
+  }
+
+  const since = addDays(today, -30);
+  const recent = all.filter((w) => w.day > since).length;
+
+  const rope = program.sessions && Object.values(program.sessions).some((x) => x.kind === "intervals")
+    ? { rounds, longestWork, week: progressionWeek(program, today) }
+    : null;
+
+  return {
+    sessions: all.length,
+    recent,
+    sets,
+    volume: { reps, seconds },
+    favourite, leastFavourite, mostImproved, busiestDay,
+    streakWeeks,
+    rope,
+    pbs: personalBests(state, memberId, program),
+    days: all.map((w) => w.day),
+  };
 }

@@ -278,6 +278,77 @@ test("Rest & recovery reports no bonus however well it went", () => {
   if (rest) assert.equal(rest.bonus, 0, "oversleeping is not an achievement to pay for");
 });
 
+// ---------------------------------------------------------------------------
+// Training — the workout record, for the native Insights tab
+// ---------------------------------------------------------------------------
+
+/** A push-core session, logged and dated, with push-ups always full and the plank one set short. */
+const pushCore = (n, pushup = [10, 10, 10], plank = [30, 30]) => E(
+  ev.workout("m1", "match-fit", "push-core", day(n), {
+    exercises: [{ id: "pushup", sets: pushup }, { id: "plank", sets: plank }],
+  }),
+  at(n),
+);
+
+test("no program chosen means no training block, not an empty one", () => {
+  const s = buildSummary(world(), "m1", day(0), ["m1", "m2"]);
+  assert.equal(s.training, null);
+});
+
+test("the training block arrives spoken: records with units, dates as labels, rates as whole percents", () => {
+  const s = buildSummary(world([
+    E(ev.program("m1", "match-fit"), at(0)),
+    pushCore(0), pushCore(7, [12, 11, 11]), pushCore(14, [12, 12, 12]),
+  ]), "m1", day(15), ["m1", "m2"]);
+  const t = s.training;
+  assert.equal(t.program, "Match Fit");
+  assert.equal(t.sessions, 3);
+  assert.equal(t.sets, 15);
+  assert.equal(t.reps, 100);
+  assert.equal(t.seconds, 180);
+  assert.equal(t.streakWeeks, 3);
+  assert.equal(t.lastDay, day(14));
+  assert.match(t.lastLabel, /^Mon, /, "spoken, for a shell with no calendar");
+  assert.equal(t.minSessions, 3);
+  // Enough sessions to name them, and they are named for what they are.
+  assert.equal(t.favourite.name, "Push-up");
+  assert.equal(t.favourite.rate, 100);
+  assert.equal(t.leastFavourite.name, "Plank");
+  assert.equal(t.leastFavourite.rate, 67, "two of three sets, as a whole number");
+  assert.equal(t.mostImproved.name, "Push-up");
+  assert.equal(t.mostImproved.from, 30);
+  assert.equal(t.mostImproved.to, 36);
+  assert.equal(t.mostImproved.gain, 20);
+  // The records are strings the shell can print without a unit table.
+  assert.equal(t.pbCount, 2);
+  assert.equal(t.pbs[0].name, "Push-up");
+  assert.equal(t.pbs[0].value, "12 reps");
+  assert.match(t.pbs[0].day, /^Mon/, "the day it was set, as the web shows it");
+  assert.equal(t.pbs[1].value, "30s", "seconds carry their unit without a space");
+  assert.equal(t.rope, null, "not a rope program");
+});
+
+test("below the bar nothing is claimed about favourites, and the bar is sent so the shell can say so", () => {
+  const s = buildSummary(world([
+    E(ev.program("m1", "match-fit"), at(0)), pushCore(0),
+  ]), "m1", day(1), ["m1", "m2"]);
+  assert.equal(s.training.sessions, 1);
+  assert.equal(s.training.favourite, null);
+  assert.equal(s.training.leastFavourite, null);
+  assert.equal(s.training.minSessions, 3);
+});
+
+test("the training block survives the JSON round trip", () => {
+  // A Map in the insights (the personal bests) must not reach the wire as `{}`.
+  const s = buildSummary(world([
+    E(ev.program("m1", "match-fit"), at(0)), pushCore(0),
+  ]), "m1", day(1), ["m1", "m2"]);
+  const back = JSON.parse(JSON.stringify(s));
+  assert.deepEqual(back.training, s.training);
+  assert.equal(Array.isArray(back.training.pbs), true);
+  assert.equal(back.training.pbs.length, 2);
+});
+
 if (failures.length) {
   for (const { name, err } of failures) {
     console.error("\n✗ " + name);

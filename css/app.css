@@ -1895,3 +1895,112 @@ button.card-open:active { transform: scale(0.99); }
 
 .wo-rests { display: flex; flex-direction: column; gap: 6px; }
 .wo-rests-line { margin: 0; font-size: var(--fs-micro); color: var(--dim); }
+
+/* ==========================================================================
+   Workouts — motion, records, and the training block
+   ==========================================================================
+
+   Every animation here answers a question the eye has just asked: did that set go in, is that a
+   record, how long is left, is the session done. Nothing moves that was not just touched. All of
+   it is off under prefers-reduced-motion, where the same states are carried by colour alone. */
+
+/* The set that just went in pops once. Only the one — paint() rebuilds the DOM, and the
+   .is-just class is what stops fourteen banked tiles replaying it on every repaint. */
+@keyframes wo-pop {
+  0%   { transform: scale(0.92); }
+  55%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.wo-set.is-just { animation: wo-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* A record. Gold edge, and the once-only glow when it is set. The edge stays for the session so
+   the tile still says PB after the glow has gone. */
+@keyframes wo-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(240, 180, 41, 0.75); }
+  100% { box-shadow: 0 0 0 14px rgba(240, 180, 41, 0); }
+}
+.wo-set.is-pb { border-color: var(--amber); color: var(--text); }
+.wo-set.is-pb .wo-set-i { color: var(--amber); letter-spacing: 0.06em; }
+.wo-set.is-pb.is-just { animation: wo-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1), wo-glow 900ms ease-out; }
+
+/* The record line under the card. Slides in once. */
+@keyframes wo-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.wo-newpb {
+  margin: 0; padding: 8px 12px; border-radius: var(--r-sm);
+  background: rgba(240, 180, 41, 0.12); color: var(--amber);
+  font-size: var(--fs-small); font-weight: 700;
+  animation: wo-rise 320ms ease-out;
+}
+
+/* Last time and the record, one line, the record in its own colour. */
+.wo-last { display: flex; flex-wrap: wrap; gap: 0 4px; }
+.wo-pb { color: var(--amber); font-weight: 700; }
+
+/* The rest clock drains. */
+.wo-rest { flex-direction: column; gap: 6px; padding-bottom: 8px; }
+.wo-rest-row { display: flex; align-items: baseline; gap: 10px; }
+.wo-rest-row .link { margin-left: auto; }
+.wo-rest-bar { height: 3px; border-radius: 999px; background: var(--surface-hi); overflow: hidden; }
+.wo-rest-bar > i { display: block; height: 100%; background: var(--teal); border-radius: 999px; transition: width 240ms linear; }
+
+/* Finish, once every set is in. A slow breath, not a flash: the session is over and the button
+   is saying so, not shouting. */
+@keyframes wo-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(62, 224, 196, 0); }
+  50%      { box-shadow: 0 0 0 6px rgba(62, 224, 196, 0.22); }
+}
+.tap.is-ready { animation: wo-breathe 2.2s ease-in-out infinite; }
+
+/* The rope clock turns. The box flashes its new colour for a beat at each change of phase. */
+@keyframes wo-turn {
+  0%   { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+.wo-clock-wrap.is-work, .wo-clock-wrap.is-rest { animation: wo-turn 220ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wo-set.is-just, .wo-set.is-pb.is-just, .wo-newpb, .tap.is-ready,
+  .wo-clock-wrap.is-work, .wo-clock-wrap.is-rest { animation: none; }
+  .wo-rest-bar > i { transition: none; }
+}
+
+/* ---- the training block on the hub ---- */
+
+.wo-training { display: flex; flex-direction: column; gap: 10px; }
+.wo-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.wo-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 10px 6px; border-radius: var(--r-sm); background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.wo-stat b { font-size: var(--fs-title); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.wo-stat span { font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); text-align: center; }
+.wo-stat.is-hot b { color: var(--teal); }
+
+.wo-facts { display: flex; flex-direction: column; gap: 6px; }
+/* Label above value, not beside it. Beside, the label column was as wide as "Least favourite" and
+   every value wrapped to two lines on a phone; stacked, each fact is one short line under a small
+   heading, which is how a card of facts reads. */
+.wo-fact {
+  margin: 0; display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 12px; border-radius: var(--r-sm); background: var(--panel);
+  font-size: var(--fs-small); color: var(--text); line-height: 1.4;
+}
+.wo-fact-k { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+
+.wo-records { border-radius: var(--r-sm); background: var(--panel); }
+.wo-records > summary { padding: 10px 14px; cursor: pointer; list-style: none; font-size: var(--fs-small); font-weight: 700; }
+.wo-records > summary::-webkit-details-marker { display: none; }
+.wo-records > summary::before { content: "\25B8 "; color: var(--amber); }
+.wo-records[open] > summary::before { content: "\25BE "; }
+.wo-record-list { display: flex; flex-direction: column; gap: 2px; padding: 0 14px 10px; }
+.wo-record {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline;
+  font-size: var(--fs-small);
+}
+.wo-record-name { color: var(--text); }
+.wo-record-n { color: var(--amber); font-variant-numeric: tabular-nums; }
+.wo-record-when { font-size: var(--fs-micro); color: var(--dim); }

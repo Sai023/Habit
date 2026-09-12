@@ -22,11 +22,13 @@ import { leaderboard, dayScore, CATEGORY_LABEL, CATEGORY_ICON } from "./score.js
 import { seasonTally, categoryBreakdown } from "./season.js";
 import { noticesFor } from "./notices.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
+import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
 import * as fmt from "./ui/format.js";
 
-// 3 adds the bonus fields. Additive only: an older shell ignores what it does not know, and a
-// newer one reads a missing bonus as zero, so three phones on three builds all stay readable.
-export const SUMMARY_VERSION = 3;
+// 3 adds the bonus fields. 4 adds `training`. Additive only: an older shell ignores what it does
+// not know, and a newer one reads a missing field as nothing, so three phones on three builds all
+// stay readable.
+export const SUMMARY_VERSION = 4;
 
 /** How many days of history the shell gets. A week is what its screens actually draw. */
 const WINDOW_DAYS = 7;
@@ -173,6 +175,9 @@ export function buildSummary(state, me, today, memberIds = null) {
           bonus: mySeason.bonus,
         }
       : null,
+    // What the workout log says about the person, for the native Insights tab. Null with no
+    // program chosen; see trainingSummary() for what is in it and what is deliberately not.
+    training: trainingSummary(state, me, today),
     board: mine
       ? {
           rank: mine.rank,
@@ -187,6 +192,61 @@ export function buildSummary(state, me, today, memberIds = null) {
           bonusWithheld: mine.bonusWithheld || 0,
         }
       : null,
+  };
+}
+
+/**
+ * The training record, spoken for the shell.
+ *
+ * Everything here is already computed by workoutInsights for the hub in the web sheet; this is the
+ * same answer handed across the bridge, with the numbers the shell would otherwise have to format
+ * already formatted. Rates are whole percentages, records are "12 reps" and "45s" rather than a
+ * value and a unit the shell would need a table to join, and dates are the label the web shows —
+ * so a record reads the same on both screens, which is the point of there being one engine.
+ *
+ * Favourite and least favourite are said for what they are — the exercise finished in full most
+ * often, and the one most often cut short — and both are null until there are enough sessions to
+ * say it. `minSessions` is sent so the shell can say how many that is without knowing.
+ *
+ * Nothing about weight or body. That was decided when the programs were written and it holds here.
+ */
+function trainingSummary(state, me, today) {
+  const program = programFor(state, me);
+  if (!program) return null;
+  const ins = workoutInsights(state, me, program, today);
+  const unit = (u) => (u === "s" ? "s" : " " + u);
+  const when = (day) => fmt.dayLabel(day).split(",")[0];
+  const pbs = [...ins.pbs.values()].sort((a, b) => (a.set.day < b.set.day ? 1 : -1));
+  return {
+    program: program.name,
+    sessions: ins.sessions,
+    recent: ins.recent,
+    streakWeeks: ins.streakWeeks,
+    sets: ins.sets,
+    reps: ins.volume.reps,
+    seconds: ins.volume.seconds,
+    lastDay: ins.days.length ? ins.days[ins.days.length - 1] : null,
+    // The same day as the shell will print it. "Tue, Sep 8", not a date it would have to parse.
+    lastLabel: ins.days.length ? fmt.dayLabel(ins.days[ins.days.length - 1]) : null,
+    minSessions: MIN_INSIGHT_SESSIONS,
+    favourite: ins.favourite ? { name: ins.favourite.name, rate: Math.round(ins.favourite.rate * 100) } : null,
+    leastFavourite: ins.leastFavourite
+      ? { name: ins.leastFavourite.name, rate: Math.round(ins.leastFavourite.rate * 100) }
+      : null,
+    mostImproved: ins.mostImproved
+      ? {
+          name: ins.mostImproved.name,
+          from: ins.mostImproved.from,
+          to: ins.mostImproved.to,
+          gain: Math.round(ins.mostImproved.gain * 100),
+        }
+      : null,
+    busiestDay: ins.busiestDay ? { day: ins.busiestDay.day, count: ins.busiestDay.count } : null,
+    rope: ins.rope ? { rounds: ins.rope.rounds, longestWork: ins.rope.longestWork, week: ins.rope.week } : null,
+    pbCount: pbs.length,
+    // The five most recent records, already worded. Five is what fits on a card; the count above
+    // says there are more.
+    pbs: pbs.slice(0, 5).map((r) => ({ name: r.name, value: r.set.value + unit(r.unit), day: when(r.set.day) })),
   };
 }
 

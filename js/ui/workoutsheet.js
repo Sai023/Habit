@@ -34,12 +34,18 @@ import { confirmSheet } from "./confirmsheet.js";
 import { finishWorkout } from "../store.js";
 import {
   planFor, intervalsFor, lastSession, prefill, prescription, unitOf, isComplete, progress,
-  sessionsOf, restDaysOf,
+  sessionsOf, restDaysOf, personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS,
 } from "../workout.js";
 import * as fmt from "./format.js";
 
 /** One draft per session, so a rope day and the finisher that follows it do not share a slot. */
 const draftKey = (sessionId) => "workout-draft:" + sessionId;
+
+/** " reps", "s", " taps" — the unit as it follows a number. */
+function unitSuffix(ex) {
+  const u = unitOf(ex);
+  return u === "s" ? "s" : " " + u;
+}
 
 /** "0:47" */
 function clock(seconds) {
@@ -83,6 +89,85 @@ function clearDraft(sessionId) {
 export function openWorkoutSheet(host, { state, program, me, today, onDone, onChooseProgram }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
   hub(sheet, { state, program, me, today, onChooseProgram });
+}
+
+/**
+ * What the record says about you, in a handful of tiles.
+ *
+ * Nothing here unless there is something to say: a person one session in gets the session count
+ * and nothing that pretends to be a pattern. Favourite and least favourite are said for what they
+ * are — finished in full, and cut short — because the app cannot read minds and should not act
+ * as though it can. See workoutInsights for the definitions.
+ */
+function trainingBlock(ins) {
+  if (!ins || !ins.sessions) return null;
+  const tiles = [];
+  const tile = (n, label, cls = "") => el("div.wo-stat" + cls, el("b", String(n)), el("span", label));
+
+  tiles.push(tile(ins.sessions, ins.sessions === 1 ? "session" : "sessions"));
+  if (ins.streakWeeks >= 2) tiles.push(tile(ins.streakWeeks, "weeks in a row", ".is-hot"));
+  else if (ins.recent) tiles.push(tile(ins.recent, "in 30 days"));
+  if (ins.sets) tiles.push(tile(ins.sets, "sets banked"));
+  if (ins.volume.reps) tiles.push(tile(ins.volume.reps.toLocaleString(), "reps lifted"));
+  if (ins.volume.seconds >= 60) tiles.push(tile(Math.round(ins.volume.seconds / 60), "minutes held"));
+  if (ins.rope && ins.rope.rounds) tiles.push(tile(ins.rope.rounds, "rope rounds"));
+
+  const lines = [];
+  if (ins.favourite) {
+    lines.push(el("p.wo-fact",
+      el("span.wo-fact-k", "💚 Favourite"),
+      el("span", ins.favourite.name + " \u2014 never cut short"),
+    ));
+  }
+  if (ins.leastFavourite) {
+    lines.push(el("p.wo-fact",
+      el("span.wo-fact-k", "😒 Least favourite"),
+      el("span", ins.leastFavourite.name + " \u2014 finished " + Math.round(ins.leastFavourite.rate * 100) + "% of its sets"),
+    ));
+  }
+  if (ins.mostImproved) {
+    lines.push(el("p.wo-fact",
+      el("span.wo-fact-k", "📈 Most improved"),
+      el("span", ins.mostImproved.name + " \u2014 " + ins.mostImproved.from + " \u2192 " + ins.mostImproved.to
+        + " (+" + Math.round(ins.mostImproved.gain * 100) + "%)"),
+    ));
+  }
+  if (ins.busiestDay) {
+    lines.push(el("p.wo-fact",
+      el("span.wo-fact-k", "📅 Your day"),
+      el("span", ins.busiestDay.day + " \u2014 " + ins.busiestDay.count + " sessions there, whatever the plan says"),
+    ));
+  }
+  if (ins.rope && ins.rope.longestWork) {
+    lines.push(el("p.wo-fact",
+      el("span.wo-fact-k", "🔥 Longest interval"),
+      el("span", ins.rope.longestWork + "s of work, week " + ins.rope.week + " of the progression"),
+    ));
+  }
+
+  // The records, compactly. Best single set per exercise, newest first.
+  const records = [...ins.pbs.values()]
+    .sort((a, b) => (a.set.day < b.set.day ? 1 : -1))
+    .slice(0, 6);
+
+  return el("div.wo-training",
+    el("h2.sec-title", "Your training"),
+    el("div.wo-stats", tiles),
+    lines.length ? el("div.wo-facts", lines) : null,
+    records.length
+      ? el("details.wo-records",
+          el("summary", "Personal bests \u00b7 " + ins.pbs.size),
+          el("div.wo-record-list", records.map((r) => el("div.wo-record",
+            el("span.wo-record-name", r.name),
+            el("b.wo-record-n", r.set.value + (r.unit === "s" ? "s" : r.unit === "rounds" ? " rounds" : "")),
+            el("span.wo-record-when", fmt.dayLabel(r.set.day).split(",")[0]),
+          ))),
+        )
+      : null,
+    ins.sessions < MIN_INSIGHT_SESSIONS
+      ? el("p.note-inline", "Favourites and patterns appear after " + MIN_INSIGHT_SESSIONS + " sessions.")
+      : null,
+  );
 }
 
 function hub(sheet, ctx) {
@@ -143,6 +228,8 @@ function hub(sheet, ctx) {
             el("span", "Or pick any session below. It is logged on the day you do it."),
           ),
 
+      trainingBlock(workoutInsights(state, me, program, today)),
+
       el("h2.sec-title", "All sessions"),
       el("div.wo-sessions", sessions.map(({ session, days }) => el("button.wo-session"
         + (session.id === suggested ? ".is-today" : ""), { onclick: () => start(session) },
@@ -194,6 +281,13 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   let rest = null;       // { until: ms, total: s } while the rest clock runs
   let restTimer = null;
   let busy = false;
+  // Records as they stood when the session opened. Compared against, never updated mid-session,
+  // so the second set that beats the old record is celebrated as beating it too — which is what
+  // it did. The map is rebuilt from the log on the next open.
+  const pbs = personalBests(state, me, program);
+  // What just happened, for the one tile that should move. paint() rebuilds the DOM, so without
+  // this every banked tile would replay its animation on every repaint.
+  let just = null;       // { ex, set, pb: bool }
 
   function firstOpen() {
     for (let i = 0; i < exercises.length; i += 1) {
@@ -210,6 +304,7 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   }
 
   function focus(ex, set) {
+    just = null;
     active = { ex, set };
     const banked = draft[exercises[ex].id] || [];
     value = Number.isFinite(banked[set]) ? banked[set] : prefill(exercises[ex], previous, set);
@@ -222,7 +317,11 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     const list = draft[ex.id] || (draft[ex.id] = []);
     list[active.set] = value;
     persist();
-    buzz(20);
+    const pb = beatsBest(pbs, ex.id, value);
+    just = { ex: active.ex, set: active.set, pb };
+    // A record gets a longer, different buzz than a set. It is the one moment in a workout worth
+    // a phone's attention, and it should feel unlike the other fourteen.
+    buzz(pb ? [40, 30, 40, 30, 120] : 20);
     // Move on, and start the clock. Between sets of one exercise the rest is the session's; a
     // circuit rests only between ROUNDS, which is the same "set index" across every exercise.
     const next = firstOpen();
@@ -237,11 +336,26 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   function startRest(seconds) {
     stopRest();
     rest = { until: Date.now() + seconds * 1000, total: seconds };
+    // The clock and its bar are updated IN PLACE, four times a second. Rebuilding the sheet on
+    // every tick was the cause of a bug worth writing down: paint() recreates every element, and
+    // a recreated element restarts its CSS animation — so the "new personal best" banner and the
+    // set-tile pop, both meant to play once, replayed every 250ms for the length of the rest and
+    // strobed. Only the end of the rest is a structural change; only that calls paint().
     restTimer = setInterval(() => {
       if (!rest) return;
-      if (Date.now() >= rest.until) { buzz([60, 40, 60]); stopRest(); }
-      paint();
+      if (Date.now() >= rest.until) { buzz([60, 40, 60]); stopRest(); paint(); return; }
+      tickRest();
     }, 250);
+  }
+
+  /** The two things that move during a rest, moved without touching anything else. */
+  function tickRest() {
+    if (!rest) return;
+    const left = (rest.until - Date.now()) / 1000;
+    const clockEl = document.querySelector(".wo-rest-clock");
+    const barEl = document.querySelector(".wo-rest-bar > i");
+    if (clockEl) clockEl.textContent = clock(left);
+    if (barEl) barEl.style.width = Math.max(0, Math.min(100, (left / rest.total) * 100)) + "%";
   }
   function stopRest() {
     if (restTimer) clearInterval(restTimer);
@@ -288,12 +402,15 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     const isActive = active && active.ex === exIndex && active.set === setIndex;
     const done = Number.isFinite(banked[setIndex]);
     const shown = done ? banked[setIndex] : prefill(ex, previous, setIndex);
-    return el("button.wo-set" + (done ? ".is-done" : "") + (isActive ? ".is-active" : ""), {
+    const isJust = just && just.ex === exIndex && just.set === setIndex;
+    const pbTile = done && beatsBest(pbs, ex.id, banked[setIndex]);
+    return el("button.wo-set" + (done ? ".is-done" : "") + (isActive ? ".is-active" : "")
+      + (isJust ? ".is-just" : "") + (pbTile ? ".is-pb" : ""), {
       onclick: () => focus(exIndex, setIndex),
-      "aria-label": "Set " + (setIndex + 1) + (done ? ", done, " + shown : ""),
+      "aria-label": "Set " + (setIndex + 1) + (done ? ", done, " + shown : "") + (pbTile ? ", a personal best" : ""),
     },
       el("span.wo-set-n", String(shown)),
-      el("span.wo-set-i", done ? "✓" : String(setIndex + 1)),
+      el("span.wo-set-i", pbTile ? "PB" : done ? "✓" : String(setIndex + 1)),
     );
   }
 
@@ -335,8 +452,23 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
       // as often as a form line, so it is always shown on the active exercise.
       isActiveEx && ex.cue ? el("p.wo-cue", "💡 " + ex.cue) : null,
       isActiveEx && ex.watch ? el("p.wo-watch", "⚠ " + ex.watch) : null,
-      lastTime && lastTime.sets.length
-        ? el("p.wo-last", "Last time: " + lastTime.sets.filter(Number.isFinite).join(" · ") + " " + unitOf(ex))
+      // Last time and the record, on one line, so the two numbers that decide what to aim for
+      // are beside the tiles that take the aim. The record is the best single set ever, with its
+      // date — a number to beat is only motivating if you believe it is real.
+      (lastTime && lastTime.sets.length) || pbs.get(ex.id)
+        ? el("p.wo-last",
+            lastTime && lastTime.sets.length
+              ? el("span", "Last " + lastTime.sets.filter(Number.isFinite).join(" \u00b7 "))
+              : el("span", "First time"),
+            pbs.get(ex.id)
+              ? el("span.wo-pb", " \u00b7 PB " + pbs.get(ex.id).set.value + unitSuffix(ex)
+                  + " (" + fmt.dayLabel(pbs.get(ex.id).set.day).split(",")[0] + ")")
+              : null,
+          )
+        : null,
+      // The moment. Drawn once, on the card, for the set that just beat the record.
+      just && just.pb && just.ex === i
+        ? el("p.wo-newpb", "🏆 New personal best \u2014 " + (draft[ex.id] || [])[just.set] + unitSuffix(ex))
         : null,
     );
   }
@@ -359,9 +491,16 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
 
         rest
           ? el("div.wo-rest",
-              el("span.wo-rest-label", "Rest"),
-              el("b.wo-rest-clock", clock((rest.until - Date.now()) / 1000)),
-              el("button.link", { onclick: () => { stopRest(); paint(); } }, "Skip"),
+              el("div.wo-rest-row",
+                el("span.wo-rest-label", "Rest"),
+                el("b.wo-rest-clock", clock((rest.until - Date.now()) / 1000)),
+                el("button.link", { onclick: () => { stopRest(); paint(); } }, "Skip"),
+              ),
+              // Drains left to right as the rest runs out. Motion is information here: a glance
+              // at the bar says "nearly" without reading a number.
+              el("div.wo-rest-bar", el("i", {
+                style: "width:" + Math.max(0, Math.min(100, ((rest.until - Date.now()) / 1000 / rest.total) * 100)) + "%",
+              })),
             )
           : null,
 
@@ -370,8 +509,8 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
         el("div.sheet-actions",
           el("button.ghost", { onclick: () => { stopRest(); if (back) back(); else sheet.close(); } },
             back ? "\u2190 Back" : "Later"),
-          el("button.tap", { onclick: finish, disabled: busy },
-            busy ? "Saving…" : (finisherOf ? "Finish " + session.name.toLowerCase() : "Finish workout")),
+          el("button.tap" + (isComplete(session, draft) ? ".is-ready" : ""), { onclick: finish, disabled: busy },
+            busy ? "Saving\u2026" : (finisherOf ? "Finish " + session.name.toLowerCase() : "Finish workout")),
         ),
         el("p.note-inline", "Going back keeps what you've banked. Finish writes it down and counts the workout."),
       ),
@@ -411,7 +550,13 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
   }
   function tick() {
     if (phase === "idle" || phase === "done") return;
-    if (Date.now() < until) { paint(); return; }
+    if (Date.now() < until) {
+      // Same rule as the rest clock: the number moves, the sheet does not. A phase change is the
+      // structural event and is the only thing below that repaints.
+      const clockEl = document.querySelector(".wo-clock");
+      if (clockEl) clockEl.textContent = clock((until - Date.now()) / 1000);
+      return;
+    }
     if (phase === "work") {
       completed += 1;
       persist();

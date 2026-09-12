@@ -12,6 +12,7 @@ import { PROGRAMS, PROGRAM_LIST } from "../js/programs.js";
 import {
   programFor, planFor, progressionWeek, intervalsFor, lastSession, prefill, prescription,
   summarise, isComplete, progress, unitOf, exerciseHistory, sessionsOf, restDaysOf,
+  personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS,
 } from "../js/workout.js";
 import { ev, T, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
@@ -382,6 +383,149 @@ test("another program's workouts are not this program's history", () => {
   ]);
   const row = exerciseHistory(s, ME, FIT).find((r) => r.id === "table-row");
   assert.equal(row.sessions.length, 0, "Match Fit has a table row too, but this one was logged under Rope Protocol");
+});
+
+// ---------------------------------------------------------------------------
+// Personal bests
+// ---------------------------------------------------------------------------
+
+/** A push-core session with just push-ups and a plank, for brevity. */
+const pc = (n, pushup, plank) => E(ev.workout(ME, "match-fit", "push-core", day(n), {
+  exercises: [{ id: "pushup", sets: pushup }, { id: "plank", sets: plank }],
+}), at(n));
+
+test("best set and best total are different records", () => {
+  // One lucky set of 15 followed by two of 6 is the best SET. 12, 12, 12 is the best SESSION.
+  const s = state([E(ev.program(ME, "match-fit"), at(0)), pc(0, [15, 6, 6], [30, 30, 30]), pc(7, [12, 12, 12], [40, 40, 40])]);
+  const pb = personalBests(s, ME, FIT).get("pushup");
+  assert.equal(pb.set.value, 15);
+  assert.equal(pb.set.day, day(0));
+  assert.equal(pb.total.value, 36);
+  assert.equal(pb.total.day, day(7));
+});
+
+test("an exercise never done has no best", () => {
+  const s = state([E(ev.program(ME, "match-fit"), at(0)), pc(0, [8, 8, 8], [30, 30, 30])]);
+  const pbs = personalBests(s, ME, FIT);
+  assert.equal(pbs.has("pushup"), true);
+  assert.equal(pbs.has("squat"), false);
+});
+
+test("beating a best is strictly greater", () => {
+  const s = state([E(ev.program(ME, "match-fit"), at(0)), pc(0, [10, 10, 10], [30, 30, 30])]);
+  const pbs = personalBests(s, ME, FIT);
+  assert.equal(beatsBest(pbs, "pushup", 11), true);
+  assert.equal(beatsBest(pbs, "pushup", 10), false, "matching is not beating");
+  assert.equal(beatsBest(pbs, "pushup", 9), false);
+  assert.equal(beatsBest(pbs, "squat", 99), false, "no record to beat");
+  assert.equal(beatsBest(null, "pushup", 99), false);
+});
+
+// ---------------------------------------------------------------------------
+// Insights
+// ---------------------------------------------------------------------------
+
+test("nothing logged is an honest zero, not a crash", () => {
+  const s = state([E(ev.program(ME, "match-fit"), at(0))]);
+  const ins = workoutInsights(s, ME, FIT, day(10));
+  assert.equal(ins.sessions, 0);
+  assert.equal(ins.favourite, null);
+  assert.equal(ins.streakWeeks, 0);
+  assert.equal(workoutInsights(s, ME, null, day(10)).sessions, 0);
+});
+
+test("favourite is the exercise finished in full most consistently; least is the one cut short", () => {
+  // Enough sessions to clear the bar. Push-ups always complete; plank always one set short.
+  const logs = [];
+  for (let i = 0; i < MIN_INSIGHT_SESSIONS; i += 1) logs.push(pc(i * 7, [10, 10, 10], [30, 30]));
+  const s = state([E(ev.program(ME, "match-fit"), at(0)), ...logs]);
+  const ins = workoutInsights(s, ME, FIT, day(30));
+  assert.equal(ins.favourite.id, "pushup");
+  assert.equal(ins.favourite.rate, 1);
+  assert.equal(ins.leastFavourite.id, "plank");
+  assert.ok(ins.leastFavourite.rate < 1);
+});
+
+test("below the bar, no favourite is claimed", () => {
+  const logs = [];
+  for (let i = 0; i < MIN_INSIGHT_SESSIONS - 1; i += 1) logs.push(pc(i * 7, [10, 10, 10], [30, 30]));
+  const s = state([E(ev.program(ME, "match-fit"), at(0)), ...logs]);
+  const ins = workoutInsights(s, ME, FIT, day(30));
+  assert.equal(ins.favourite, null);
+  assert.equal(ins.leastFavourite, null);
+});
+
+test("when everything is always finished there is no least favourite", () => {
+  const logs = [];
+  for (let i = 0; i < MIN_INSIGHT_SESSIONS; i += 1) logs.push(pc(i * 7, [10, 10, 10], [30, 30, 30]));
+  const s = state([E(ev.program(ME, "match-fit"), at(0)), ...logs]);
+  const ins = workoutInsights(s, ME, FIT, day(30));
+  assert.ok(ins.favourite, "a favourite can still be named");
+  assert.equal(ins.leastFavourite, null, "naming one would be inventing a complaint");
+});
+
+test("volume keeps reps and seconds apart", () => {
+  const s = state([E(ev.program(ME, "match-fit"), at(0)), pc(0, [10, 10, 10], [30, 30, 30])]);
+  const ins = workoutInsights(s, ME, FIT, day(1));
+  assert.equal(ins.volume.reps, 30);
+  assert.equal(ins.volume.seconds, 90);
+  assert.equal(ins.sets, 6);
+});
+
+test("most improved compares latest total to first, and needs a gain", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    pc(0, [8, 8, 8], [30, 30, 30]),     // pushup 24, plank 90
+    pc(7, [12, 12, 12], [30, 30, 30]),  // pushup 36 (+50%), plank 90 (0%)
+  ]);
+  const ins = workoutInsights(s, ME, FIT, day(8));
+  assert.equal(ins.mostImproved.id, "pushup");
+  assert.equal(ins.mostImproved.from, 24);
+  assert.equal(ins.mostImproved.to, 36);
+  assert.ok(Math.abs(ins.mostImproved.gain - 0.5) < 1e-9);
+});
+
+test("busiest day is the weekday actually trained on, not the scheduled one", () => {
+  // Push + Core is Monday's session. Done on Wednesdays.
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    pc(2, [8, 8, 8], [30, 30, 30]), pc(9, [8, 8, 8], [30, 30, 30]), pc(16, [8, 8, 8], [30, 30, 30]),
+    E(ev.workout(ME, "match-fit", "legs-pull", day(1), { exercises: [{ id: "squat", sets: [15] }] }), at(1)),
+  ]);
+  const ins = workoutInsights(s, ME, FIT, day(17));
+  assert.equal(ins.busiestDay.day, "Wed");
+  assert.equal(ins.busiestDay.count, 3);
+});
+
+test("a tie for busiest day names nobody", () => {
+  const s = state([E(ev.program(ME, "match-fit"), at(0)),
+    pc(0, [8, 8, 8], [30, 30, 30]), pc(2, [8, 8, 8], [30, 30, 30]), pc(7, [8, 8, 8], [30, 30, 30]), pc(9, [8, 8, 8], [30, 30, 30])]);
+  assert.equal(workoutInsights(s, ME, FIT, day(10)).busiestDay, null);
+});
+
+test("weeks in a row count back from this week and survive a week not yet trained", () => {
+  // Sessions in weeks 0, 1, 2. Asked on the Tuesday of week 3 with nothing yet: the streak is
+  // still 3 — this week has not had its session YET, which is not a gap.
+  const s = state([E(ev.program(ME, "match-fit"), at(0)),
+    pc(0, [8, 8, 8], [30, 30, 30]), pc(7, [8, 8, 8], [30, 30, 30]), pc(14, [8, 8, 8], [30, 30, 30])]);
+  assert.equal(workoutInsights(s, ME, FIT, day(22)).streakWeeks, 3);
+  // A whole missed week before that does break it.
+  const gap = state([E(ev.program(ME, "match-fit"), at(0)),
+    pc(0, [8, 8, 8], [30, 30, 30]), pc(14, [8, 8, 8], [30, 30, 30])]);
+  assert.equal(workoutInsights(gap, ME, FIT, day(15)).streakWeeks, 1);
+});
+
+test("a rope program reports rounds, the longest interval and the week", () => {
+  const s = state([
+    E(ev.program(ME, "rope-protocol"), at(0)),
+    E(ev.workout(ME, "rope-protocol", "rope", "2026-09-08", { exercises: [], rounds: 8, work: 30, rest: 30 }), Date.parse("2026-09-08T09:00:00Z")),
+    E(ev.workout(ME, "rope-protocol", "rope", "2026-09-15", { exercises: [], rounds: 10, work: 45, rest: 30 }), Date.parse("2026-09-15T09:00:00Z")),
+  ]);
+  const ins = workoutInsights(s, ME, ROPE, "2026-09-16");
+  assert.equal(ins.rope.rounds, 18);
+  assert.equal(ins.rope.longestWork, 45);
+  assert.equal(ins.rope.week, 3);
+  assert.equal(workoutInsights(s, ME, FIT, "2026-09-16").rope, null, "not a rope program");
 });
 
 if (failures.length) {
