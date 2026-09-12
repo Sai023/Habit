@@ -287,8 +287,9 @@ function normalizeHabit(p, createdDay) {
   // defaulting them off did not protect anybody, it deleted the category. A phone tracking steps,
   // sleep and a vape was being scored on two of the three and never told which.
   //
-  // The protection it was reaching for still exists and lives where it belongs: the clown is
-  // suppressed on a silent pipeline, and a ceiling cannot be failed by a sensor going quiet.
+  // The protection it was reaching for still exists and lives where it belongs: a silent pipeline
+  // is shown as "not reported" on the board rather than scored, and a ceiling cannot be failed by
+  // a sensor going quiet.
   //
   // ---- Why this is derived and not stored ----
   //

@@ -1,7 +1,7 @@
 // demo.js — a believable three weeks, so the dashboard can be looked at before there is a backend.
 //
 // Reachable only via ?demo=1, and the header says so. It exists because the interesting states in
-// this app take weeks to occur naturally — a spent grace token, a suppressed clown, a watch that
+// this app take weeks to occur naturally — a spent grace token, a pending goal, a watch that
 // stopped reporting — and those are exactly the states worth reviewing the design against.
 //
 // It builds a real event log and runs it through the real engine. Nothing here fakes a derived
@@ -118,7 +118,7 @@ export function demoState(now = Date.now()) {
     log("sleep", DEMO_ME, d, yourSleepMisses.has(n) ? 372 : 426 + spread(n, 40), SOURCE.HEALTH_CONNECT);
 
     // Lerato: patchier — and for the last two days a watch that has simply stopped reporting.
-    // Nothing arrived, so nothing can be scored, and the clown has nowhere fair to land.
+    // Nothing arrived, so nothing can be scored; the row says "2 not reported" instead.
     if (n < -1) log("steps", "lerato", d, n % 2 === 0 ? 10600 + spread(n, 1800) : 8300, SOURCE.HEALTH_CONNECT);
 
     // Screen time, counted by Pause itself. Two days missing near the start: the shell was not

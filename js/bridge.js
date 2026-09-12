@@ -17,10 +17,8 @@
 import { ingestSamples, logDiscrete, getState } from "./store.js";
 import { todayFor } from "./ingest.js";
 
-export const BRIDGE_VERSION = 1;
-
 let capabilities = {
-  version: 0, healthConnect: false, alarms: false, tile: false, native: false,
+  version: 0, healthConnect: false, native: false,
   // Whether openFocus() goes anywhere. False on a shell where Focus is still a tab of its
   // own, so the control is simply not drawn rather than drawn and inert.
   focusSettings: false,
@@ -110,8 +108,6 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
       capabilities = {
         version: Number(info.version) || 0,
         healthConnect: !!info.healthConnect,
-        alarms: !!info.alarms,
-        tile: !!info.tile,
         embedded: !!info.embedded,
         // Every field the shell announces has to be read out HERE. This object is rebuilt whole on
         // each announcement rather than merged, so a capability the shell sends and this line does
@@ -242,26 +238,6 @@ function call(name, payload) {
 }
 
 /**
- * Ask the shell to fire a local notification at a wall-clock time.
- *
- * This is the whole reason the shell exists for notifications: the web has no scheduled-
- * notification API at all (Notification Triggers never shipped), a service worker is killed long
- * before a timer fires, and periodicSync is measured in hours. AlarmManager is exact and works
- * with nothing running.
- */
-export function scheduleAlarm(id, epochMs, payload = {}) {
-  return call("scheduleAlarm", { id, at: epochMs, payload });
-}
-export function cancelAlarm(id) {
-  return call("cancelAlarm", { id });
-}
-
-/** Ask for OS permissions. The shell drives the real dialogs; we only ask it to start. */
-export function requestPermissions(list) {
-  return call("requestPermissions", { permissions: list });
-}
-
-/**
  * Hand the shell what its background job needs to sync without a WebView: the room, who this
  * device is, where to push, and just enough of each habit to work out which day a reading belongs
  * to. Deliberately no targets and no streak rules — the shell reports what it saw and never
@@ -360,11 +336,6 @@ export function requestSync() {
  */
 export function openHealthApp() {
   return call("openHealthApp", {});
-}
-
-/** Show a notification now, with optional action buttons ("+1", "Resisted"). */
-export function notify({ title, body, actions = [] }) {
-  return call("notify", { title, body, actions });
 }
 
 function safeParse(json) {

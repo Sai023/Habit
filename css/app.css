@@ -304,6 +304,21 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
    reports Android package names, which have no break opportunities at all. Without both lines the
    buttons beside it get pushed off the edge of the phone. */
 .problem-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.problem-line { display: block; }
+.problem-line + .problem-line { margin-top: 6px; }
+.problem-line.is-detail { font-weight: 500; }
+.problem.is-note .problem-line.is-detail { color: var(--dim); }
+
+/* With something to offer, the banner is a small card: text across the top, the ✕ in the corner,
+   the link on its own line underneath. Side by side, the link took a third of the width and the
+   message — the part that explains why you would tap it — wrapped twenty lines tall. */
+.problem.has-act {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto;
+  column-gap: 10px; row-gap: 8px; align-items: start;
+}
+.problem.has-act .problem-text { grid-column: 1; grid-row: 1; }
+.problem.has-act > button:last-child { grid-column: 2; grid-row: 1; }
+.problem.has-act .note-act { grid-column: 1; grid-row: 2; justify-self: start; padding: 0; }
 
 /* ---- Pull down on Today to sync ----
 
@@ -889,32 +904,6 @@ html, body { overscroll-behavior-y: contain; }
    smaller number rather than a bigger first one. */
 .row-bonus { font-size: var(--fs-small); font-weight: 700; color: var(--teal); margin-left: 3px; }
 
-/* Reference material, not a feature. Closed by default, opened once when somebody starts arguing
-   about the standings — so it is a plain <details> with no script behind it. */
-.explainer { margin-top: 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
-.explainer > summary {
-  cursor: pointer; padding: 12px var(--pad); font-size: var(--fs-small); font-weight: 700;
-  color: var(--teal); list-style: none;
-}
-.explainer > summary::-webkit-details-marker { display: none; }
-.explainer > summary::after { content: " ⌄"; color: var(--dim); }
-.explainer[open] > summary::after { content: " ⌃"; }
-.explainer > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
-
-.rule-lede {
-  margin: 0; padding: 0 var(--pad) 10px; font-size: var(--fs-small); line-height: 1.5;
-  color: var(--text); border-bottom: 1px solid var(--line);
-}
-.rules { display: flex; flex-direction: column; gap: 11px; padding: 12px var(--pad) var(--pad); }
-.rule { font-size: var(--fs-small); line-height: 1.5; color: var(--dim); }
-.rule b { color: var(--text); font-weight: 700; }
-
-.weights { width: 100%; border-collapse: collapse; font-size: var(--fs-small); margin: 1px 0 2px; }
-.weights td { padding: 5px 0; border-bottom: 1px solid var(--line); color: var(--dim); }
-.weights tr:last-child td { border-bottom: none; }
-.weights td.w { text-align: right; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; width: 3.5em; }
-.weights td.b { text-align: right; width: 6em; font-size: var(--fs-micro); }
-
 /* A destructive confirmation. The action that cannot be undone should not look like the one that
    can — the default tap is the app's affirmative green, which is the wrong promise on "Delete". */
 .tap.danger { background: var(--danger); color: #12060a; }
@@ -928,7 +917,6 @@ html, body { overscroll-behavior-y: contain; }
   font-weight: 600;
   color: var(--text);
 }
-.fact.is-off { color: var(--amber); }
 
 /* ---------- milestone badges ---------- */
 
@@ -1710,8 +1698,6 @@ button.card-open:active { transform: scale(0.99); }
 .wo-bar { height: 4px; border-radius: 999px; background: var(--surface-hi); overflow: hidden; margin-top: -6px; }
 .wo-bar > i { display: block; height: 100%; background: var(--teal); border-radius: 999px; transition: width 200ms ease; }
 
-.wo-rest-title { margin: 6px 0 0; font-size: var(--fs-display); font-weight: 800; }
-
 /* The rest clock, pinned at the top of the flow. Loud on purpose: it is the one thing on the
    screen that is changing, and the reason you are looking at your phone between sets. */
 .wo-rest {
@@ -1807,7 +1793,6 @@ button.card-open:active { transform: scale(0.99); }
 
 /* The card's way in. A real button when there is a session, a quiet line when there is not. */
 .card-wo { margin-top: 2px; }
-.card-wo-rest { justify-content: space-between; }
 .cardlink.inline { margin: 0; padding: 0; }
 
 /* ---- the program, on the Workouts habit's history ---- */

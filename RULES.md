@@ -64,6 +64,8 @@ on the wrong one.
 | Rule | Owned by | Enforced by |
 |---|---|---|
 | A goal change counts from tomorrow; a first goal counts from today | `js/habits.js` — `T.GOAL` replay | `test/retro.test.mjs` |
+| A weekly goal is read at the START of its week, so a mid-week change lands on Monday | `js/habits.js` — `targetFor` (`goalDay`) | `test/edits.test.mjs` |
+| A goal set but not yet counting is announced with the day it lands | `js/edits.js` — `pendingGoal` | `test/edits.test.mjs` |
 | A log more than 2 days late is refused | `js/schema.js` — `MAX_BACKFILL_DAYS` | `test/retro.test.mjs` |
 | Travel cannot be backdated at all — zero days, not two | `js/habits.js` — `T.EXEMPT` replay | `test/travel.test.mjs` |
 | Ending travel may only bring the last day forward | `js/habits.js` — `T.EXEMPT` replay | `test/travel.test.mjs` |
@@ -93,11 +95,24 @@ on the wrong one.
 | A season is derived from one meta line, never a stored tally | `js/season.js` — `seasonStart` | `test/season-reset.test.mjs` |
 | A partial first week is scored only on the days it ran | `js/season.js` — `weekStandings` | `test/season-lifecycle.test.mjs` |
 | A finished season stops counting weeks | `js/season.js` — `seasonWeeks` | `test/season-lifecycle.test.mjs` |
+| A week is the total of its days out of 700; the average is shown, never ranked | `js/score.js` — `scoreOver` | `test/habits.test.mjs` |
 | Ranked on points; crowns break a tie | `js/season.js` — `seasonTally` | `test/season.test.mjs` |
 | Scoring starts at the first WHOLE week; the stub before it is warm-up | `js/season.js` — `weeksIn` | `test/season-lifecycle.test.mjs` |
 | A chosen length always delivers that many WHOLE weeks | `js/season.js` — `endFor` | `test/season-lifecycle.test.mjs` |
 | A booked season does not erase the one it replaces | `js/season.js` — `seasonStart` | `test/season-lifecycle.test.mjs` |
 | Every season run is readable afterwards, by its own window | `js/season.js` — `seasonHistory` | `test/season-lifecycle.test.mjs` |
+
+## Workouts
+
+| Rule | Owned by | Enforced by |
+|---|---|---|
+| The schedule suggests; any session can be started on any day and is logged on that day | `js/workout.js` — `planFor`, `sessionsOf` | `test/workout.test.mjs` |
+| Finishing a session writes ONE workout for that day and session, so finishing twice corrects rather than doubles | `js/store.js` — `finishWorkout` | `test/workout.test.mjs` |
+| A set prefills from the last time THAT session was done, whatever day that was | `js/workout.js` — `prefill`, `lastSession` | `test/workout.test.mjs` |
+| A personal best is strictly greater than the record; matching is not beating | `js/workout.js` — `beatsBest` | `test/workout.test.mjs` |
+| Favourites and patterns are claimed only after three sessions, and no least favourite is invented | `js/workout.js` — `MIN_INSIGHT_SESSIONS`, `workoutInsights` | `test/workout.test.mjs` |
+| Sets banked in an unfinished session survive until Finish, and both screens say so | `js/ui/workoutdraft.js` | — (UI; verified by hand) |
+| Rope intervals step up by the week of the program, counted from its start day | `js/workout.js` — `intervalsFor`, `progressionWeek` | `test/workout.test.mjs` |
 
 ## The log itself
 
@@ -144,6 +159,9 @@ only. These are the tests to add to when either side gains a field.
 | Every capability the shell announces is read by the page | `js/bridge.js` — `installBridge` | `test/bridge.test.mjs` |
 | Every field the shell parses is one the page sends | `js/bridge.js` — `setSyncConfig` | `test/personal.test.mjs` |
 | The summary the shell draws from carries everything it reads | `js/summary.js` | `test/summary.test.mjs` |
+| The training record crosses already worded — "12 reps", "Tue, Sep 8" — never as a value and a unit | `js/summary.js` — `trainingSummary` | `test/summary.test.mjs`, `.../HabitSummaryTrainingTest.kt` |
+| The week crosses as XP with the bonus beside it; an older summary falls back to the average | `js/summary.js` — `board` | `test/summary.test.mjs`, `.../HabitSummaryBonusTest.kt` |
+| What the sync read is repeated back in lines a person can read | `habit/HabitSyncWorker.kt` — `syncReport`, `readValue` | `.../SyncReportTest.kt` |
 | A row from the shell survives the web engine unchanged | `js/ingest.js` | `test/wire.test.mjs` |
 | A setup code means the same thing in both languages | `js/setup-code.js` | `test/setup-code.test.mjs`, `.../SetupCodeTest.kt` |
 

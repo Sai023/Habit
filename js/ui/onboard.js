@@ -31,8 +31,8 @@ import { METRIC, AT_LEAST, AT_MOST, AGGREGATE, VISIBILITY, PERIOD } from "../sch
  * are one of the six. Keeping reduce habits off the board was meant to stop "bottom of a quitting
  * metric" producing hidden logs, but Discipline is thirty per cent of the day and is made of
  * reduce habits, so excusing them deleted the category rather than protecting anybody. The
- * protection lives where it belongs: the clown is suppressed on a silent pipeline, and a ceiling
- * cannot be failed by a sensor going quiet.
+ * protection lives where it belongs: a silent pipeline is shown as "not reported" rather than
+ * scored, and a ceiling cannot be failed by a sensor going quiet.
  */
 const STARTERS = [
   {

@@ -275,9 +275,8 @@ export function seasonHistory(state, today) {
  * One week, ranked.
  *
  * Reuses the ordinary board rather than reimplementing it, so the crown a week awards is the same
- * crown the board showed at the time — including the rule that suppresses the clown when somebody
- * had a silent pipeline. A season built on a second opinion about who won would be a season nobody
- * believed.
+ * crown the board showed at the time. A season built on a second opinion about who won would be a
+ * season nobody believed.
  */
 export function weekStandings(state, memberIds, weekKey, notBefore = null) {
   const weekOpens = periodStart(weekKey, PERIOD.WEEK);

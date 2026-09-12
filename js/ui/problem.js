@@ -25,7 +25,10 @@ export function showNote(message, action = null) {
     act.className = "note-act";
     act.textContent = action.label;
     act.onclick = (e) => { e.stopPropagation(); bar.remove(); action.onClick(); };
-    // Before the ✕, which banner() has already appended and which stays last.
+    // Before the ✕, which banner() has already appended and which stays last. The class puts
+    // the link UNDER the text rather than beside it — beside, a link as long as "Open Health
+    // Connect" left the message a column four words wide.
+    bar.classList.add("has-act");
     bar.insertBefore(act, bar.lastChild);
     // Longer than a plain note, not permanent.
     //
@@ -58,7 +61,20 @@ function banner(message, className, role) {
   // edge of the screen, which left a banner that could not be read OR closed.
   const text = document.createElement("span");
   text.className = "problem-text";
-  text.textContent = message;
+  // A report comes as lines: the outcome first, then any diagnosis. Each line its own block, and
+  // the ones after the first set apart, so a banner that has something to explain reads as a
+  // headline and a note rather than a paragraph.
+  const lines = String(message).split("\n").filter((l) => l.trim());
+  if (lines.length <= 1) {
+    text.textContent = message;
+  } else {
+    for (const [i, line] of lines.entries()) {
+      const row = document.createElement("span");
+      row.className = "problem-line" + (i ? " is-detail" : "");
+      row.textContent = line;
+      text.append(row);
+    }
+  }
   bar.append(text);
 
   const close = document.createElement("button");

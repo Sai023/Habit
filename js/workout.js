@@ -158,28 +158,6 @@ export function prescription(exercise) {
   return exercise.sets + " × " + span + unit + side;
 }
 
-/**
- * What a logged session adds up to, for a history line: total reps (or seconds) per exercise,
- * and how many of the prescribed sets were actually done.
- */
-export function summarise(session, logged) {
-  const out = [];
-  for (const exercise of session.exercises || []) {
-    const entry = (logged.exercises || []).find((e) => e.id === exercise.id);
-    const sets = entry ? entry.sets.filter((n) => Number.isFinite(n)) : [];
-    out.push({
-      id: exercise.id,
-      name: exercise.name,
-      done: sets.length,
-      of: exercise.sets,
-      total: sets.reduce((a, b) => a + b, 0),
-      best: sets.length ? Math.max(...sets) : null,
-      sets,
-    });
-  }
-  return out;
-}
-
 /** Every set banked, across the session? Used to decide whether Finish needs a confirmation. */
 export function isComplete(session, draft) {
   return (session.exercises || []).every((ex) => {

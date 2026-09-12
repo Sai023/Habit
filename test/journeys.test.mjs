@@ -135,8 +135,8 @@ test("what scores is decided by the metric, whatever the preset asked for", () =
   // It had a consequence nobody had looked at: Discipline is thirty per cent of the day and is made
   // of exactly the two reduce habits — the vape and screen time — so a group whose habits came from
   // the New habit screen had a whole category that could not be earned. The protection it was after
-  // lives elsewhere now: the clown is suppressed on a silent pipeline, and a ceiling cannot be
-  // failed by a sensor going quiet.
+  // lives elsewhere now: a silent pipeline is shown as "not reported" rather than scored, and a
+  // ceiling cannot be failed by a sensor going quiet.
   for (const [key, p] of Object.entries(PRESETS)) {
     const s = build(add(key));
     assert.equal(

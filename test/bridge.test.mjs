@@ -34,7 +34,7 @@ function test(name, fn) {
  * separate repositories that cannot import from each other — which is the whole reason the drift
  * this file catches is possible in the first place.
  */
-const FLAGS = ["healthConnect", "alarms", "tile", "embedded", "focusSettings", "manualSync"];
+const FLAGS = ["healthConnect", "embedded", "focusSettings", "manualSync"];
 
 /**
  * Announced, but not a flag — it carries a NAME.

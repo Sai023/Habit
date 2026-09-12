@@ -484,7 +484,3 @@ export async function ingestSamples(batch, now = Date.now()) {
   return events;
 }
 
-/** Every event, oldest first — for export, and for the sync engine's initial push. */
-export async function exportAll() {
-  return { app: "habit", v: 1, code: await currentCode(), events: await db.allEvents() };
-}

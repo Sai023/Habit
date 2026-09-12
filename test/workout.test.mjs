@@ -11,7 +11,7 @@ import { replay, addDays } from "../js/habits.js";
 import { PROGRAMS, PROGRAM_LIST } from "../js/programs.js";
 import {
   programFor, planFor, progressionWeek, intervalsFor, lastSession, prefill, prescription,
-  summarise, isComplete, progress, unitOf, exerciseHistory, sessionsOf, restDaysOf,
+  isComplete, progress, unitOf, exerciseHistory, sessionsOf, restDaysOf,
   personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS,
 } from "../js/workout.js";
 import { ev, T, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
@@ -252,21 +252,6 @@ test("a hold counts seconds, a movement counts reps, and a tap counts taps", () 
 // Adding up
 // ---------------------------------------------------------------------------
 
-test("a finished session summarises per exercise", () => {
-  const session = FIT.sessions["push-core"];
-  const logged = { exercises: [{ id: "pushup", sets: [12, 11, 10] }, { id: "plank", sets: [40, 40] }] };
-  const rows = summarise(session, logged);
-  const pushup = rows.find((r) => r.id === "pushup");
-  assert.equal(pushup.total, 33);
-  assert.equal(pushup.best, 12);
-  assert.equal(pushup.done, 3);
-  const plank = rows.find((r) => r.id === "plank");
-  assert.equal(plank.done, 2);
-  assert.equal(plank.of, 3);
-  const dip = rows.find((r) => r.id === "dip");
-  assert.equal(dip.done, 0);
-  assert.equal(dip.best, null);
-});
 
 test("complete means every prescribed set banked", () => {
   const session = FIT.sessions["push-core"];

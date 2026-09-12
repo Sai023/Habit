@@ -49,8 +49,7 @@ any arrival order.
 `NO_DATA` carries the design. An automatic source that says nothing means the *pipeline* was
 silent, which is not the same as the user failing; a manual habit with no entry is a real miss,
 because logging it was the whole task. Without that distinction the friend with the older phone
-and the harder sync path loses their streak — and the leaderboard's clown tag — to a watch
-outage rather than to anything they did.
+and the harder sync path loses their streak to a watch outage rather than to anything they did.
 
 ### Rules worth knowing
 
@@ -62,10 +61,12 @@ outage rather than to anything they did.
 - **Today is never judged a miss** while it is still running; it counts the moment it is won.
 - **Backfill is capped at 2 days**, keyed off when the observation was made rather than when it
   synced — so a week offline still backfills, but last week's crown is not winnable on Tuesday.
-- **Reduce habits opt out of scoring** by default. Being bottom of a quitting metric produces
-  hidden and falsified logs, not quitting.
-- **The clown is suppressed, never promoted.** If the bottom row had a silent pipeline, the week
-  has no clown at all — moving the tag to the person above them would punish a better week.
+- **Scoring is decided by the metric, not by choice.** Six metrics are scored, in four categories
+  worth 40 / 30 / 15 / 15 of a day; everything else is shown but never counted.
+- **A silent pipeline is shown, not scored.** A row with days nothing was reported says so —
+  "2 not reported" — and those days add nothing to the week rather than counting against it.
+- **A week is the total of its days, out of 700.** Bonus XP for beating targets is banked
+  beside it, capped per category, and never crosses into another category.
 
 ## Develop
 
