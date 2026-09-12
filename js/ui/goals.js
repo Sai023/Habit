@@ -104,8 +104,9 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
         // would read as a bug the first time somebody checked, and a change that silently applied
         // to yesterday is the thing this rule exists to stop.
         firstRun ? null : el("p.note-inline",
-          "Changes start counting tomorrow. Today is judged on what you'd already set — which is "
-          + "also why nobody can rescue a bad week from this screen."),
+          "Changes start counting tomorrow \u2014 from Monday for a weekly goal, from the 1st for a "
+          + "monthly one. Until then the card shows both numbers. Today is judged on what you'd "
+          + "already set, which is also why nobody can rescue a bad week from this screen."),
 
         error ? el("p.err", error) : null,
         el("button.tap", { onclick: submit, disabled: busy },

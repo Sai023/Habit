@@ -468,7 +468,10 @@ same events to the same state.
   Travel cannot be backdated at all.
 
   A target change counts from tomorrow. Lowering the number tonight does
-  not rescue today.
+  not rescue today. A WEEKLY goal is read at the start of the week, so a
+  change made mid-week counts from Monday, and a monthly one from the 1st.
+  Until then the card shows both numbers: "of 2 this week" and, under it,
+  "Goal → 3 from Mon, Sep 14".
 
   Opting out of a habit is judged as of when you opted out; it does not
   excuse the days before.
@@ -551,6 +554,12 @@ weekday sessions actually land on (only when one day clearly leads), and the
 longest rope interval. "Weeks in a row" counts back from this week, and a
 week that has not had its session YET is not a gap. None of this is scored;
 the board only ever sees the finished workout.
+
+A session swiped away half-done is not lost. Every set banked stays in
+the draft until Finish; the program's front page marks that session "In
+progress · 4 of 15 sets" and the Workouts habit's detail offers "Continue".
+The front page can be opened on any day, rest days included — the schedule
+suggests, it never locks a door.
 
 A workout more than 2 days late is refused, like a log.
 

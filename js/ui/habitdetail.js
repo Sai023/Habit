@@ -27,7 +27,8 @@ import {
 } from "../history.js";
 import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { sourceFor, isTracking, HIT, MISS, NO_DATA, EXEMPT } from "../habits.js";
-import { programFor, planFor, exerciseHistory } from "../workout.js";
+import { programFor, planFor, exerciseHistory, sessionsOf } from "../workout.js";
+import { draftsInProgress } from "./workoutdraft.js";
 import { AT_MOST, METRIC, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
 import * as fmt from "./format.js";
 
@@ -265,13 +266,24 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     const plan = planFor(program, today);
     const rows = exerciseHistory(state, me, program);
     const SHOW = 5;
+    // A session swiped away half-done is still here, and this is where somebody looks for it.
+    const open = draftsInProgress(program, sessionsOf(program).map((x) => x.session), today);
 
     return el("div.hd-program",
       el("h2.sec-title", program.name),
+      open.length
+        ? el("div.hd-program-open", open.map(({ session, at }) => el("button.tap.tap-quiet",
+            { onclick: () => { sheet.close(); onWorkout && onWorkout(); } },
+            "Continue " + session.name + " \u00b7 " + (at.of ? at.done + " of " + at.of + " sets" : at.done + " rounds") + " \u2192")))
+        : null,
       el("div.hd-program-today",
         el("span", plan && plan.session ? "Today: " + plan.session.name : "Today: " + ((plan && plan.rest) || "rest")),
-        plan && plan.session && onWorkout
-          ? el("button.link", { onclick: () => { sheet.close(); onWorkout(); } }, "Open →")
+        // Always a way in. The schedule is a suggestion, and a rest day is the day this link
+        // used to vanish — leaving the Workouts card's small button as the only door, on the one
+        // screen that is ABOUT the program.
+        onWorkout
+          ? el("button.link", { onclick: () => { sheet.close(); onWorkout(); } },
+              plan && plan.session ? "Open \u2192" : "Pick a session \u2192")
           : null,
       ),
       el("div.hd-exlist", rows.map((r) => {

@@ -2004,3 +2004,14 @@ button.card-open:active { transform: scale(0.99); }
 .wo-record-name { color: var(--text); }
 .wo-record-n { color: var(--amber); font-variant-numeric: tabular-nums; }
 .wo-record-when { font-size: var(--fs-micro); color: var(--dim); }
+
+/* A goal that is set but not yet counting — see pendingGoal in edits.js. Teal, because it is
+   the person's own choice arriving, not a warning. */
+.card-of.is-pending { color: var(--teal); font-weight: 600; }
+
+/* A session with sets banked and not finished. The line says so; the edge says so from across
+   the room. */
+.wo-session.is-open { box-shadow: inset 3px 0 0 var(--teal); }
+.wo-session.is-open .wo-session-sub { color: var(--teal); font-weight: 600; }
+
+.hd-program-open { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }

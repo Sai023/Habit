@@ -23,6 +23,7 @@ import { seasonTally, categoryBreakdown } from "./season.js";
 import { noticesFor } from "./notices.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
 import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
+import { pendingGoal } from "./edits.js";
 import * as fmt from "./ui/format.js";
 
 // 3 adds the bonus fields. 4 adds `training`. Additive only: an older shell ignores what it does
@@ -50,6 +51,12 @@ function habitSummary(state, habit, me, today) {
   );
   const w = walk(state, habit.habitId, me, today);
   const reduce = habit.direction === AT_MOST;
+  // A goal set but not yet counting. Folded into the caption so the shell says it without
+  // knowing the rule — "of 2 this week · 3 from Mon, Sep 14" is the whole explanation.
+  const pending = pendingGoal(state, habit, me, today);
+  const pendingNote = pending
+    ? " \u00b7 " + fmt.value(habit.metric, pending.target) + " from " + fmt.dayLabel(pending.from)
+    : "";
 
   return {
     id: habit.habitId,
@@ -63,9 +70,9 @@ function habitSummary(state, habit, me, today) {
     headline: reduce
       ? fmt.value(habit.metric, Math.max(0, target - (value || 0)))
       : fmt.value(habit.metric, value),
-    caption: reduce
+    caption: (reduce
       ? "left of " + fmt.value(habit.metric, target)
-      : status === NO_DATA ? "waiting for data" : fmt.goal(habit, target),
+      : status === NO_DATA ? "waiting for data" : fmt.goal(habit, target)) + pendingNote,
     streak: w ? w.streak : 0,
     // 0..100, or null when there is nothing to be a fraction of.
     progress: target > 0 && value != null
@@ -190,6 +197,12 @@ export function buildSummary(state, me, today, memberIds = null) {
           streak: mine.streak,
           bonus: mine.bonus || 0,
           bonusWithheld: mine.bonusWithheld || 0,
+          // The week as the board ranks it: a total out of 700, bonus beside it. The percentage
+          // above is the per-day average and stays for the shell that only knows that one.
+          points: mine.points || 0,
+          bonusPoints: mine.bonusPoints || 0,
+          // How many days have been scored so far — what the total is out of, at 100 each.
+          days: mine.scoredDays || 0,
         }
       : null,
   };

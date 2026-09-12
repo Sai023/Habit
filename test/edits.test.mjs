@@ -17,7 +17,7 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays, targetFor, latestGoal } from "../js/habits.js";
-import { goalToShow, habitFields } from "../js/edits.js";
+import { goalToShow, habitFields, pendingGoal } from "../js/edits.js";
 import { ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD, VISIBILITY } from "../js/schema.js";
 
 let passed = 0;
@@ -195,6 +195,79 @@ test("an opted-out habit still shows the number you last chose", () => {
   ]);
   assert.equal(shown(s, "me", 6), 9000);
   assert.equal(latestGoal(s, "h", "me").active, false);
+});
+
+// ---------------------------------------------------------------------------
+// A goal that is set and not yet counting is SAID, with the day it starts
+// ---------------------------------------------------------------------------
+//
+// The report: "I tried editing workout habit to 3 or 4 times a week but I do not see it pull
+// through." Nothing failed there either — a weekly habit reads its goal at the START of the week,
+// so a change on Saturday counts from Monday. The card kept saying "of 2" for two days, with the
+// person's 3 nowhere on any screen. The rule stays; the screens now say it.
+
+const WEEKLY = (extra = []) => replay([
+  E(ev.member("me", "Me"), at(0)),
+  E(ev.habit("w", {
+    name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST, target: 2,
+    period: PERIOD.WEEK, aggregate: AGGREGATE.SUM, source: SOURCE.MANUAL,
+    tz: TZ, dayStartHour: 4,
+  }), at(0)),
+  E(ev.goal("me", "w", { target: 2 }), at(0)),
+  ...extra,
+]);
+const pending = (s, id, n) => pendingGoal(s, s.habits.get(id), "me", day(n));
+
+test("a weekly goal raised on Saturday is pending until Monday, and says which Monday", () => {
+  // Saturday of week 1 is day 5. Counts from Sunday (day 6); the first week opening on or after
+  // that is Monday day 7.
+  const s = WEEKLY([E(ev.goal("me", "w", { target: 3 }), at(5))]);
+  assert.deepEqual(pending(s, "w", 5), { target: 3, from: day(7) });
+  assert.deepEqual(pending(s, "w", 6), { target: 3, from: day(7) }, "still pending on the Sunday");
+  assert.equal(pending(s, "w", 7), null, "in force on the Monday, nothing to announce");
+  // And the number being scored this week is still the old one, which is the whole point.
+  assert.equal(targetFor(s, s.habits.get("w"), "me", day(6), day(0)), 2);
+});
+
+test("a weekly goal changed on a Sunday counts from the very next day, which is a Monday", () => {
+  const s = WEEKLY([E(ev.goal("me", "w", { target: 4 }), at(6))]);
+  assert.deepEqual(pending(s, "w", 6), { target: 4, from: day(7) });
+});
+
+test("a daily goal changed today is pending until tomorrow", () => {
+  const s = world([E(ev.goal("me", "h", { target: 10000 }), at(0)), E(ev.goal("me", "h", { target: 8000 }), at(3))]);
+  assert.deepEqual(pending(s, "h", 3), { target: 8000, from: day(4) });
+  assert.equal(pending(s, "h", 4), null);
+});
+
+test("the same number again is not a change worth announcing", () => {
+  // Toggling a habit off and on writes a goal too; it must not produce "Goal → 2 from Monday"
+  // when the goal was 2 all along.
+  const s = WEEKLY([E(ev.goal("me", "w", { active: false }), at(3)), E(ev.goal("me", "w", { active: true }), at(4))]);
+  assert.equal(pending(s, "w", 4), null);
+});
+
+test("a first daily goal counts from the day it was set, so nothing is pending", () => {
+  const s = world([E(ev.goal("me", "h", { target: 8000 }), at(3))]);
+  assert.equal(pending(s, "h", 3), null);
+});
+
+test("a first WEEKLY goal set mid-week still waits for Monday, because the week opened on the default", () => {
+  // The engine reads a weekly goal at the start of the week. A first goal counts from the day it
+  // was set, but the week had already opened on the habit's own number, so this week is scored
+  // against 2 and the 3 lands on Monday. Reported as such rather than hidden — the same rule as
+  // any other change, and the same surprise if nothing said so.
+  const s = replay([
+    E(ev.member("me", "Me"), at(0)),
+    E(ev.habit("w", {
+      name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST, target: 2,
+      period: PERIOD.WEEK, aggregate: AGGREGATE.SUM, source: SOURCE.MANUAL, tz: TZ, dayStartHour: 4,
+    }), at(0)),
+    E(ev.goal("me", "w", { target: 3 }), at(2)),
+  ]);
+  assert.deepEqual(pending(s, "w", 2), { target: 3, from: day(7) });
+  assert.equal(targetFor(s, s.habits.get("w"), "me", day(6), day(0)), 2, "what the engine scores this week");
+  assert.equal(targetFor(s, s.habits.get("w"), "me", day(13), day(7)), 3, "and next");
 });
 
 if (failures.length) {

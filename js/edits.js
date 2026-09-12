@@ -16,7 +16,7 @@
 // So the rules are here, once, and both screens read them. Two copies of a rule about which number
 // to show is how the second copy ends up being the wrong one.
 
-import { latestGoal, targetFor } from "./habits.js";
+import { latestGoal, targetFor, goalOn, periodKey, periodStart, periodEnd, addDays } from "./habits.js";
 
 /**
  * The number to put in front of somebody editing their own goal.
@@ -32,6 +32,39 @@ export function goalToShow(state, habit, memberId, day) {
   const set = latestGoal(state, habit.habitId, memberId);
   if (set && Number.isFinite(set.target) && set.target > 0) return set.target;
   return targetFor(state, habit, memberId, day || habit.createdDay);
+}
+
+/**
+ * A goal that has been set and is not yet the one being scored — and the day it will be.
+ *
+ * ---- Why this exists ----
+ *
+ * A change counts from the next day, and for a weekly habit from the next WEEK: the target in
+ * force for a period is the one that was true when the period opened, so a number lowered on a
+ * Wednesday cannot re-score the Monday. That is the anti-cheat rule and it stays. What it cost
+ * was this: somebody set "3 a week" on a Saturday, the card said "of 2" until Monday, and the
+ * only honest reading of a screen that shows 2 after you typed 3 is that the app did not save it.
+ *
+ * So the rule is surfaced instead of hidden. Null when the latest goal is already the one being
+ * scored, or when the number did not change (toggling a habit off and on sets a goal too).
+ */
+export function pendingGoal(state, habit, memberId, today) {
+  const set = latestGoal(state, habit.habitId, memberId);
+  if (!set || !Number.isFinite(set.target) || set.target <= 0) return null;
+  const key = periodKey(today, habit.period);
+  const start = periodStart(key, habit.period);
+  if (set.from <= start) return null;
+  const inForce = goalOn(state, habit.habitId, memberId, start);
+  const current = inForce && Number.isFinite(inForce.target) && inForce.target > 0
+    ? inForce.target
+    : targetFor(state, habit, memberId, start, start);
+  if (current === set.target) return null;
+  // The first period that opens on or after the day the change counts from.
+  const fromKey = periodKey(set.from, habit.period);
+  const from = periodStart(fromKey, habit.period) === set.from
+    ? set.from
+    : addDays(periodEnd(fromKey, habit.period), 1);
+  return { target: set.target, from };
 }
 
 /**

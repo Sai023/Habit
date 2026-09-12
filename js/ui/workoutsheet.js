@@ -37,9 +37,7 @@ import {
   sessionsOf, restDaysOf, personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS,
 } from "../workout.js";
 import * as fmt from "./format.js";
-
-/** One draft per session, so a rope day and the finisher that follows it do not share a slot. */
-const draftKey = (sessionId) => "workout-draft:" + sessionId;
+import { loadDraft, saveDraft, clearDraft, draftProgress } from "./workoutdraft.js";
 
 /** " reps", "s", " taps" — the unit as it follows a number. */
 function unitSuffix(ex) {
@@ -56,22 +54,6 @@ function clock(seconds) {
 /** A short buzz where the phone allows one. Silent failure everywhere else. */
 function buzz(pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch { /* not a phone */ }
-}
-
-function loadDraft(programId, sessionId, day) {
-  try {
-    const raw = localStorage.getItem(draftKey(sessionId));
-    if (!raw) return null;
-    const d = JSON.parse(raw);
-    if (d.programId === programId && d.sessionId === sessionId && d.day === day) return d;
-  } catch { /* corrupt or unavailable */ }
-  return null;
-}
-function saveDraft(d) {
-  try { localStorage.setItem(draftKey(d.sessionId), JSON.stringify(d)); } catch { /* full or unavailable */ }
-}
-function clearDraft(sessionId) {
-  try { localStorage.removeItem(draftKey(sessionId)); } catch { /* ignore */ }
 }
 
 /**
@@ -198,9 +180,15 @@ function hub(sheet, ctx) {
     return rx ? "Week " + rx.week + " \u00b7 " + rx.name : "";
   }
 
-  const subFor = (session) => session.kind === "intervals"
-    ? ropeLine(session)
-    : session.exercises.length + " exercises \u00b7 " + lastLine(session);
+  const subFor = (session) => {
+    // Half done beats everything else the line could say: it is the one fact that changes what
+    // the next tap does.
+    const at = draftProgress(program, session, today);
+    if (at) return "In progress \u00b7 " + (at.of ? at.done + " of " + at.of + " sets" : at.done + " rounds");
+    return session.kind === "intervals"
+      ? ropeLine(session)
+      : session.exercises.length + " exercises \u00b7 " + lastLine(session);
+  };
 
   sheet.paint(
     el("div.form.wo",
@@ -232,7 +220,8 @@ function hub(sheet, ctx) {
 
       el("h2.sec-title", "All sessions"),
       el("div.wo-sessions", sessions.map(({ session, days }) => el("button.wo-session"
-        + (session.id === suggested ? ".is-today" : ""), { onclick: () => start(session) },
+        + (session.id === suggested ? ".is-today" : "")
+        + (draftProgress(program, session, today) ? ".is-open" : ""), { onclick: () => start(session) },
         el("span.wo-session-main",
           el("span.wo-session-name", session.name),
           el("span.wo-session-sub", subFor(session)),

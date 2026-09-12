@@ -20,6 +20,7 @@ import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { awards } from "../awards.js";
 import { neverMissed } from "../history.js";
 import { programFor, planFor } from "../workout.js";
+import { pendingGoal } from "../edits.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -310,6 +311,8 @@ function habitCard(habit, ctx, price) {
         ? "left of " + fmt.value(habit.metric, target) + " " + (cadence || "today")
         : status === NO_DATA ? "waiting for data"
         : fmt.goal(habit, target) + (cadence ? " " + cadence : "")),
+      // A new number that is not counting yet, said beside the one that is. See pendingGoal.
+      pendingLine(habit, ctx),
     ),
     reduce ? budgetDots(value, target) : progressBar(value, target),
     ),
@@ -375,6 +378,14 @@ function habitCard(habit, ctx, price) {
     // and offers nothing, and "Tennis" is a rest day the program names on purpose.
     habit.metric === METRIC.SESSIONS ? workoutEntry(ctx) : null,
   );
+}
+
+/** "Goal → 3 from Mon, Sep 14", or nothing. */
+function pendingLine(habit, ctx) {
+  const p = pendingGoal(ctx.state, habit, ctx.me, ctx.today);
+  if (!p) return null;
+  return el("div.card-of.is-pending",
+    "Goal \u2192 " + fmt.value(habit.metric, p.target) + " from " + fmt.dayLabel(p.from));
 }
 
 /**

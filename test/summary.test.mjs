@@ -279,6 +279,39 @@ test("Rest & recovery reports no bonus however well it went", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The board, in XP
+// ---------------------------------------------------------------------------
+
+test("the week crosses as a total in XP with the bonus beside it, not only as a percentage", () => {
+  // Two scored days, both perfect: 200 of a possible 200 so far.
+  const s = buildSummary(world([
+    E(ev.log("steps", "m1", day(0), 11000, SOURCE.HEALTH_CONNECT), at(0)),
+    E(ev.log("sleep", "m1", day(0), 480, SOURCE.HEALTH_CONNECT), at(0)),
+    E(ev.log("puffs", "m1", day(0), 0, SOURCE.MANUAL), at(0)),
+    E(ev.log("steps", "m1", day(1), 11000, SOURCE.HEALTH_CONNECT), at(1)),
+    E(ev.log("sleep", "m1", day(1), 480, SOURCE.HEALTH_CONNECT), at(1)),
+    E(ev.log("puffs", "m1", day(1), 0, SOURCE.MANUAL), at(1)),
+  ]), "m1", day(1), ["m1", "m2"]);
+  assert.equal(s.board.points, 200);
+  assert.equal(s.board.days, 2);
+  assert.equal(typeof s.board.bonusPoints, "number");
+  assert.equal(s.board.pct, 100, "the average is still sent for a shell that only knows it");
+});
+
+test("a goal set but not yet counting is in the caption, with the day it starts", () => {
+  // Steps is daily: a change on day 3 counts from day 4.
+  const s = buildSummary(world([
+    E(ev.goal("m1", "steps", { target: 10000 }), at(0)),
+    E(ev.goal("m1", "steps", { target: 8000 }), at(3)),
+    E(ev.log("steps", "m1", day(3), 9000, SOURCE.HEALTH_CONNECT), at(3)),
+  ]), "m1", day(3), ["m1", "m2"]);
+  const steps = find(s, "steps");
+  // The thousands separator is whatever fmt.value uses; the digits are what is being checked.
+  const digits = steps.caption.replace(/[^0-9a-z·]/gi, "");
+  assert.match(digits, /^of10000·8000from/, "the old number is judged today, and the new one is announced: " + steps.caption);
+});
+
+// ---------------------------------------------------------------------------
 // Training — the workout record, for the native Insights tab
 // ---------------------------------------------------------------------------
 
