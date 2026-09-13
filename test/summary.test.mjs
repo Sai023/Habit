@@ -333,8 +333,9 @@ test("the level crosses with the sentence the header states and the two numbers 
   assert.equal(l.xp, 330, "banked: closed days only, bonus included");
   assert.ok(l.today > 0 && l.today < 100, "today rides along, unbanked: " + l.today);
   assert.equal(l.need, 295, "what the header states: 625 − 330");
-  assert.equal(l.pct, 9, "how far through this level: 30 of 325");
-  assert.equal(l.fill, 52, "what the bar draws: 330 of 625");
+  assert.equal(l.pct, 9, "what the bar draws: 30 of the 325 this level spans");
+  assert.ok(Array.isArray(l.facts), "facts ride along, worded");
+  assert.ok(l.facts.every((f) => f.icon && f.title && f.text), "each fact is an icon, a title and a sentence");
   assert.equal(l.at, 300, "the bar's left end");
   assert.equal(l.next, 625, "the bar's right end");
   assert.equal(l.titleFrom, 1);

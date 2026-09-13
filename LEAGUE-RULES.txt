@@ -599,11 +599,25 @@ no lifetime leaderboard — somebody who joined a year later would never
 catch up, and the league lives on the week and the season. The level shows
 as a ring (never a medal: medals are streaks) beside your name on the web
 header, on every board row, and on the Insights header with the bar and
-the sentence "1,100 XP to Level 8". The ring and the bar draw lifetime XP
-on a scale from zero to the next level — 654 of 975 — so they refill toward
-each level rather than emptying; today's XP is the faint tip. Ten pips
-under the bar mark which level of the current title you are on. Reaching a
-level opens a one-time screen the next morning.
+the sentence "1,100 XP to Level 8". The ring and the bar draw THIS level —
+from where it began to where the next begins — and start again at every
+level; today's XP is the faint tip. The lifetime total is its own tile
+beside the days played and the rate. Ten pips under the bar mark which
+level of the current title you are on. Reaching a level opens a one-time
+screen the next morning.
+
+ABOUT YOU. Tap your own name on Insights (or the level chip on the web) and
+the record says what it can about you: days played, your best day and best
+week, perfect days, the weekday you are strongest on (and softest, when the
+gap is real), how far you have walked and how long you have slept since you
+joined, the vape ceiling that has come down, days under your screen limit,
+workouts and personal bests, money put away, the habit you have never
+missed, the "worth noticing" comparison, where you stand this season, and
+when the next level and title land at your pace. Every fact has a floor
+below which it is simply absent. Nothing here is scored, and nothing here
+reaches the board or the group.
+
+                                levels.js, facts.js, levelsheet.js, summary.js
 
                                           levels.js, levelsheet.js, summary.js
 

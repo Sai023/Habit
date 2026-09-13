@@ -31,7 +31,7 @@
 // what makes them worth reaching, and the top is a real place rather than an asymptote.
 
 import { dayScore } from "./score.js";
-import { addDays } from "./habits.js";
+import { addDays, isoDayOfWeek } from "./habits.js";
 
 export const LEVEL_MAX = 100;
 export const FIRST_GAP = 300;
@@ -83,12 +83,12 @@ export function titleBand(level) {
 /**
  * Where a lifetime total stands: the level, the title, and the distance to the next.
  *
- * `need` is the number the screen states: "1,100 XP to Level 8". `fill` is what the bar and the
- * ring draw: lifetime XP on a scale from zero to the NEXT level's threshold — 654 of 975 is 67%
- * — so the bar refills toward each level rather than resetting to empty. Asked for as "a lifetime
- * XP bar, till the next level", and it reads fuller than the within-level fraction (`pct`, kept
- * for anything that wants how far through this level you are). At the top, `next` is null and
- * both are full.
+ * `into` and `span` describe the bar — how far through this level, out of how much — and `need` is
+ * the number the screen states: "1,100 XP to Level 8". The bar and the ring draw `pct` and start
+ * again at every level; the lifetime total is shown as its own number beside them. (A version
+ * that drew lifetime XP over the next threshold was tried and asked to be changed back: it read
+ * fuller, but it never emptied, and a bar that never empties stops being a bar.) At the top,
+ * `next` is null and the bar is full.
  */
 export function levelFor(xp) {
   const total = Math.max(0, Math.floor(Number(xp) || 0));
@@ -108,7 +108,6 @@ export function levelFor(xp) {
     span,
     need: next === null ? 0 : next - total,
     pct: next === null ? 100 : Math.floor((into / span) * 100),
-    fill: next === null ? 100 : Math.floor((total / next) * 100),
     max: level >= LEVEL_MAX,
   };
 }
@@ -119,6 +118,9 @@ export function levelFor(xp) {
  * Banked is every closed day from the day they joined to yesterday. Today rides along separately
  * as `today` so a bar can draw it as a tip, and `levelUpToday` says whether it would already be
  * enough — "banks at midnight" is a better sentence when it is also "and that's Level 8".
+ *
+ * The same walk keeps the records the facts screen tells: the best day, the best week, how many
+ * days were a full hundred, and the average by weekday. Free, since every day is scored anyway.
  */
 export function lifetime(state, memberId, today) {
   // Cached per replayed state. The store hands out the same state object until a new event
@@ -140,22 +142,39 @@ const CACHE = new WeakMap();
 function computeLifetime(state, memberId, today) {
   const member = state.members.get(memberId);
   const since = member && member.since ? member.since : firstHabitDay(state);
+  const records = {
+    bestDay: null, bestWeek: null, perfectDays: 0,
+    weekdays: Array.from({ length: 7 }, () => ({ xp: 0, days: 0 })),
+  };
   const empty = {
-    ...levelFor(0), banked: 0, today: 0, days: 0, since: since || null, levelUpToday: false,
+    ...levelFor(0), banked: 0, today: 0, days: 0, since: since || null, levelUpToday: false, ...records,
   };
   if (!since || since > today) return empty;
 
   const yesterday = addDays(today, -1);
   let banked = 0;
   let days = 0;
+  const weeks = new Map();
   // One memo for the whole walk. A weekly or monthly habit is scored once per period rather than
   // once per day, which is most of the cost of two years of days.
   const memo = new Map();
   for (let d = since; d <= yesterday; d = addDays(d, 1)) {
     const score = dayScore(state, memberId, d, today, memo);
     if (!score.scored) continue;
-    banked += score.pct + score.bonus;
+    const xp = score.pct + score.bonus;
+    banked += xp;
     days += 1;
+    if (!records.bestDay || xp > records.bestDay.xp) records.bestDay = { day: d, xp };
+    if (score.pct >= 100) records.perfectDays += 1;
+    const wd = records.weekdays[isoDayOfWeek(d) - 1];
+    wd.xp += xp;
+    wd.days += 1;
+    // Keyed by the week's Monday — a day, so it can be printed — rather than an ISO week id.
+    const wk = addDays(d, -(isoDayOfWeek(d) - 1));
+    weeks.set(wk, (weeks.get(wk) || 0) + xp);
+  }
+  for (const [week, xp] of weeks) {
+    if (!records.bestWeek || xp > records.bestWeek.xp) records.bestWeek = { week, xp };
   }
   const now = dayScore(state, memberId, today, today, memo);
   const provisional = now.scored ? now.pct + now.bonus : 0;
@@ -168,6 +187,8 @@ function computeLifetime(state, memberId, today) {
     days,
     since,
     levelUpToday: levelFor(banked + provisional).level > standing.level,
+    ...records,
+    weeksPlayed: weeks.size,
   };
 }
 

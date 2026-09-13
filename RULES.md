@@ -125,6 +125,8 @@ on the wrong one.
 | The join day is on the member and a rename does not move it | `js/habits.js` — `T.MEMBER` replay (`since`) | `test/levels.test.mjs` |
 | A level-up is celebrated once, and never on the first sight of a level | `js/ui/levelsheet.js` — `levelUpDue` | — (UI; verified by hand) |
 | Levels rank nobody; the board still orders on the week | `js/ui/dashboard.js` — `rowLevel` | `test/habits.test.mjs` (ranking) |
+| The bar and ring draw THIS level and start again at every level; the total is its own number | `js/levels.js` — `levelFor` (`pct`) | `test/levels.test.mjs` |
+| A fact about you has a floor below which it is absent, and is worded once, for you only | `js/facts.js` — `factsAbout` | `test/facts.test.mjs` |
 
 ## The log itself
 

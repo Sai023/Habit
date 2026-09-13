@@ -13,6 +13,7 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { lifetime, titleBand, TITLES, LEVEL_MAX, thresholdFor, gapTo } from "../levels.js";
 import { levelMark } from "./levelmark.js";
+import { factsAbout } from "../facts.js";
 import * as fmt from "./format.js";
 
 const SEEN_KEY = (memberId) => "level-seen:" + memberId;
@@ -58,6 +59,18 @@ function bandPips(life) {
   );
 }
 
+/** The facts, as rows: an icon, a title, a sentence. */
+function factsList(facts) {
+  if (!facts.length) return el("p.note-inline", "A few more days and there will be things to say.");
+  return el("div.lv-facts", facts.map((f) => el("div.lv-fact",
+    el("span.lv-fact-i", f.icon),
+    el("div.lv-fact-body",
+      el("span.lv-fact-t", f.title),
+      el("span.lv-fact-x", f.text),
+    ),
+  )));
+}
+
 export function openLevelSheet(host, { state, me, today, celebrate = false, onDone }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
   const life = lifetime(state, me, today);
@@ -80,7 +93,7 @@ export function openLevelSheet(host, { state, me, today, celebrate = false, onDo
           )
         : el("div.sheet-head",
             el("span.sheet-title", name + " · Level " + life.level),
-            levelMark(life, 40, { tip: life.next ? (life.today / life.next) * 100 : 0 }),
+            levelMark(life, 40, { tip: life.span ? (life.today / life.span) * 100 : 0 }),
           ),
 
       // Where you stand, stated as a sentence and drawn as a bar.
@@ -89,16 +102,16 @@ export function openLevelSheet(host, { state, me, today, celebrate = false, onDo
           el("span.lv-title", life.title),
           el("span.lv-xp", n(life.banked) + " " + fmt.XP + " lifetime"),
         ),
-        // Lifetime XP on a scale that ends at the next level: 654 of 975. Refills toward each
-        // level rather than resetting; see levelFor's `fill`.
+        // This level, from where it began to where the next starts. Starts again at every level;
+        // the lifetime total has its own tile below.
         el("div.lv-bar",
-          el("i.lv-bar-fill", { style: "width:" + life.fill + "%" }),
-          life.today && life.next
-            ? el("i.lv-bar-tip", { style: "left:" + life.fill + "%; width:" + Math.min(100 - life.fill, (life.today / life.next) * 100) + "%" })
+          el("i.lv-bar-fill", { style: "width:" + life.pct + "%" }),
+          life.today && life.span
+            ? el("i.lv-bar-tip", { style: "left:" + life.pct + "%; width:" + Math.min(100 - life.pct, (life.today / life.span) * 100) + "%" })
             : null,
         ),
         el("div.lv-ends",
-          el("span", "0"),
+          el("span", "Level " + life.level + " · " + n(life.at)),
           life.max ? el("span", "the top") : el("span", "Level " + (life.level + 1) + " · " + n(life.next)),
         ),
         bandPips(life),
@@ -111,6 +124,17 @@ export function openLevelSheet(host, { state, me, today, celebrate = false, onDo
               + (life.levelUpToday ? ", and that is Level " + (life.level + 1) + "." : "."))
           : null,
       ),
+
+      // The total, as the number it is. The bar above starts again at every level, so this is
+      // where "how much have I earned, ever" lives — beside the days it took and the rate.
+      el("div.lv-stats",
+        el("div.lv-stat", el("b", n(life.banked)), el("span", fmt.XP + " lifetime")),
+        el("div.lv-stat", el("b", n(life.days)), el("span", life.days === 1 ? "day played" : "days played")),
+        el("div.lv-stat", el("b", life.days ? String(Math.round(life.banked / life.days)) : "—"), el("span", fmt.XP + " a day")),
+      ),
+
+      el("h2.sec-title", "About you"),
+      factsList(factsAbout(state, me, today)),
 
       el("h2.sec-title", "How it works"),
       el("div.lv-rules",

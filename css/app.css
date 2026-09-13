@@ -2012,7 +2012,7 @@ button.card-open:active { transform: scale(0.99); }
 .lvl .lvl-track { fill: none; stroke: var(--surface-hi); stroke-width: 10; }
 .lvl .lvl-arc { fill: none; stroke: var(--teal); stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray 600ms ease-out; }
 .lvl .lvl-tip { fill: none; stroke: var(--teal); stroke-opacity: 0.35; stroke-width: 10; stroke-linecap: round; }
-.lvl .lvl-n { fill: var(--text); font-weight: 800; font-size: 44px; font-family: inherit; }
+.lvl .lvl-n { fill: var(--text); font-weight: 800; font-family: inherit; }
 .lvl.is-max .lvl-arc { stroke: var(--amber); }
 .lvl.is-max .lvl-n { fill: var(--amber); }
 
@@ -2074,3 +2074,24 @@ button.card-open:active { transform: scale(0.99); }
 .lv-pip.is-lit { background: var(--teal); }
 .lv-pip.is-next { box-shadow: inset 0 0 0 1px var(--teal); }
 .lv-band-note { margin: 0; font-size: var(--fs-micro); color: var(--dim); }
+
+/* The lifetime total and its two companions, as tiles. */
+.lv-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.lv-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 10px 6px; border-radius: var(--r-sm); background: var(--panel, var(--surface-hi));
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.lv-stat b { font-size: var(--fs-title); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--teal); }
+.lv-stat span { font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); text-align: center; }
+
+/* Facts about you: icon, title, sentence. */
+.lv-facts { display: flex; flex-direction: column; gap: 6px; }
+.lv-fact {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start;
+  padding: 10px 12px; border-radius: var(--r-sm); background: var(--panel, var(--surface-hi));
+}
+.lv-fact-i { font-size: var(--fs-head); line-height: 1.2; }
+.lv-fact-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lv-fact-t { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.lv-fact-x { font-size: var(--fs-small); color: var(--text); line-height: 1.45; overflow-wrap: anywhere; }

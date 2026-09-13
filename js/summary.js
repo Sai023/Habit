@@ -25,12 +25,13 @@ import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
 import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
 import { pendingGoal } from "./edits.js";
 import { lifetime, titleBand, LEVEL_MAX } from "./levels.js";
+import { factsAbout } from "./facts.js";
 import * as fmt from "./ui/format.js";
 
-// 3 adds the bonus fields. 4 adds `training`. 5 adds `lifetime`. Additive only: an older shell
-// ignores what it does not know, and a newer one reads a missing field as nothing, so three phones
-// on three builds all stay readable.
-export const SUMMARY_VERSION = 5;
+// 3 adds the bonus fields. 4 adds `training`. 5 adds `lifetime`. 6 adds `lifetime.facts`.
+// Additive only: an older shell ignores what it does not know, and a newer one reads a missing
+// field as nothing, so three phones on three builds all stay readable.
+export const SUMMARY_VERSION = 6;
 
 /** How many days of history the shell gets. A week is what its screens actually draw. */
 const WINDOW_DAYS = 7;
@@ -235,8 +236,6 @@ function lifetimeSummary(state, me, today) {
     xp: life.banked,
     today: life.today,
     pct: life.pct,
-    // What the bar and ring draw: lifetime XP over the next threshold, 0–100.
-    fill: life.fill,
     need: life.need,
     next: life.next,
     // The level's width in XP, so a shell can draw today as a share of it without the curve.
@@ -245,6 +244,8 @@ function lifetimeSummary(state, me, today) {
     days: life.days,
     since: life.since,
     sinceLabel: life.since ? fmt.dayLabel(life.since) : null,
+    // Already worded. See facts.js for what qualifies and what is deliberately not said.
+    facts: factsAbout(state, me, today),
   };
 }
 
