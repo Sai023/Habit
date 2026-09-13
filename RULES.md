@@ -68,6 +68,8 @@ on the wrong one.
 | A goal set but not yet counting is announced with the day it lands | `js/edits.js` — `pendingGoal` | `test/edits.test.mjs` |
 | A vape is a meter: the counter is typed, the day's puffs are the difference from the last reading; a gap spreads, a lower reading is a new device, a re-save replaces | `js/habits.js` — `lastReading`, `meterEntry`; `js/store.js` — `logMeter` | `test/meter.test.mjs` |
 | A log more than 2 days late is refused | `js/schema.js` — `MAX_BACKFILL_DAYS` | `test/retro.test.mjs` |
+| The shell re-reads today and MAX_BACKFILL_DAYS back, so late sensor writes still land | `habit/HabitSyncWorker.kt` — `daysFor` | `.../BackfillWindowTest.kt` |
+| Steps and calories are judged on the calendar day, the day their provider uses; sleep keeps 04:00 | `js/schema.js` — `PROVIDER_DAY_METRICS`; `js/edits.js` — `habitFields` | `test/edits.test.mjs` |
 | …except steps kept by hand — bound to manual, or to a sensor that has never reported — which may be entered for an earlier day of the same week; never across a Monday | `js/habits.js` — `withinBackfill`, `byHand`, `keptByHandAllWeek` | `test/retro.test.mjs` |
 | Travel cannot be backdated at all — zero days, not two | `js/habits.js` — `T.EXEMPT` replay | `test/travel.test.mjs` |
 | Ending travel may only bring the last day forward | `js/habits.js` — `T.EXEMPT` replay | `test/travel.test.mjs` |

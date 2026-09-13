@@ -174,6 +174,17 @@ export const AUTOMATIC_SOURCES = new Set([
 export const PHONE_ESTIMATED = new Set([METRIC.SLEEP]);
 
 /** What a watch can answer for, and what only the Pause shell can. */
+/**
+ * Metrics whose day is the provider's day — midnight to midnight — whatever the group's default.
+ *
+ * The default day starts at 04:00, for the vape: a puff at one in the morning belongs to the
+ * night before. Steps are counted by an app that starts its day at midnight, and a Saturday that
+ * runs 04:00 to 04:00 will never agree with Samsung Health's Saturday: Friday night's steps land
+ * on Friday here and on Saturday there, and the two numbers are compared side by side. Sleep is
+ * NOT in this set: a night belongs to the morning it ends, and a midnight boundary would split it.
+ */
+export const PROVIDER_DAY_METRICS = new Set([METRIC.STEPS, METRIC.ACTIVE_CALORIES]);
+
 export const HEALTH_METRICS = new Set([
   METRIC.STEPS, METRIC.SLEEP, METRIC.ACTIVE_CALORIES,
   // Health Connect keeps exercise sessions, which Samsung Health writes into. A workout is the

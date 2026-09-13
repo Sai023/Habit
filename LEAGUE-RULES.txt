@@ -148,7 +148,29 @@ shows on Today and keeps a streak, but moves nobody's score (section 12).
      the app says so — that means Samsung Health is not writing into Health
      Connect and steps are only being counted while the phone is on you.
 
+     THE DAY. Steps are judged on the calendar day, midnight to midnight —
+     the day Samsung Health and every step app uses — not the 04:00 day the
+     vape uses. Friday night's steps are Friday's in both apps. (Sleep keeps
+     the 04:00 day: a night belongs to the morning it ends.) Saving the Steps
+     habit in the editor applies this; past days keep their keys.
+
+     RE-READING. The phone re-reads today and the two days before it on
+     every sync — the same two days the log will still accept a row for —
+     so a watch or app that writes Saturday's steps on Monday is still
+     picked up. Before this it read only today and yesterday, and a day two
+     days old was never asked about again.
+
+     WHY THE NUMBERS CAN STILL DIFFER. Goal Buddy can only see what is
+     written into Health Connect. If Samsung Health is not writing there,
+     the count is Health Connect's own phone pedometer — a different step
+     algorithm on the same sensor, usually a few per cent apart. The fix is
+     on the phone: Samsung Health → Settings → Health Connect → allow
+     steps; then set Samsung Health first under Health Connect's app
+     priority for steps.
+
                                      HealthConnectSource.kt — readDay, stepOrigins
+                                     HabitSyncWorker.kt — daysFor
+                                     schema.js — PROVIDER_DAY_METRICS
 
 
 4.2  SLEEP
