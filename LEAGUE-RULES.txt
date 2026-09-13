@@ -685,7 +685,11 @@ from where it began to where the next begins — and start again at every
 level; today's XP is the faint tip. The lifetime total is its own tile
 beside the days played and the rate. Ten pips under the bar mark which
 level of the current title you are on. Reaching a level opens a one-time
-screen the next morning.
+screen the next morning — and posts a notification that morning, without
+the app being opened: the shell loads the engine once a day after eight,
+with no window, to read what banked overnight. Tapping the notification
+opens the app at the celebration. Your own level only; levels rank nobody,
+so a friend's is not news the way a friend's fifty days is.
 
 ABOUT YOU. Tap your own name on Insights (or the level chip on the web) and
 the record says what it can about you: days played, your best day and best

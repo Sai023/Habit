@@ -132,6 +132,9 @@ on the wrong one.
 | A level begins ON its threshold | `js/levels.js` — `levelFor` | `test/levels.test.mjs` |
 | The join day is on the member and a rename does not move it | `js/habits.js` — `T.MEMBER` replay (`since`) | `test/levels.test.mjs` |
 | A level-up is celebrated once, and never on the first sight of a level | `js/ui/levelsheet.js` — `levelUpDue` | — (UI; verified by hand) |
+| The day a level was reached is remembered by the walk, so "yesterday" is true | `js/levels.js` — `lifetime` (`reached`) | `test/levels.test.mjs` |
+| A level reached overnight is a notice for the morning after (and two more), once per level, your own only | `js/notices.js` — `levelNotice` | `test/levels.test.mjs` |
+| A headless page celebrates nothing and marks nothing seen | `js/app.js` — `celebrateLevelUp`, `caps().headless` | — (UI; verified by hand) |
 | Levels rank nobody; the board still orders on the week | `js/ui/dashboard.js` — `rowLevel` | `test/habits.test.mjs` (ranking) |
 | The bar and ring draw THIS level and start again at every level; the total is its own number | `js/levels.js` — `levelFor` (`pct`) | `test/levels.test.mjs` |
 | A fact about you has a floor below which it is absent, and is worded once, for you only | `js/facts.js` — `factsAbout` | `test/facts.test.mjs` |
@@ -170,6 +173,9 @@ on the wrong one.
 | Travel silences reminders by MOVING them, never cancelling | `habit/HabitReminder.kt` — `notBefore` | `.../DailyNudgeTest.kt` |
 | Minor streaks batch into one notice; only major badges get a solo | `js/notices.js` | `test/notices.test.mjs` |
 | A notice is posted exactly once | `habit/HabitNotices.kt` | `.../HabitNoticesTest.kt` |
+| A level notice has its own channel, and its tap opens the app at the celebration | `habit/HabitNotices.kt` — `channelFor`, `tapFor`; `habit/HabitReminder.kt` — `openPendingIntent` | `.../HabitNoticesTest.kt` |
+| The engine is read once a morning, after eight, with no window — three tries, then tomorrow | `habit/MorningPass.kt` — `due`, `HeadlessSummary` | `.../MorningPassTest.kt` |
+| A notification's ask survives a cold start: parked until the page can hear it | `habit/HabitBridge.kt` — `ShellOpen`, `announceReady` | — (verified by hand) |
 
 ## The seam between the two halves
 
