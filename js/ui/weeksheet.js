@@ -18,17 +18,6 @@ import * as fmt from "./format.js";
 
 const DAY = ["M", "T", "W", "T", "F", "S", "S"];
 
-/** "6 of 7 days", "2 of 3 this week", "met this month" — the count in the habit's own cadence. */
-function metLine(h) {
-  const unit = h.period === PERIOD.WEEK ? "week" : h.period === PERIOD.MONTH ? "month" : "day";
-  if (h.period === PERIOD.DAY) {
-    return h.eligible ? h.hits + " of " + h.eligible + (h.eligible === 1 ? " day" : " days") : null;
-  }
-  // A weekly or monthly habit is one period on a week's board: the one that is still open.
-  if (h.eligible) return h.hits ? "met this " + unit : "missed this " + unit;
-  return null;
-}
-
 export function openWeekSheet(host, { row, ctx, onDone }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
   const me = row.memberId === ctx.me;
@@ -72,13 +61,9 @@ export function openWeekSheet(host, { row, ctx, onDone }) {
 
       el("h2.sec-title", "Each habit"),
       el("div.wk-habits", (row.perHabit || []).map((h) => {
-        const met = metLine(h);
+        const met = fmt.habitWeek(h);
         const bits = [];
         if (met) bits.push(met);
-        if (h.open != null && h.period !== PERIOD.DAY) {
-          const unit = h.period === PERIOD.WEEK ? "week" : "month";
-          bits.push(h.open >= 1 ? "done this " + unit : Math.round(h.open * 100) + "% of the way this " + unit);
-        }
         if (h.quiet) bits.push(el("span.wk-quiet", h.quiet + (h.quiet === 1 ? " day" : " days") + " not reported"));
         if (h.streak >= 2) bits.push("\u{1F525} " + h.streak + " in a row");
         if (h.spent) bits.push("\u{1F6E1} " + h.spent + (h.spent === 1 ? " token" : " tokens") + " used");

@@ -332,6 +332,14 @@ test("a category can be scored on its own, for the board's filter", () => {
     [["steps", 0, 10000], ["steps", 1, 5000], ["screen", 0, 60], ["screen", 1, 60]]);
   assert.equal(categoryOver(s, "m1", day(0), day(1), CATEGORY.FITNESS, addDays).pct, 75);
   assert.equal(categoryOver(s, "m1", day(0), day(1), CATEGORY.DISCIPLINE, addDays).pct, 100);
+  // And the category's XP over the same days: what it paid, of what it could have. The sum of
+  // the categories' offers is the days' hundreds, so a filtered row's scale adds up to the
+  // overall row's.
+  const fit = categoryOver(s, "m1", day(0), day(1), CATEGORY.FITNESS, addDays);
+  const dis = categoryOver(s, "m1", day(0), day(1), CATEGORY.DISCIPLINE, addDays);
+  assert.ok(fit.points <= fit.offered, "never more than was on offer");
+  assert.ok(fit.offered > 0 && dis.offered > 0);
+  assert.equal(fit.days, 2);
   // A category nobody runs has no score rather than a zero.
   assert.equal(categoryOver(s, "m1", day(0), day(1), CATEGORY.MONEY, addDays).pct, null);
 });

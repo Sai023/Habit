@@ -514,13 +514,27 @@ export function withoutWorstDay(daily) {
 export function categoryOver(state, memberId, from, to, category, addDaysFn) {
   let sum = 0;
   let days = 0;
+  let points = 0, bonus = 0, offered = 0;
   for (let d = from; d <= to; d = addDaysFn(d, 1)) {
-    const bucket = categoryScores(state, memberId, d, to).get(category);
-    if (!bucket || !bucket.eligible) continue;
-    sum += Math.min(1, bucket.score);
+    // Through dayScore rather than the raw bucket, so the XP is the capped, renormalised figure
+    // the day actually paid this category — the same number the Today hero shows as "31 of 47".
+    const c = dayScore(state, memberId, d, to).categories.find((x) => x.category === category);
+    if (!c || !c.eligible) continue;
+    sum += Math.min(1, c.score);
     days += 1;
+    points += c.points;
+    bonus += c.bonus || 0;
+    offered += c.share;
   }
-  return { pct: days ? Math.round((sum / days) * 100) : null, days };
+  return {
+    pct: days ? Math.round((sum / days) * 100) : null,
+    days,
+    // The category's XP this week, the bonus it earned, and the most it could have paid — so a
+    // filtered row can say "260 of 282" the way the overall row says "581 of 700".
+    points: Math.round(points),
+    bonus: Math.round(bonus),
+    offered: Math.round(offered),
+  };
 }
 
 // ============================================================================

@@ -867,21 +867,32 @@ function boardTab(ctx) {
   const ranked = filter
     ? rows
         .map((r) => {
-          // The days count has to be the CATEGORY's, not the day's. Showing "0/1 days" from the
-          // overall board beside a Core Fitness percentage is two different weeks in one sentence,
-          // and the reader has no way to know which number belongs to which.
+          // Every number on a filtered row has to be the CATEGORY's. It used to swap in the
+          // category's rate and leave the week's XP where it was, so "Core fitness" showed the
+          // whole week's 581 with "89 a day" under it — two different weeks in one row. Now the
+          // XP, the scale, the days and the habits underneath are all this category's, and the
+          // rows rank on that XP the way the overall board ranks on its own.
           const only = categoryOver(ctx.state, r.memberId, from, ctx.today, filter, addDays);
           return {
             ...r,
             pct: only.pct,
+            points: only.points,
+            bonusPoints: only.bonus,
+            offered: only.offered,
+            scoredDays: only.days,
             eligible: only.days,
             hits: null,
             noData: null,
             spentTokens: 0,
+            streak: 0,
+            perHabit: (r.perHabit || []).filter((h) => {
+              const habit = ctx.state.habits.get(h.habitId);
+              return habit && categoryOf(habit) === filter;
+            }),
             filtered: true,
           };
         })
-        .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1))
+        .sort((a, b) => b.points - a.points || (b.pct ?? -1) - (a.pct ?? -1))
         .map((r, i) => ({ ...r, rank: i + 1, crown: false }))
     : rows;
 
@@ -896,10 +907,11 @@ function boardTab(ctx) {
       }, "Overall"),
       live.map((c) => el("button.chip" + (filter === c ? ".on" : ""), {
         onclick: () => ctx.onBoardCategory(c),
-      }, CATEGORY_ICON[c] + " " + CATEGORY_LABEL[c])),
+        title: CATEGORY_LABEL[c],
+      }, CATEGORY_ICON[c] + " " + CATEGORY_SHORT[c])),
     ) : null,
     filter ? el("p.sec-note", { style: "padding:0 2px" },
-      CATEGORY_LABEL[filter] + " only — scored on its own terms, not as a share of the day.") : null,
+      CATEGORY_LABEL[filter] + " only: the " + fmt.XP + " this category earned each day, of the share of the day it was worth.") : null,
     seasonStrip(ctx),
     el("div.board", ranked.map((r) => boardRow(r, ctx, unbroken.get(r.memberId)))),
     seasonBeacon(ctx),
@@ -1291,8 +1303,12 @@ function unbrokenSpan(entry) {
   return entry.periods + " " + unit + (entry.periods === 1 ? "" : "s");
 }
 
-function boardRow(row, ctx, unbroken) {
+function boardRow(row, ctx, unbrokenAll) {
   const classes = ["row"];
+  // On a filtered board, only this category's unbroken habits belong under the row.
+  const unbroken = row.filtered && ctx.boardCategory
+    ? (unbrokenAll || []).filter((u) => categoryOf(u.habit) === ctx.boardCategory)
+    : unbrokenAll;
   if (row.memberId === ctx.me) classes.push("is-me");
   if (row.crown) classes.push("is-crown");
   const daysSoFar = Math.max(1, isoDayOfWeek(ctx.today));
@@ -1308,7 +1324,13 @@ function boardRow(row, ctx, unbroken) {
   const facts = [];
   if (row.pct == null) facts.push("nothing scored yet");
   else if (row.filtered) {
-    facts.push(row.eligible ? row.eligible + (row.eligible === 1 ? " day scored" : " days scored") : "nothing scored yet");
+    facts.push(el("span", row.scoredDays + " of " + daysSoFar + (daysSoFar === 1 ? " day" : " days") + " judged"));
+    // The category's habits, each as a count — the one thing a filtered row can say that the
+    // overall row cannot, and the reason to filter.
+    for (const h of row.perHabit || []) {
+      const met = fmt.habitWeek(h);
+      if (met) facts.push(el("span", h.name + " " + met));
+    }
   } else {
     facts.push(el("span", row.scoredDays + " of " + daysSoFar + (daysSoFar === 1 ? " day" : " days") + " played"));
   }
@@ -1348,8 +1370,10 @@ function boardRow(row, ctx, unbroken) {
       // A day is worth 100, so by Friday there have been 500 on offer; 425 of them is 85%. The
       // scale is written on it, because a bar with no scale is a shape.
       el("div.row-barline",
-        el("div.row-bar", el("i", { style: "width:" + weekShare(row, ctx) + "%" })),
-        row.pct == null ? null : el("span.row-scale", row.points + " of " + (100 * daysSoFar)),
+        el("div.row-bar", el("i", { style: "width:" + (row.filtered
+          ? (row.offered ? Math.min(100, Math.round((row.points / row.offered) * 100)) : 0)
+          : weekShare(row, ctx)) + "%" })),
+        row.pct == null ? null : el("span.row-scale", row.points + " of " + (row.filtered ? row.offered : 100 * daysSoFar)),
       ),
       el("div.row-meta", ...facts.flatMap((f, i) => (i ? [el("span.row-sep", "\u00b7"), f] : [f]))),
     ),
@@ -1360,7 +1384,9 @@ function boardRow(row, ctx, unbroken) {
       row.pct == null ? "\u2014" : String(row.points),
       row.pct == null ? null : el("span.row-unit", " " + fmt.XP),
       row.bonusPoints ? el("span.row-bonus", " +" + row.bonusPoints) : null,
-      row.pct == null ? null : el("span.row-avg", row.pct + " a day"),
+      // Under the total: the rate that got you there. Overall that is XP a day; filtered it is
+      // how much of what the category could pay it did, which is the number the chips show.
+      row.pct == null ? null : el("span.row-avg", row.filtered ? row.pct + "% of possible" : row.pct + " a day"),
     ),
 
     // Which category carried the week and which sank it, each named — an icon alone asked the

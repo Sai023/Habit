@@ -111,3 +111,17 @@ export function mondayOf(day) {
   const iso = t.getUTCDay() === 0 ? 7 : t.getUTCDay();
   return addDaysISO(day, 1 - iso);
 }
+
+/**
+ * How one habit went over a week, from the board's per-habit bookkeeping: "5 of 6 days",
+ * "done this week", "40% of the way this month". Null when there is nothing to say yet.
+ */
+export function habitWeek(h) {
+  if (h.period === "day") {
+    return h.eligible ? h.hits + " of " + h.eligible + (h.eligible === 1 ? " day" : " days") : null;
+  }
+  const unit = h.period === "week" ? "week" : "month";
+  if (h.open != null) return h.open >= 1 ? "done this " + unit : Math.round(h.open * 100) + "% of the way this " + unit;
+  if (h.eligible) return h.hits ? "met this " + unit : "missed this " + unit;
+  return null;
+}
