@@ -29,11 +29,6 @@ import {
 
 /** "this week" / "this month" — and nothing at all for a daily habit, where it would be noise. */
 const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
-const STREAK_UNIT = {
-  [PERIOD.DAY]: ["day", "days"],
-  [PERIOD.WEEK]: ["week", "weeks"],
-  [PERIOD.MONTH]: ["month", "months"],
-};
 import * as fmt from "./format.js";
 
 // Two destinations. Habits used to be a third, showing a list people consult while setting
@@ -144,10 +139,10 @@ function todayTab(ctx) {
         el("span.sec-note", timeLeft(ctx)),
       ),
       el("div.cards", habits.map((h) => habitCard(h, ctx, prices.get(h.habitId)))),
-      streakLine(habits, ctx),
     ),
+    // Worth noticing stays; it is the one thing on this screen that is not on a card. The
+    // activity feed moved to the Board: it is about the group, and Today is about you.
     correlationSection(habits, ctx),
-    activitySection(ctx),
   ];
 }
 
@@ -353,9 +348,11 @@ function habitCard(habit, ctx, price) {
             title: "Read the sensor again",
           }, src.icon, " ", src.label, el("span.src-go", "↻"))
         : el("span.src", src.icon, " ", src.label),
-      status === HIT ? el("span", "✓") : null,
+      // The verdict, in a word rather than a glyph on its own.
+      status === HIT ? el("span.card-met", "\u2713 met") : null,
       // Pushed to the right of the row, so a card with one and a card without still line up.
-      habitPip(habitStreak(ctx.state, habit.habitId, ctx.me, ctx.today), habit),
+      // A flame before the number, so "21" in a small hexagon reads as a run and not a rank.
+      habitRun(habitStreak(ctx.state, habit.habitId, ctx.me, ctx.today), habit),
     ),
     // One way in, named for what it actually asks for. A puff count is read off the device and
     // typed, so "Enter today's count" is the instruction; a watch metric is already filled in and
@@ -782,6 +779,13 @@ function habitPip(run, habit) {
   }, String(run));
 }
 
+/** The run, flame and pip together: 🔥 then the tiered number. Nothing until the first tier. */
+function habitRun(run, habit) {
+  const pip = habitPip(run, habit);
+  if (!pip) return null;
+  return el("span.card-run", { "aria-label": run + " in a row" }, el("span.card-run-fire", "\u{1F525}"), pip);
+}
+
 function tierBadge(streak, size = "") {
   const tier = tierFor(streak);
   if (!tier) return null;
@@ -820,23 +824,6 @@ function budgetDots(value, target) {
     : shown;
   return el("div.dots", Array.from({ length: shown }, (_, i) =>
     el("i" + (i < shown - used ? "" : ".spent"))));
-}
-
-function streakLine(habits, ctx) {
-  const best = habits
-    .map((h) => walk(ctx.state, h.habitId, ctx.me, ctx.today))
-    .filter(Boolean)
-    .sort((a, b) => b.streak - a.streak)[0];
-  if (!best) return null;
-
-  const [one, many] = STREAK_UNIT[best.habit.period] || STREAK_UNIT[PERIOD.DAY];
-  return el("div.streakline",
-    el("span", "🔥 ", el("b", best.streak), " ", best.streak === 1 ? one : many),
-    el("span", "🛡 ", el("b", best.tokens), best.tokens === 1 ? " grace token" : " grace tokens"),
-    // Grace is never spent silently: a streak that survived because a token was burned, without
-    // saying so, reads as a bug the first time someone notices the maths.
-    best.spent.length ? el("span", "· spent " + best.spent.length + " this run") : null,
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -933,6 +920,9 @@ function boardTab(ctx) {
       : null,
     whatIfPanel(ranked, ctx),
     offBoardNote(ctx),
+    // What the group did lately. It was the foot of Today, where it was the one thing on the
+    // screen not about you; here it is under the standings it explains.
+    activitySection(ctx),
   );
 }
 

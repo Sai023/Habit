@@ -503,12 +503,6 @@ html, body { overscroll-behavior-y: contain; }
 }
 .tap:active { transform: scale(0.97); }
 
-.streakline {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  font-size: var(--fs-small); color: var(--dim);
-  padding: 0 2px;
-}
-.streakline b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ---------- leaderboard ---------- */
 
@@ -2222,3 +2216,10 @@ button.card-open:active { transform: scale(0.99); }
 .wk-cat-bar { height: 6px; border-radius: 999px; background: var(--panel, var(--surface-hi)); overflow: hidden; }
 .wk-cat-bar > i { display: block; height: 100%; background: var(--teal); border-radius: 999px; }
 .wk-cat-v { font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The card foot's verdict and run. The foot may wrap, but never inside a word: "✓ met" is one
+   thing, and a run that does not fit beside the source drops to its own line, right-aligned. */
+.card-foot { flex-wrap: wrap; row-gap: 4px; }
+.card-met { font-size: var(--fs-micro); font-weight: 700; color: var(--teal); white-space: nowrap; }
+.card-run { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
+.card-run-fire { font-size: 11px; line-height: 1; }
