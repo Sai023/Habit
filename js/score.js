@@ -62,6 +62,14 @@ export const CATEGORY_LABEL = {
   [CATEGORY.MONEY]: "Savings",
 };
 
+/** The same, short enough to sit in a chip beside a percentage on a phone. */
+export const CATEGORY_SHORT = {
+  [CATEGORY.FITNESS]: "Fitness",
+  [CATEGORY.DISCIPLINE]: "Discipline",
+  [CATEGORY.REST]: "Rest",
+  [CATEGORY.MONEY]: "Savings",
+};
+
 export const CATEGORY_ICON = {
   [CATEGORY.FITNESS]: "🏋",
   [CATEGORY.DISCIPLINE]: "📵",
@@ -546,37 +554,49 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
   const scored = [...state.habits.values()].filter((h) => h.scored);
 
   const rows = memberIds.map((memberId) => {
-    let hits = 0, eligible = 0, noData = 0, spentTokens = 0, bestStreak = 0;
+    let hits = 0, eligible = 0, noData = 0, spentTokens = 0, bestStreak = 0, streakHabit = null;
     const perHabit = [];
 
     for (const habit of scored) {
       const w = walk(state, habit.habitId, memberId, today, to);
       if (!w) continue;
-      bestStreak = Math.max(bestStreak, w.streak);
+      // The longest run going, and WHICH habit it is on — "🔥 9" beside a name read as nine
+      // days of everything, and it was nine days of sleep.
+      if (w.streak > bestStreak) { bestStreak = w.streak; streakHabit = habit.name; }
 
       const keys = periodsBetween(from, to, habit.period);
-      spentTokens += w.spent.filter((k) => keys.includes(k)).length;
+      const spent = w.spent.filter((k) => keys.includes(k)).length;
+      spentTokens += spent;
 
-      let scoreSum = 0, judged = 0;
+      let scoreSum = 0, judged = 0, hHits = 0, hEligible = 0, hQuiet = 0, open = null;
       for (const key of keys) {
         const status = w.statuses.get(key);
         if (status === undefined || status === EXEMPT) continue; // before it existed, or excused
-        if (status === NO_DATA) { noData += 1; continue; }
+        if (status === NO_DATA) { noData += 1; hQuiet += 1; continue; }
 
         if (key === w.currentKey) {
-          scoreSum += progressFor(state, habit, memberId, key);
+          const p = progressFor(state, habit, memberId, key);
+          scoreSum += p;
+          open = p;
         } else {
           scoreSum += status === HIT ? 1 : 0;
-          if (status === HIT) hits += 1;
+          if (status === HIT) { hits += 1; hHits += 1; }
           eligible += 1;
+          hEligible += 1;
         }
         judged += 1;
       }
 
-      if (judged > 0) {
-        // Kept for the per-habit breakdown the board shows when you tap a row. It is NOT what
-        // ranks anybody any more — see below.
-        perHabit.push({ habitId: habit.habitId, name: habit.name, ratio: scoreSum / judged });
+      if (judged > 0 || hQuiet > 0) {
+        // The per-habit bookkeeping the "your week" sheet itemises: how many of this habit's
+        // periods were met, how many went unreported, the period still open, the run, the
+        // tokens. It is NOT what ranks anybody — see below — it is what "13 of 22 goals met"
+        // was adding up without saying so.
+        perHabit.push({
+          habitId: habit.habitId, name: habit.name, icon: habit.icon, period: habit.period,
+          ratio: judged ? scoreSum / judged : 0,
+          hits: hHits, eligible: hEligible, quiet: hQuiet, open, streak: w.streak, spent,
+        });
       }
     }
 
@@ -590,6 +610,7 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
       name: (member && member.name) || memberId,
       hits, eligible, noData, spentTokens, perHabit,
       streak: bestStreak,
+      streakHabit,
       // Already computed by scoreOver and otherwise discarded. Carried so a caller asking a
       // what-if about this week does not have to walk it again.
       daily: earned.daily,

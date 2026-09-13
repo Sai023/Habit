@@ -12,8 +12,7 @@ import {
 import {
   leaderboard, categoryOver, dayScore, expectedBy, withoutWorstDay, categoryFor as categoryOf,
   CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
-  CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES,
-} from "../score.js";
+  CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES, CATEGORY_SHORT } from "../score.js";
 import { seasonTally, categoryBreakdown, pendingSeason, seasonProgress } from "../season.js";
 import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
@@ -949,8 +948,12 @@ function seasonStrip(ctx) {
     onclick: () => ctx.onSeasons && ctx.onSeasons(),
     "aria-label": "Seasons",
   },
+    // Named, because a strip of dates with a bar under it reads as the week — and this one
+    // ran Sunday to Sunday, which no week does.
     el("div.season-strip-top",
-      el("span.season-strip-dates", fmt.dayLabel(p.start), " → ", fmt.dayLabel(p.end)),
+      el("span.season-strip-dates",
+        el("span.season-strip-k", "Season"),
+        fmt.dayLabel(p.start), " → ", fmt.dayLabel(p.end)),
       el("span.season-strip-left", countdown(p), el("span.season-strip-go", " ›")),
     ),
     el("div.bar", { role: "presentation" },
@@ -1292,12 +1295,47 @@ function boardRow(row, ctx, unbroken) {
   const classes = ["row"];
   if (row.memberId === ctx.me) classes.push("is-me");
   if (row.crown) classes.push("is-crown");
+  const daysSoFar = Math.max(1, isoDayOfWeek(ctx.today));
+  const open = () => ctx.onWeekRow && ctx.onWeekRow(row);
 
-  return el("article." + classes.join("."),
+  // ---- The line under the bar ----
+  //
+  // It said "13 of 22 goals met · 🔥 9 best run · 🛡 spent 1 · 3 not reported", and every item
+  // was a number with its unit missing. Twenty-two was five habits over several days and a
+  // weekly one, added into a figure nobody could reconstruct; nine was a run of ONE habit, not
+  // of days; the token had no name; and the silence had no habit. Each is now a sentence with
+  // its unit — and the arithmetic behind the first one is a tap away, itemised (weeksheet.js).
+  const facts = [];
+  if (row.pct == null) facts.push("nothing scored yet");
+  else if (row.filtered) {
+    facts.push(row.eligible ? row.eligible + (row.eligible === 1 ? " day scored" : " days scored") : "nothing scored yet");
+  } else {
+    facts.push(el("span", row.scoredDays + " of " + daysSoFar + (daysSoFar === 1 ? " day" : " days") + " played"));
+  }
+  if (row.streak >= 2) {
+    facts.push(el("span", "\u{1F525} " + (row.streakHabit ? row.streakHabit + ", " : "") + row.streak + " days"));
+  }
+  if (row.spentTokens) {
+    facts.push(el("span", "\u{1F6E1} " + row.spentTokens + (row.spentTokens === 1 ? " token used" : " tokens used")));
+  }
+  // Silence, named by habit. "3 not reported" was three habit-days; "Steps silent 3 days" is
+  // the fact the person can act on.
+  const quiet = (row.perHabit || []).filter((h) => h.quiet);
+  for (const h of quiet.slice(0, 2)) {
+    facts.push(el("span.row-quiet", h.name + " silent " + h.quiet + (h.quiet === 1 ? " day" : " days")));
+  }
+  if (quiet.length > 2) facts.push(el("span.row-quiet", "and " + (quiet.length - 2) + " more"));
+
+  return el("article." + classes.join("."), {
+    onclick: (e) => { if (e.target.closest("button")) return; open(); },
+    role: "button", tabindex: "0",
+    onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } },
+    "aria-label": (row.memberId === ctx.me ? "Your" : row.name + "\u2019s") + " week, in detail",
+  },
     el("div.row-rank", row.rank),
     el("div.row-main",
       el("div.row-name",
-        row.crown ? el("span.tagemoji", { title: "Top of the board" }, "👑") : null,
+        row.crown ? el("span.tagemoji", { title: "Top of the board" }, "\u{1F451}") : null,
         row.memberId === ctx.me ? "You" : row.name,
         // Beside the name rather than in the meta line below it. A badge is about the person, and
         // it is the one thing on this row worth seeing before the percentage.
@@ -1307,54 +1345,27 @@ function boardRow(row, ctx, unbroken) {
         rowLevel(ctx, row.memberId),
       ),
       // The bar is the share of the points available SO FAR this week that this person has taken.
-      // A day is worth 100, so by Friday there have been 500 on offer; 425 of them is 85%. A day
-      // that went unreported took none of its hundred, and the bar says so — which is the whole
-      // difference between a total and an average, made visible.
-      el("div.row-bar", el("i", { style: "width:" + weekShare(row, ctx) + "%" })),
-      el("div.row-meta",
-        // Filtered, the only honest count is how many days this category was asked about — hits
-        // belong to the whole day and would be answering a question nobody asked here. That one
-        // really is days: categoryOver walks the calendar.
-        row.filtered
-          ? (row.eligible ? row.eligible + (row.eligible === 1 ? " day scored" : " days scored")
-            : "nothing scored yet")
-          // "10/15 days" was not days, and a seven-day week claiming fifteen of them said so on
-          // its face. leaderboard() counts every scored habit in every period it closed, so five
-          // habits over three days is fifteen — and a weekly habit contributes one for the week
-          // and a monthly one for the month, so the total is not even in a single unit.
-          //
-          // "Goals met" is what it has always been counting: one habit, one period, one goal.
-          // Non-breaking inside the phrase: the meta line wraps between items, never inside one, so
-          // a flame is never orphaned from its number at the end of a line.
-          : row.eligible ? row.hits + " of " + row.eligible + " goals met" : "nothing scored yet",
-        // The longest run going on any ONE habit, not a run of whole days — which is what a bare
-        // flame beside a day count reads as.
-        row.streak ? " · 🔥" + " " + row.streak + " best run" : "",
-        row.spentTokens ? " · 🛡" + " spent " + row.spentTokens : "",
-        // Days nothing was reported. They cost nothing on purpose — a watch that stopped is not a
-        // failure — but nothing was the same as saying so, which made silence the cheapest way to
-        // avoid a bad week. Shown rather than scored: the group can see it, and the number is the
-        // person's own to explain.
-        row.noData ? el("span.row-quiet", " · " + row.noData + " not reported") : null,
+      // A day is worth 100, so by Friday there have been 500 on offer; 425 of them is 85%. The
+      // scale is written on it, because a bar with no scale is a shape.
+      el("div.row-barline",
+        el("div.row-bar", el("i", { style: "width:" + weekShare(row, ctx) + "%" })),
+        row.pct == null ? null : el("span.row-scale", row.points + " of " + (100 * daysSoFar)),
       ),
+      el("div.row-meta", ...facts.flatMap((f, i) => (i ? [el("span.row-sep", "\u00b7"), f] : [f]))),
     ),
     // The week's points, out of 700, which is what the row is ranked on — and beside it what
     // beating the targets earned, as its own number, exactly the way the day shows "93 of 100
-    // pts +4". The average sits in the meta line underneath, where "85 a day" answers how the
-    // week is going while the big number answers where you stand.
+    // XP +4". The average sits under the total it is the average of.
     el("div.row-pct",
-      row.pct == null ? "—" : String(row.points),
+      row.pct == null ? "\u2014" : String(row.points),
       row.pct == null ? null : el("span.row-unit", " " + fmt.XP),
       row.bonusPoints ? el("span.row-bonus", " +" + row.bonusPoints) : null,
-      // The average, directly under the total it is the average of. It was the first item on
-      // the meta line, which pushed "13 of 15 goals met · 🔥 21 best run · 🛡 spent 1" onto two
-      // lines with the last item orphaned — and separated the two numbers that most belong
-      // together. Here they read as one thing: where you stand, and the rate that got you there.
       row.pct == null ? null : el("span.row-avg", row.pct + " a day"),
     ),
 
-    // Which category carried the week and which sank it. The percentage says where somebody came;
-    // this says what to do about it on Monday, which is the only part anybody can act on.
+    // Which category carried the week and which sank it, each named — an icon alone asked the
+    // reader to remember four pictures. The percentage says where somebody came; this says what
+    // to do about it on Monday, which is the only part anybody can act on.
     //
     // Not while filtered: the row already IS one category, and repeating it underneath its own
     // percentage says the same thing twice and looks like a second, disagreeing number.
@@ -1362,16 +1373,16 @@ function boardRow(row, ctx, unbroken) {
       ctx.state, row.memberId, addDays(ctx.today, -(isoDayOfWeek(ctx.today) - 1)), ctx.today,
     ).map((part) => (part.judged
       ? el("span.part" + (part.pct >= 100 ? ".is-full" : part.pct < 50 ? ".is-low" : ""),
-          CATEGORY_ICON[part.category] + " " + part.pct + "%")
+          CATEGORY_ICON[part.category] + " " + CATEGORY_SHORT[part.category] + " " + part.pct + "%")
       // Greyed rather than gone. A row showing three chips where the row above it shows four is a
       // question with no answer on the screen — and the answer is not "no data", it is "not being
       // judged yet", which is a rule working rather than a gap. A dash says waiting; an absence
       // says broken.
       : el("span.part.is-waiting", { title: CATEGORY_LABEL[part.category] + " isn't being judged yet" },
-          CATEGORY_ICON[part.category] + " —")))) : null,
+          CATEGORY_ICON[part.category] + " " + CATEGORY_SHORT[part.category] + " \u2014")))) : null,
     // A habit this person has never once missed.
     //
-    // Shown, not scored — the same answer this row already gives to "3 not reported", and for the
+    // Shown, not scored — the same answer this row already gives to a silent sensor, and for the
     // same reason. A category is the mean of its habits, so one nobody can fail lifts the ones they
     // can; measured, two people failing the same real habit equally came out 50% and 57%, the
     // higher belonging to the one for whom the second habit costs nothing. Changing that
@@ -1383,31 +1394,27 @@ function boardRow(row, ctx, unbroken) {
     // helped most. It reports the fact. Anybody who knows the group knows which it is.
     unbroken && unbroken.length
       ? el("div.row-note",
-          "Never missed — " + (unbroken[0].habit.name || "a habit")
+          "Never missed \u2014 " + (unbroken[0].habit.name || "a habit")
           + " " + unbrokenSpan(unbroken[0])
-          + (unbroken.length > 1 ? " · and " + (unbroken.length - 1) + " more" : ""))
+          + (unbroken.length > 1 ? " \u00b7 and " + (unbroken.length - 1) + " more" : ""))
       : null,
 
-    // A silent sensor, said out loud and offered the fix.
-    //
-    // This used to be the clown's fairness note — "nothing to score, so nobody is the clown this
-    // week" — and it was the useful half of that whole apparatus: the one place the app told
-    // somebody their sync was broken rather than leaving them to wonder why the numbers looked
-    // bad. The clown is gone; the diagnostic stays, on any row with days that went unreported.
-    // Under a points total those days earn nothing, which makes the fix worth more, not less.
-    //
-    // Only on the reader's own row. It drew on every row with a silent sensor, and on a real
-    // group with patchy Health Connect that is every row, every week — three amber boxes
-    // dominating a board that is supposed to be about the standings. Other people's rows already
-    // say "3 not reported" in the meta line, which is the fact; what to do about it is theirs.
+    // The way in, said. A row that opens on a tap has to look like it does.
+    ctx.onWeekRow && row.pct != null
+      ? el("div.row-more", (row.memberId === ctx.me ? "Your week" : "Their week") + " \u203A")
+      : null,
+
+    // A silent sensor, said out loud and offered the fix. Only on the reader's own row: on a real
+    // group with patchy Health Connect every row has one, and three amber boxes would dominate a
+    // board that is supposed to be about the standings. Other rows say it in the line above.
     row.noData > 0 && row.memberId === ctx.me
       ? el("div.note",
           el("div",
             el("b", "Nothing came through from your phone"),
             " on " + row.noData + (row.noData === 1 ? " goal" : " goals")
-            + " this week — those earned nothing.",
+            + " this week \u2014 those earned nothing.",
           ),
-          el("button", { onclick: () => ctx.onFixSync(row) }, "Why? →"),
+          el("button", { onclick: () => ctx.onFixSync(row) }, "Why? \u2192"),
         )
       : null,
   );

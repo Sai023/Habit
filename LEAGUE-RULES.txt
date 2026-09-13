@@ -383,6 +383,15 @@ for everybody including you.
 
                                score.js — scoreOver, leaderboard; dashboard.js
 
+THE ROW. Under the bar, every number carries its unit: "6 of 7 days
+played" (days that scored, of the days so far), "🔥 Sleep, 9 days" (the
+longest run going, and which habit it is on), "🛡 1 token used", and any
+sensor that went silent, by habit ("Steps silent 3 days"). The bar's scale
+is written on it ("581 of 700"). The four category chips are named. Tap a
+row and the week opens: each day as a bar of its XP, each habit as "5 of 6
+days" in its own cadence (which is what "13 of 22 goals met" used to add
+up without saying so), and the four categories as percentages.
+
 
 7. THE SEASON
 -------------

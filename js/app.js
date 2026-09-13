@@ -66,7 +66,7 @@ function paint() {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
     focusSettings: caps().focusSettings,
     manualSync: caps().manualSync,
-    onScoring, onWorkout, onChooseProgram, onLevel,
+    onScoring, onWorkout, onChooseProgram, onLevel, onWeekRow,
     syncing: ui.syncing,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason, onSeasons, onHabitDetail,
     onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
@@ -247,6 +247,12 @@ const onScoring = guard("scoring", async () => {
   openScoringSheet(document.body, {
     state: ctx.state, me: ctx.me, today: ctx.today, onDone: () => {},
   });
+});
+
+/** One person's week, itemised: the days as bars and every habit as a count. */
+const onWeekRow = guard("week", async (row) => {
+  const { openWeekSheet } = await import("./ui/weeksheet.js");
+  openWeekSheet(document.body, { row, ctx, onDone: () => {} });
 });
 
 /** Your level: where you stand, what the next one asks, and the titles. */
