@@ -18,9 +18,10 @@
 
     The id is checked to the shape of a YouTube id before it goes anywhere near the frame.
 
-    `auto=1` starts the class as soon as the page is up. Only the shell asks for it — the person
-    has just pressed play on the card, and the poster in a WebView does not always paint until it
-    is touched, which read as a black box. In a browser tab the player waits for its own play.
+    No autoplay, on purpose. It was tried: at a mobile user agent — a WebView is one — a player
+    asked to autoplay renders NOTHING, not even its poster; the mobile autoplay policy blocks it
+    and the player gives up quietly. Without it the poster and the play button draw, and one tap
+    starts the class. Tested on this page at a phone-sized, mobile-UA browser.
   -->
   <style>
     html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
@@ -31,9 +32,7 @@
 <body>
   <script>
     (function () {
-      var q = new URLSearchParams(location.search);
-      var id = q.get("v") || "";
-      var auto = q.get("auto") === "1";
+      var id = new URLSearchParams(location.search).get("v") || "";
       if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
         var p = document.createElement("p");
         p.className = "no";
@@ -42,9 +41,9 @@
         return;
       }
       var f = document.createElement("iframe");
-      f.src = "https://www.youtube-nocookie.com/embed/" + id + "?playsinline=1&rel=0&modestbranding=1" + (auto ? "&autoplay=1" : "");
+      f.src = "https://www.youtube-nocookie.com/embed/" + id + "?playsinline=1&rel=0&modestbranding=1";
       f.title = "Class";
-      f.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+      f.allow = "accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen";
       f.allowFullscreen = true;
       document.body.append(f);
     })();
