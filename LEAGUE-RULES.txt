@@ -599,8 +599,11 @@ no lifetime leaderboard — somebody who joined a year later would never
 catch up, and the league lives on the week and the season. The level shows
 as a ring (never a medal: medals are streaks) beside your name on the web
 header, on every board row, and on the Insights header with the bar and
-the sentence "1,100 XP to Level 8". Reaching a level opens a one-time
-screen the next morning.
+the sentence "1,100 XP to Level 8". The ring and the bar draw lifetime XP
+on a scale from zero to the next level — 654 of 975 — so they refill toward
+each level rather than emptying; today's XP is the faint tip. Ten pips
+under the bar mark which level of the current title you are on. Reaching a
+level opens a one-time screen the next morning.
 
                                           levels.js, levelsheet.js, summary.js
 

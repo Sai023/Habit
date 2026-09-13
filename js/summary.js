@@ -235,6 +235,8 @@ function lifetimeSummary(state, me, today) {
     xp: life.banked,
     today: life.today,
     pct: life.pct,
+    // What the bar and ring draw: lifetime XP over the next threshold, 0–100.
+    fill: life.fill,
     need: life.need,
     next: life.next,
     // The level's width in XP, so a shell can draw today as a share of it without the curve.

@@ -83,9 +83,12 @@ export function titleBand(level) {
 /**
  * Where a lifetime total stands: the level, the title, and the distance to the next.
  *
- * `into` and `span` describe the bar — how far through this level, out of how much — and `need` is
- * the number the screen states: "1,100 XP to Level 8". At the top, `next` is null and the bar is
- * full.
+ * `need` is the number the screen states: "1,100 XP to Level 8". `fill` is what the bar and the
+ * ring draw: lifetime XP on a scale from zero to the NEXT level's threshold — 654 of 975 is 67%
+ * — so the bar refills toward each level rather than resetting to empty. Asked for as "a lifetime
+ * XP bar, till the next level", and it reads fuller than the within-level fraction (`pct`, kept
+ * for anything that wants how far through this level you are). At the top, `next` is null and
+ * both are full.
  */
 export function levelFor(xp) {
   const total = Math.max(0, Math.floor(Number(xp) || 0));
@@ -105,6 +108,7 @@ export function levelFor(xp) {
     span,
     need: next === null ? 0 : next - total,
     pct: next === null ? 100 : Math.floor((into / span) * 100),
+    fill: next === null ? 100 : Math.floor((total / next) * 100),
     max: level >= LEVEL_MAX,
   };
 }

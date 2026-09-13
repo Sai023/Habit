@@ -39,16 +39,16 @@ export function levelUpDue(memberId, level) {
 }
 
 /**
- * The title band: one pip per level from where this title began to where the next begins, the
- * reached ones lit. Answers "is the end of the bar the next title?" — no, and here is how far
- * that is.
+ * The title band: one pip per level from where this title began to where the next begins, with
+ * the level you are ON lit. Answers "is the end of the bar the next title?" — no, and here is
+ * where you stand on the way to it.
  */
 function bandPips(life) {
   const band = titleBand(life.level);
   if (!band.nextAt) return el("p.lv-band-note", "Legend. The last title there is.");
   const pips = [];
   for (let l = band.from; l <= band.nextAt; l += 1) {
-    pips.push(el("i.lv-pip" + (l <= life.level ? ".is-lit" : "") + (l === band.nextAt ? ".is-next" : ""),
+    pips.push(el("i.lv-pip" + (l === life.level ? ".is-lit" : "") + (l === band.nextAt ? ".is-next" : ""),
       { title: "Level " + l + (l === band.nextAt ? " · " + band.nextName : "") }));
   }
   return el("div.lv-band",
@@ -80,7 +80,7 @@ export function openLevelSheet(host, { state, me, today, celebrate = false, onDo
           )
         : el("div.sheet-head",
             el("span.sheet-title", name + " · Level " + life.level),
-            levelMark(life, 40, { tip: life.span ? (life.today / life.span) * 100 : 0 }),
+            levelMark(life, 40, { tip: life.next ? (life.today / life.next) * 100 : 0 }),
           ),
 
       // Where you stand, stated as a sentence and drawn as a bar.
@@ -89,16 +89,16 @@ export function openLevelSheet(host, { state, me, today, celebrate = false, onDo
           el("span.lv-title", life.title),
           el("span.lv-xp", n(life.banked) + " " + fmt.XP + " lifetime"),
         ),
+        // Lifetime XP on a scale that ends at the next level: 654 of 975. Refills toward each
+        // level rather than resetting; see levelFor's `fill`.
         el("div.lv-bar",
-          el("i.lv-bar-fill", { style: "width:" + life.pct + "%" }),
-          life.today && life.span
-            ? el("i.lv-bar-tip", { style: "left:" + life.pct + "%; width:" + Math.min(100 - life.pct, (life.today / life.span) * 100) + "%" })
+          el("i.lv-bar-fill", { style: "width:" + life.fill + "%" }),
+          life.today && life.next
+            ? el("i.lv-bar-tip", { style: "left:" + life.fill + "%; width:" + Math.min(100 - life.fill, (life.today / life.next) * 100) + "%" })
             : null,
         ),
-        // The ends, named. A bar at eight per cent under "654 XP" reads as a mistake until it
-        // says it runs from this level to the next.
         el("div.lv-ends",
-          el("span", "Level " + life.level + " · " + n(life.at)),
+          el("span", "0"),
           life.max ? el("span", "the top") : el("span", "Level " + (life.level + 1) + " · " + n(life.next)),
         ),
         bandPips(life),

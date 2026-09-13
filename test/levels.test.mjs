@@ -54,7 +54,14 @@ test("the bar and the sentence agree", () => {
   assert.equal(l.into, 100);
   assert.equal(l.span, 325);
   assert.equal(l.need, 225, "what the screen states: 225 XP to Level 3");
-  assert.equal(l.pct, 30);
+  assert.equal(l.pct, 30, "how far through this level");
+  assert.equal(l.fill, 64, "what the bar draws: 400 of 625, the next threshold");
+});
+
+test("the bar refills toward each level rather than resetting to empty", () => {
+  assert.equal(levelFor(624).fill, 99, "the day before Level 3");
+  assert.equal(levelFor(625).fill, 64, "Level 3 begins at 625 of 975, not at zero");
+  assert.equal(levelFor(150975).fill, 100, "the top is full");
 });
 
 test("level 100 is the top: full bar, nothing to need, and more XP changes nothing", () => {

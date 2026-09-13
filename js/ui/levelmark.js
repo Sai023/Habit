@@ -7,14 +7,14 @@
 // same drawing works at 18px beside a name and at 72px on a header.
 
 /**
- * @param standing  from levelFor / lifetime: { level, pct, max }
+ * @param standing  from levelFor / lifetime: { level, fill, max }
  * @param size      px
  * @param opts.tip  0–100 extra, drawn fainter after the solid arc: today's XP, not yet banked
  */
 export function levelMark(standing, size = 22, opts = {}) {
   const r = 45;
   const c = 2 * Math.PI * r;
-  const solid = Math.max(0, Math.min(100, standing.max ? 100 : standing.pct));
+  const solid = Math.max(0, Math.min(100, standing.max ? 100 : standing.fill));
   const tip = Math.max(0, Math.min(100 - solid, opts.tip || 0));
   const dash = (pct) => (c * pct) / 100 + " " + c;
   // Namespaced by hand: dom.el() makes HTML elements, and an <svg> made that way is an unknown
@@ -25,7 +25,7 @@ export function levelMark(standing, size = 22, opts = {}) {
   svg.setAttribute("width", String(size));
   svg.setAttribute("height", String(size));
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "Level " + standing.level + (standing.max ? ", the top" : ", " + standing.pct + "% to the next"));
+  svg.setAttribute("aria-label", "Level " + standing.level + (standing.max ? ", the top" : ", " + standing.fill + "% of the way to the next"));
   svg.innerHTML =
     '<circle class="lvl-track" cx="50" cy="50" r="' + r + '"/>' +
     (tip ? '<circle class="lvl-tip" cx="50" cy="50" r="' + r + '" stroke-dasharray="' + dash(solid + tip)

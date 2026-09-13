@@ -395,7 +395,7 @@ function levelChip(ctx) {
     title: life.title + " · " + life.banked.toLocaleString() + " " + fmt.XP + " lifetime",
     "aria-label": "Level " + life.level + ", " + life.title,
   },
-    levelMark(life, 20, { tip: life.span ? (life.today / life.span) * 100 : 0 }),
+    levelMark(life, 20, { tip: life.next ? (life.today / life.next) * 100 : 0 }),
     el("span.lvl-chip-t", "Lv " + life.level),
   );
 }
