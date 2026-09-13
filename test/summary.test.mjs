@@ -244,6 +244,14 @@ test("the signature changes when something drawable changes, and not otherwise",
   assert.notEqual(a, c, "a habit turning green is");
 });
 
+test("the signature covers the blocks that were added later, not only the original list", () => {
+  // Choosing a program changes nothing on Today and nothing on the board — and used to change
+  // nothing in the signature, so the shell's training card waited for an unrelated event.
+  const before = summarySignature(buildSummary(world(), "m1", day(0), ["m1"]));
+  const after = summarySignature(buildSummary(world([E(ev.program("m1", "match-fit"), at(0))]), "m1", day(0), ["m1"]));
+  assert.notEqual(before, after, "a program chosen is news to the Insights tab");
+});
+
 test("the signature ignores the clock, or it would fire on every repaint", () => {
   const s1 = buildSummary(world(), "m1", day(0), ["m1"]);
   const s2 = buildSummary(world(), "m1", day(0), ["m1"]);

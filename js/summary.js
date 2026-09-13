@@ -427,16 +427,11 @@ function shiftDay(day, n) {
 
 /** Has anything the shell would draw actually changed? Keeps the bridge quiet on a repaint. */
 export function summarySignature(summary) {
-  return JSON.stringify({
-    day: summary.day,
-    done: summary.done,
-    due: summary.due,
-    waiting: summary.waiting,
-    board: summary.board,
-    today_pct: summary.today_pct,
-    onGoalStreak: summary.onGoalStreak,
-    categories: summary.categories,
-    season: summary.season,
-    habits: summary.habits.map((h) => [h.id, h.status, h.headline, h.caption, h.streak, h.progress]),
-  });
+  // Everything but the clock. It was a hand-picked list of fields, which is a list that has to
+  // be remembered every time the summary gains one — and it was not: `training`, `lifetime` and
+  // the facts were being sent only when something ELSE on the screen happened to change. A block
+  // that is drawn is a block whose change is news; the only thing that is not news is the time.
+  const { at, ...drawn } = summary;
+  void at;
+  return JSON.stringify(drawn);
 }

@@ -75,34 +75,34 @@ function header(ctx) {
     ? SYNC_TEXT.SYNCING
     : (SYNC_TEXT[ctx.sync?.state] || SYNC_TEXT.LOCAL_ONLY);
   const queued = ctx.sync?.queued || 0;
+  // The sync status, as a dot beside the group's name. It was a pill that said "Synced" on the
+  // right; the person's level now lives there, and the status keeps its colour, its tap and its
+  // words — in the title, and read out — at a size that matches how often it is news.
+  //
+  // Tapping it forces a sync, where the shell can be asked. This is where somebody already looks
+  // when they doubt a number, and making them hunt through a settings sheet for "Sync now" is
+  // asking them to already know the app. In a browser there are no sensors to re-read and the
+  // dot stays what it always was: a status, not a control.
+  const label = queued ? text + " · " + queued + " waiting" : text;
+  const syncDot = ctx.manualSync
+    ? el("button.sync-dot." + cls, {
+        disabled: !!ctx.syncing,
+        onclick: () => ctx.onSyncNow(),
+        "aria-label": label + " — tap to sync now",
+        title: label + " — tap to sync now",
+      }, el("i.dot"), queued ? el("span.sync-dot-n", String(queued)) : null)
+    : el("span.sync-dot." + cls, { title: label, "aria-label": label },
+        el("i.dot"), queued ? el("span.sync-dot-n", String(queued)) : null);
+
   return el("header.hdr",
-    el("div",
-      el("div.hdr-title",
-        ctx.state.meta?.name || "Goal Buddy",
-        // Your level, beside the group's name: the two things this screen is about, in one line.
-        // The ring is the bar; tapping it explains. See levels.js for what it is and is not.
-        ctx.onLevel ? levelChip(ctx) : null,
-      ),
+    el("div.hdr-who",
+      el("div.hdr-title", ctx.state.meta?.name || "Goal Buddy", syncDot),
       el("div.hdr-sub", fmt.dayLabel(ctx.today), ctx.demo ? " · demo data" : ""),
     ),
     el("div.hdr-actions",
-      // Tap it to force a sync.
-      //
-      // This is where somebody already looks when they doubt a number — a status that says "Synced"
-      // above a step count that is two thousand short is the exact moment they want to do something
-      // about it, and making them hunt through a settings sheet for a button called "Sync now" is
-      // asking them to already know the app.
-      //
-      // Only where the shell can actually be asked. In a browser there are no sensors to re-read
-      // and the pill stays what it always was: a status, not a control.
-      ctx.manualSync
-        ? el("button.pill.pill-btn." + cls, {
-            disabled: !!ctx.syncing,
-            onclick: () => ctx.onSyncNow(),
-            "aria-label": "Sync now",
-            title: "Tap to sync now",
-          }, el("i.dot"), queued ? text + " · " + queued : text)
-        : el("span.pill." + cls, el("i.dot"), queued ? text + " · " + queued : text),
+      // The person: ring, name, level and title. Tapping it explains. See levels.js for what a
+      // level is and is not.
+      ctx.onLevel ? levelChip(ctx) : null,
       // One button, not two. There used to be a ☰ for the habit list and a ⚙ for the shell's
       // settings, which asked the reader to know which of two apps a given setting belonged to —
       // a distinction that is an implementation detail here and the whole point of merging them
@@ -387,16 +387,24 @@ function habitCard(habit, ctx, price) {
   );
 }
 
-/** The header's level chip: the ring, "Lv 7", the title. Tap for the sheet. */
+/**
+ * The header's chip: the ring, and beside it the name over "Level 7 · Starter". Tap for the
+ * sheet. Two lines, because "Sahil · Lv 7 · Starter" on one line is a sentence and this is a
+ * name badge — and because the right side of the header has a menu button to share with.
+ */
 function levelChip(ctx) {
   const life = lifetime(ctx.state, ctx.me, ctx.today);
+  const name = (ctx.state.members.get(ctx.me) || {}).name || "You";
   return el("button.lvl-chip", {
     onclick: () => ctx.onLevel(),
-    title: life.title + " · " + life.banked.toLocaleString() + " " + fmt.XP + " lifetime",
-    "aria-label": "Level " + life.level + ", " + life.title,
+    title: life.banked.toLocaleString() + " " + fmt.XP + " lifetime · " + life.need.toLocaleString() + " to Level " + (life.level + 1),
+    "aria-label": name + ", level " + life.level + ", " + life.title,
   },
-    levelMark(life, 20, { tip: life.span ? (life.today / life.span) * 100 : 0 }),
-    el("span.lvl-chip-t", "Lv " + life.level),
+    levelMark(life, 28, { tip: life.span ? (life.today / life.span) * 100 : 0 }),
+    el("span.lvl-chip-txt",
+      el("span.lvl-chip-name", name),
+      el("span.lvl-chip-t", "Level " + life.level + " · " + life.title),
+    ),
   );
 }
 

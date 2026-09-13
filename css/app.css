@@ -102,22 +102,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .hdr-sub { font-size: var(--fs-small); color: var(--dim); font-variant-numeric: tabular-nums; }
 .hdr-actions { display: flex; align-items: center; gap: 8px; }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--dim);
-  white-space: nowrap;
-}
 .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
-.pill.is-synced { color: var(--teal); }
-.pill.is-offline, .pill.is-degraded { color: var(--amber); }
-.pill.is-local { color: var(--dim); }
 
 .icon-btn {
   width: 34px; height: 34px;
@@ -1152,11 +1137,6 @@ html, body { overscroll-behavior-y: contain; }
   font-variant-numeric: tabular-nums;
 }
 
-/* The status pill, when the shell can actually be asked to sync. Still a status first — it gains a
-   press and nothing else, because turning it into an obvious button would put a control where
-   people are used to reading a state. */
-.pill-btn { cursor: pointer; border: 0; font: inherit; }
-.pill-btn:active { transform: scale(0.96); }
 
 /* A banner that is not a failure. The problem bar is drawn in the danger colour, and answering
    "here is what I just read off your watch" in red teaches somebody that success looks like an
@@ -2016,14 +1996,37 @@ button.card-open:active { transform: scale(0.99); }
 .lvl.is-max .lvl-arc { stroke: var(--amber); }
 .lvl.is-max .lvl-n { fill: var(--amber); }
 
-/* The header chip. Inline with the group's name, quiet, tappable. */
-.hdr-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.lvl-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 9px 3px 4px; border-radius: 999px;
-  background: var(--surface); border: 1px solid var(--line); color: var(--text);
-  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.02em; cursor: pointer;
+/* The header's two halves: the group and its sync dot on the left, the person on the right. */
+.hdr-who { min-width: 0; }
+.hdr-title { display: flex; align-items: center; gap: 8px; }
+
+/* The sync status as a dot. Same colours the pill had; the words live in the title and the
+   label. A 24px target around a 9px dot, so it is still something a thumb can hit. */
+.sync-dot {
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  min-width: 24px; height: 24px; padding: 0 4px; border-radius: 999px;
+  background: none; border: 0; font: inherit; cursor: pointer; flex: none;
 }
+.sync-dot .dot { width: 9px; height: 9px; }
+.sync-dot.is-synced { color: var(--teal); }
+.sync-dot.is-offline, .sync-dot.is-degraded { color: var(--amber); }
+.sync-dot.is-local { color: var(--dim); }
+.sync-dot:disabled .dot { animation: sync-pulse 1s ease-in-out infinite; }
+.sync-dot:focus-visible { outline: 2px solid var(--teal); outline-offset: 0; }
+.sync-dot-n { font-size: var(--fs-micro); font-weight: 700; color: var(--dim); }
+@keyframes sync-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .sync-dot:disabled .dot { animation: none; opacity: 0.5; } }
+
+/* The person's chip: ring, then name over level and title. */
+.lvl-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 5px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line); color: var(--text);
+  cursor: pointer; text-align: left; max-width: 200px;
+}
+.lvl-chip-txt { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.lvl-chip-name { font-size: var(--fs-small); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lvl-chip-t { font-size: var(--fs-micro); color: var(--dim); white-space: nowrap; }
 .lvl-chip:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
 /* On a board row, the ring only. The name is the point of the row; this is a footnote to it. */
