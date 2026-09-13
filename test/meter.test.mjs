@@ -70,6 +70,18 @@ test("a night skipped spreads the difference over the days, and the shares add u
   assert.deepEqual(plan.perDay.map((d) => d.value), [67, 67, 69], "the last day takes the remainder");
 });
 
+test("on the baseline's own day, a higher reading later is the puffs since it; a lower one is a correction", () => {
+  const baseline = { day: day(0), reading: 367 };
+  const evening = meterEntry(400, null, day(0), baseline);
+  assert.equal(evening.sinceBaseline, true);
+  assert.equal(evening.puffs, 33);
+  assert.deepEqual(evening.perDay, [{ day: day(0), value: 33 }]);
+  const corrected = meterEntry(360, null, day(0), baseline);
+  assert.equal(corrected.baseline, true);
+  assert.equal(corrected.puffs, 0);
+  assert.equal(meterEntry(400, null, day(1), null).baseline, true);
+});
+
 test("a reading below the last one is a new device, charged with its own count", () => {
   const plan = meterEntry(40, { day: day(0), reading: 1002 }, day(1));
   assert.equal(plan.reset, true);

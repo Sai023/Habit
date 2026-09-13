@@ -26,7 +26,7 @@
 // version moves on its own.
 
 // GEN:VERSION-START — content hash of SHELL, written by scripts/gen-sw-shell.mjs
-const CACHE_VERSION = "goalbuddy-fafc31f722fb";
+const CACHE_VERSION = "goalbuddy-833d9a702240";
 // GEN:VERSION-END
 
 const SHELL = [
@@ -121,7 +121,13 @@ self.addEventListener("fetch", (event) => {
   // build arrives through the service worker update rather than through this fetch — which is only
   // true because the version above changes whenever the assets do. It was not true before, and
   // this comment was the claim that made it easy to miss.
+  //
+  // Except the player page. The shell opens /player.html in a WebView of its own to play a class,
+  // and it shares this worker: answered with the app shell, that WebView would have shown the
+  // whole app inside a dialog. It is a page of its own, fetched from the network as written, and
+  // there is nothing to show offline in its place — a video needs the network anyway.
   if (req.mode === "navigate") {
+    if (url.pathname.endsWith("/player.html")) return;
     event.respondWith(
       caches.match("./index.html")
         .then((cached) => cached || fetch(req).catch(() => caches.match("./index.html"))),

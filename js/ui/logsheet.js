@@ -129,9 +129,11 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     if (!meter) return null;
     if (reading === "" || !Number.isFinite(Number(reading))) return null;
     // The last reading BEFORE this day: a reading already typed today is being corrected, and
-    // must not be subtracted from itself.
+    // must not be subtracted from itself — except on the baseline's own day, where a higher
+    // number later is the puffs since it (meterEntry has the rule).
     const before = lastReading(state, habit, me, day);
-    return { ...meterEntry(Number(reading), before, day), before };
+    const sameDay = before ? null : lastReading(state, habit, me, addDays(day, 1));
+    return { ...meterEntry(Number(reading), before, day, sameDay && sameDay.day === day ? sameDay : null), before, sameDay };
   }
 
   /** "today", or the day's own name once it is not today. */
@@ -238,7 +240,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
       el("div.sheet-actions",
         el("button.ghost", { onclick: () => sheet.close() }, "Cancel"),
         el("button.tap", { onclick: () => save(), disabled: busy },
-          busy ? "Saving…" : isSum ? "Add it" : day === today ? "Save" : "Save for " + fmt.dayLabel(day).split(",")[0]),
+          busy ? "Saving…" : isSum && !meter ? "Add it" : day === today ? "Save" : "Save for " + fmt.dayLabel(day).split(",")[0]),
       ),
     );
   }
@@ -255,7 +257,9 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     const n = (x) => Number(x).toLocaleString();
     let line;
     if (!plan) line = last ? "Last reading " + n(last.reading) + " on " + fmt.dayLabel(last.day).split(",")[0] + "." : "The number on the vape's counter.";
-    else if (plan.baseline) line = "First reading \u2014 a baseline. Today counts 0; from tomorrow the counter does the counting.";
+    else if (plan.sinceBaseline) line = n(reading) + " \u2212 " + n(plan.sameDay.reading) + " = " + n(plan.puffs) + " puffs since this morning\u2019s baseline.";
+    else if (plan.baseline) line = (plan.sameDay && plan.sameDay.day === day ? "Below this morning\u2019s reading \u2014 taken as the baseline again. " : "First reading \u2014 a baseline. ")
+      + "Today counts 0; from tomorrow the counter does the counting.";
     else if (plan.reset) line = "Below the last reading (" + n(plan.before.reading) + ") — a new device. Today counts " + n(plan.puffs) + ".";
     else if (plan.days === 1) line = n(reading) + " − " + n(plan.before.reading) + " = " + n(plan.puffs) + " puffs " + when() + ".";
     else line = n(reading) + " − " + n(plan.before.reading) + " = " + n(plan.puffs) + " over " + plan.days + " days since "

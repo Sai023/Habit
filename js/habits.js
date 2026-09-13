@@ -758,14 +758,22 @@ export function lastReading(state, habit, memberId, beforeDay) {
  * fact; they were already unreported days.
  *
  * The FIRST reading is a baseline and counts nothing: the counter has been running for weeks or
- * months and its number is not today's. From the next evening the difference is the day.
+ * months and its number is not today's. From the next evening the difference is the day. On the
+ * baseline's own day a second reading is measured against it — 367 in the morning, 400 at night,
+ * 33 puffs today — and a second reading BELOW it is the baseline being corrected, which counts
+ * nothing again. `sameDay` is that earlier reading from the same day, when there is one.
  *
  * A reading BELOW the last one is a new device. Its count is the puffs since it was started, and
  * the day is charged with that — which is the honest reading of a number that only goes up.
  */
-export function meterEntry(reading, last, day) {
+export function meterEntry(reading, last, day, sameDay = null) {
   const r = Math.max(0, Math.round(Number(reading) || 0));
-  if (!last || !Number.isFinite(last.reading)) return { puffs: 0, days: 1, reset: false, baseline: true, perDay: [{ day, value: 0 }] };
+  if (!last || !Number.isFinite(last.reading)) {
+    if (sameDay && Number.isFinite(sameDay.reading) && r >= sameDay.reading) {
+      return { puffs: r - sameDay.reading, days: 1, reset: false, baseline: false, sinceBaseline: true, perDay: [{ day, value: r - sameDay.reading }] };
+    }
+    return { puffs: 0, days: 1, reset: false, baseline: true, perDay: [{ day, value: 0 }] };
+  }
   const gap = Math.max(1, daysBetween(last.day, day));
   if (r < last.reading) return { puffs: r, days: 1, reset: true, perDay: [{ day, value: r }] };
   const total = r - last.reading;
