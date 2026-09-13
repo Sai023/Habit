@@ -290,6 +290,22 @@ test("Rest & recovery reports no bonus however well it went", () => {
 // The board, in XP
 // ---------------------------------------------------------------------------
 
+test("the shell's week is Monday to today, the same week the Board shows", () => {
+  // day(0) is a Monday. Ask on the Wednesday: two closed days and today, and nothing from the
+  // week before may be in it — a rolling seven would have reached back into last week.
+  const s = buildSummary(world([
+    E(ev.log("steps", "m1", day(-2), 11000, SOURCE.HEALTH_CONNECT), at(-2)),
+    E(ev.log("steps", "m1", day(0), 11000, SOURCE.HEALTH_CONNECT), at(0)),
+    E(ev.log("steps", "m1", day(1), 11000, SOURCE.HEALTH_CONNECT), at(1)),
+  ]), "m1", day(2), ["m1", "m2"]);
+  // Monday, Tuesday and today (the manual vape habit makes every day a scored day). A rolling
+  // seven would have said 7, reaching back into last week.
+  assert.equal(s.board.days, 3, "Monday to today; last week's Saturday is not this week");
+  const steps = s.board.habits.find((h) => h.id === "steps");
+  assert.equal(steps.met, "2 of 2 days");
+  assert.equal(steps.pct, 100);
+});
+
 test("the week crosses as a total in XP with the bonus beside it, not only as a percentage", () => {
   // Two scored days, both perfect: 200 of a possible 200 so far.
   const s = buildSummary(world([

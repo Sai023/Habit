@@ -16,7 +16,7 @@
 // three phones.
 
 import {
-  walk, valueForPeriod, targetFor, rawPeriodStatus, rawDayStatus, sourceFor, isTracking, periodKey, periodStart, periodEnd, HIT, MISS, NO_DATA, EXEMPT,
+  walk, valueForPeriod, targetFor, rawPeriodStatus, rawDayStatus, sourceFor, isTracking, periodKey, periodStart, periodEnd, isoDayOfWeek, HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
 import { leaderboard, dayScore, CATEGORY_LABEL, CATEGORY_ICON } from "./score.js";
 import { seasonTally, categoryBreakdown } from "./season.js";
@@ -33,8 +33,13 @@ import * as fmt from "./ui/format.js";
 // field as nothing, so three phones on three builds all stay readable.
 export const SUMMARY_VERSION = 6;
 
-/** How many days of history the shell gets. A week is what its screens actually draw. */
-const WINDOW_DAYS = 7;
+/**
+ * The week the shell is told about is THE week — Monday to today — not the last seven days.
+ *
+ * It was a rolling seven, and the Board on the web is Monday to today, so the two screens
+ * showed two different totals for "this week" (573 on Insights, 581 on the Board, the same
+ * afternoon). One week, one number.
+ */
 
 /**
  * Everything the shell needs to show a habit without knowing what a habit is.
@@ -98,7 +103,7 @@ export function buildSummary(state, me, today, memberIds = null) {
     .map((h) => habitSummary(state, h, me, today));
 
   const members = memberIds || [...state.members.keys()];
-  const from = shiftDay(today, -(WINDOW_DAYS - 1));
+  const from = shiftDay(today, -(isoDayOfWeek(today) - 1));
   const rows = members.length ? leaderboard(state, members, from, today, today) : [];
   const mine = rows.find((r) => r.memberId === me) || null;
 
@@ -207,6 +212,25 @@ export function buildSummary(state, me, today, memberIds = null) {
           bonusPoints: mine.bonusPoints || 0,
           // How many days have been scored so far — what the total is out of, at 100 each.
           days: mine.scoredDays || 0,
+          // The habit the longest run is on: "🔥 9" beside a name read as nine days of
+          // everything, and it was nine days of sleep.
+          streakHabit: mine.streakHabit || null,
+          // Each habit's week, already worded — "5 of 6 days", "done this week" — the same
+          // bookkeeping the Board's row and week sheet draw, so the two screens agree.
+          habits: (mine.perHabit || []).map((h) => ({
+            id: h.habitId,
+            name: h.name,
+            icon: h.icon || "\u25C6",
+            met: fmt.habitWeek(h),
+            hits: h.hits,
+            eligible: h.eligible,
+            // For the bar: the share of the habit's periods met, or how far the open one is.
+            pct: h.period === "day"
+              ? (h.eligible ? Math.round((h.hits / h.eligible) * 100) : null)
+              : (h.open != null ? Math.round(Math.min(1, h.open) * 100) : (h.eligible ? (h.hits ? 100 : 0) : null)),
+            quiet: h.quiet,
+            streak: h.streak,
+          })),
         }
       : null,
   };
