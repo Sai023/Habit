@@ -204,8 +204,9 @@ shows on Today and keeps a streak, but moves nobody's score (section 12).
      THE COUNTER. A vape's puff counter never resets, so the entry screen asks
      what the counter says and works the day out: 1,002 last night, 1,104
      tonight, 102 puffs today. The day's puffs are what is scored; the
-     reading is kept on the entry so tomorrow can be worked out from it. A
-     night skipped spreads the difference evenly over the days since (each
+     reading is kept on the entry so tomorrow can be worked out from it. The
+     FIRST reading is a baseline and counts zero — the counter has been
+     running for months and its number is not today's. A night skipped spreads the difference evenly over the days since (each
      day judged on its own share); a reading below the last one is a new
      device and counts from zero; saving a reading again the same day
      replaces that day's puffs rather than adding to them. "None today"
@@ -474,13 +475,19 @@ same events to the same state.
   A log more than 2 days late is refused. Last week's crown is not
   winnable on Tuesday.
 
-  One exception, cut narrow: a STEPS habit kept BY HAND (bound to manual,
-  no watch) may be entered for an earlier day of the SAME week. A watch
-  backfills a week on its own when it reconnects; a person without one has
-  only the evening they remember. Never across a Monday, never for a habit
-  fed by a sensor, never for any other metric. On the entry sheet, hold the
-  habit's name for a moment and the week's days appear. It is not
-  advertised anywhere else.
+  One exception, cut narrow: a STEPS habit kept BY HAND may be entered for
+  an earlier day of the SAME week. A watch backfills a week on its own when
+  it reconnects; a person without one has only the evening they remember.
+  "By hand" is a fact about the record, not the binding: bound to manual,
+  or bound to a sensor that has never once reported (a Samsung with Health
+  Connect installed and nothing writing into it). The day a sensor row
+  arrives, the door closes for the days after it. Never across a Monday,
+  never for any other metric. On the entry sheet the week's days are shown
+  to the people it applies to, and to nobody else.
+
+  On a habit a sensor feeds, the Today card shows "Enter it manually" only
+  while the sensor is silent for the day. The habit's own screen keeps the
+  way in for a sensor that reported the wrong number.
 
   Travel cannot be backdated at all.
 

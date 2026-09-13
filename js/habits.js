@@ -334,26 +334,44 @@ const logKey = (habitId, memberId, day) => habitId + "|" + memberId + "|" + day;
  * override typed over a watch keeps the two days), only logs that say they were typed, and never
  * across a Monday — the finished week stays finished. See keptByHandAllWeek for the UI's half.
  */
-function withinBackfill(habit, bindings, p, authoredDay) {
+function withinBackfill(habit, bindings, logs, p, authoredDay) {
   if (daysBetween(p.day, authoredDay) <= MAX_BACKFILL_DAYS) return true;
   if (!habit || p.day > authoredDay) return false;
-  const bound = bindings.get(p.memberId + "|" + habit.habitId) || habit.source;
   return habit.metric === METRIC.STEPS
     && (habit.period || PERIOD.DAY) === PERIOD.DAY
-    && bound === SOURCE.MANUAL
     && (p.source || SOURCE.MANUAL) === SOURCE.MANUAL
+    && byHand(habit, bindings.get(p.memberId + "|" + habit.habitId) || habit.source, logs, p.memberId)
     && isoWeekKey(p.day) === isoWeekKey(authoredDay);
 }
 
 /**
+ * Does this person keep this habit by hand?
+ *
+ * Bound to manual, plainly. But also bound to a sensor that has never once reported: a Samsung
+ * with Health Connect installed binds its owner to it on the goals sheet, and then nothing writes
+ * steps into it, and every day of that person's steps is typed. The binding says watch; the
+ * record says hand. The record is what is true, and it is also what cannot be arranged — the day
+ * a sensor row does arrive, the door closes.
+ */
+function byHand(habit, bound, logs, memberId) {
+  if (bound === SOURCE.MANUAL) return true;
+  const prefix = habit.habitId + "|" + memberId + "|";
+  for (const [key, entries] of logs) {
+    if (!key.startsWith(prefix)) continue;
+    if (entries.some((e) => AUTOMATIC_SOURCES.has(e.source))) return false;
+  }
+  return true;
+}
+
+/**
  * The UI's half of the same rule: may this person enter this habit for earlier days of the week?
- * True only for a steps habit they keep by hand. Everything else is today, and two days for the
- * sensors that arrive late.
+ * True only for a steps habit they keep by hand — see byHand. Everything else is today, and two
+ * days for the sensors that arrive late.
  */
 export function keptByHandAllWeek(state, habit, memberId) {
   return habit.metric === METRIC.STEPS
     && (habit.period || PERIOD.DAY) === PERIOD.DAY
-    && sourceFor(state, habit, memberId) === SOURCE.MANUAL;
+    && byHand(habit, sourceFor(state, habit, memberId), state.logs, memberId);
 }
 
 export function replay(events) {
@@ -463,7 +481,7 @@ export function replay(events) {
         // rewritten — otherwise last week's crown is winnable on Tuesday. It keys off when the
         // OBSERVATION was made, not when it synced, so a week offline still backfills correctly.
         const authoredDay = dayKey(authoredAt(e), tz, startHour);
-        if (!withinBackfill(h, bindings, p, authoredDay)) break;
+        if (!withinBackfill(h, bindings, logs, p, authoredDay)) break;
 
         const k = logKey(p.habitId, p.memberId, p.day);
         if (!logs.has(k)) logs.set(k, []);
@@ -495,7 +513,7 @@ export function replay(events) {
         const startHour = h ? h.dayStartHour : HABIT_DEFAULTS.dayStartHour;
         const authoredDay = dayKey(authoredAt(e), tz, startHour);
         // The same window as the log it withdraws, or a backfilled entry could not be taken back.
-        if (!withinBackfill(h, bindings, p, authoredDay)) break;
+        if (!withinBackfill(h, bindings, logs, p, authoredDay)) break;
 
         const k = logKey(p.habitId, p.memberId, p.day);
         const list = logs.get(k);
@@ -739,12 +757,15 @@ export function lastReading(state, habit, memberId, beforeDay) {
  * will no longer accept a log for (MAX_BACKFILL_DAYS) keep their share on paper and lose it in
  * fact; they were already unreported days.
  *
+ * The FIRST reading is a baseline and counts nothing: the counter has been running for weeks or
+ * months and its number is not today's. From the next evening the difference is the day.
+ *
  * A reading BELOW the last one is a new device. Its count is the puffs since it was started, and
  * the day is charged with that — which is the honest reading of a number that only goes up.
  */
 export function meterEntry(reading, last, day) {
   const r = Math.max(0, Math.round(Number(reading) || 0));
-  if (!last || !Number.isFinite(last.reading)) return { puffs: r, days: 1, reset: false, perDay: [{ day, value: r }] };
+  if (!last || !Number.isFinite(last.reading)) return { puffs: 0, days: 1, reset: false, baseline: true, perDay: [{ day, value: 0 }] };
   const gap = Math.max(1, daysBetween(last.day, day));
   if (r < last.reading) return { puffs: r, days: 1, reset: true, perDay: [{ day, value: r }] };
   const total = r - last.reading;

@@ -179,7 +179,11 @@ test("renaming a habit does not shift when its target started", () => {
 // day of the same week — and nothing wider. Every edge of that scope is pinned here, because the
 // rule it carves an exception into is the one that keeps the board honest.
 
-/** Steps by hand, nothing logged, then one late entry authored on day `authored` for day `for`. */
+/**
+ * Steps, then one late entry authored on day `authored` for day `for`. `bound` is the binding;
+ * `sensorRows` is whether the watch has ever actually reported, which is the fact the rule
+ * turns on — a watch bound and never heard from is a person keeping steps by hand.
+ */
 function lateSteps(forDay, authored, extra = {}) {
   const src = extra.bound || SOURCE.MANUAL;
   const habit = { ...HABIT, metric: extra.metric || METRIC.STEPS, period: extra.period || PERIOD.DAY, source: src };
@@ -187,6 +191,7 @@ function lateSteps(forDay, authored, extra = {}) {
     E(ev.member("m1", "Me"), at(0)),
     E(ev.habit("h", habit), at(0)),
     E(ev.bind("m1", "h", src), at(0)),
+    ...(extra.sensorRows ? [E(ev.log("h", "m1", day(0), 4000, SOURCE.HEALTH_CONNECT), at(0))] : []),
     E(ev.log("h", "m1", day(forDay), 12000, extra.logSource || SOURCE.MANUAL), at(authored)),
   ]);
 }
@@ -205,13 +210,21 @@ test("but never across a Monday — the finished week stays finished", () => {
   assert.equal(logged(lateSteps(6, 8), 6), true, "Sunday from Tuesday is two days, allowed as before");
 });
 
-test("only steps, only by hand, only typed — a watch keeps its two days", () => {
-  // Bound to a watch: a typed override is still limited to two days.
-  assert.equal(logged(lateSteps(0, 4, { bound: SOURCE.HEALTH_CONNECT }), 0), false);
+test("only steps, only by hand, only typed — a watch that reports keeps its two days", () => {
+  // Bound to a watch that HAS reported: a typed override is still limited to two days.
+  assert.equal(logged(lateSteps(1, 5, { bound: SOURCE.HEALTH_CONNECT, sensorRows: true }), 1), false);
   // Bound by hand but the row claims a sensor wrote it: not the exception either.
   assert.equal(logged(lateSteps(0, 4, { logSource: SOURCE.HEALTH_CONNECT }), 0), false);
   // A different metric kept by hand — puffs — gets no such door.
   assert.equal(logged(lateSteps(0, 4, { metric: METRIC.PUFFS }), 0), false);
+});
+
+test("a watch that has never once reported is a person keeping steps by hand", () => {
+  // The Samsung case: Health Connect is installed, so the goals sheet binds to it, and nothing
+  // ever writes steps into it. The binding says watch; every row is typed. The record decides.
+  assert.equal(logged(lateSteps(0, 4, { bound: SOURCE.HEALTH_CONNECT }), 0), true);
+  // And the day a sensor row does arrive, the door closes for the days after it.
+  assert.equal(logged(lateSteps(1, 5, { bound: SOURCE.HEALTH_CONNECT, sensorRows: true }), 1), false);
 });
 
 test("a week cannot be marked as travel once it is over", () => {

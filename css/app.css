@@ -2107,7 +2107,6 @@ button.card-open:active { transform: scale(0.99); }
   background: var(--surface); color: var(--dim); font: inherit; font-size: var(--fs-small); font-weight: 600; cursor: pointer;
 }
 .log-day.is-on { color: var(--teal); border-color: var(--teal); }
-.sheet-title { user-select: none; -webkit-user-select: none; }
 
 /* The hold timer. The count is the only thing on the panel while it runs; the target line under
    it turns teal when the low end of the prescription is reached, and the phone says so too. */

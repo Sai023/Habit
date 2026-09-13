@@ -73,16 +73,16 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
 
   // ---- The day this sheet writes to ----
   //
-  // Today, always — with one quiet exception. A steps habit kept by hand (no watch) can be
-  // entered for an earlier day of the same week, because a person without a sensor has only the
-  // evening they remember, and a missed evening was a missed day for good. The engine allows
-  // exactly that and nothing wider (see withinBackfill in habits.js); this sheet offers it only
-  // where it applies, and only to somebody who holds the habit's name for a moment. It is not
-  // advertised: the door exists for the person it was cut for, and a control that said "earlier
-  // days" would be read as an invitation by everybody else.
+  // Today, always — with one exception. A steps habit kept by hand (no watch, or a watch that
+  // has never reported) can be entered for an earlier day of the same week, because a person
+  // without a sensor has only the evening they remember, and a missed evening was a missed day
+  // for good. The engine allows exactly that and nothing wider (withinBackfill in habits.js),
+  // which is what keeps it honest; so the days are simply shown, to the people it applies to.
+  // It was a hold-the-name gesture, meant to keep the door quiet, and it did not fire on a phone
+  // at all: a long press on a sheet that can be dragged is cancelled by the browser before the
+  // timer runs. A door nobody can open is not subtle, it is shut.
   const allWeek = keptByHandAllWeek(state, habit, me);
   let day = today;
-  let pickingDay = false;
 
   // ---- A counter, not a count ----
   //
@@ -142,12 +142,6 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   if (allWeek) {
     for (let d = addDays(today, -(isoDayOfWeek(today) - 1)); d <= today; d = addDays(d, 1)) weekDays.push(d);
   }
-  let holdTimer = null;
-  const holdStart = () => {
-    if (!allWeek || weekDays.length < 2) return;
-    holdTimer = setTimeout(() => { pickingDay = true; paint(); }, 600);
-  };
-  const holdEnd = () => { clearTimeout(holdTimer); holdTimer = null; };
 
   const sheet = openSheet(host);
   paint();
@@ -163,16 +157,12 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     sheet.paint(
       el("div.sheet-head",
         el("span.card-icon", habit.icon || "◆"),
-        el("span.sheet-title", {
-          // Held, not tapped. See the note by `allWeek`.
-          onpointerdown: holdStart, onpointerup: holdEnd, onpointerleave: holdEnd, onpointercancel: holdEnd,
-          oncontextmenu: (e) => { if (allWeek) e.preventDefault(); },
-        }, habit.name || "Habit"),
+        el("span.sheet-title", habit.name || "Habit"),
       ),
 
-      // The days of the week, once asked for. Today is last and lit; earlier days are the ones
-      // this exists for. Choosing one re-aims the whole sheet at it.
-      pickingDay
+      // The days of the week, for steps kept by hand. Today is last and lit; earlier days are
+      // the ones this exists for. Choosing one re-aims the whole sheet at it.
+      allWeek && weekDays.length > 1
         ? el("div.log-days", weekDays.map((d) => el("button.log-day" + (d === day ? ".is-on" : ""), {
             onclick: () => { aim(d); paint(); },
             "aria-pressed": d === day ? "true" : "false",
@@ -265,7 +255,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     const n = (x) => Number(x).toLocaleString();
     let line;
     if (!plan) line = last ? "Last reading " + n(last.reading) + " on " + fmt.dayLabel(last.day).split(",")[0] + "." : "The number on the vape's counter.";
-    else if (!plan.before) line = "First reading. Today counts " + n(plan.puffs) + " — the counter so far. Tomorrow's entry works out the difference.";
+    else if (plan.baseline) line = "First reading \u2014 a baseline. Today counts 0; from tomorrow the counter does the counting.";
     else if (plan.reset) line = "Below the last reading (" + n(plan.before.reading) + ") — a new device. Today counts " + n(plan.puffs) + ".";
     else if (plan.days === 1) line = n(reading) + " − " + n(plan.before.reading) + " = " + n(plan.puffs) + " puffs " + when() + ".";
     else line = n(reading) + " − " + n(plan.before.reading) + " = " + n(plan.puffs) + " over " + plan.days + " days since "

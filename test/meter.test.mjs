@@ -52,10 +52,12 @@ test("the example: 1,002 tonight, 1,104 tomorrow, 102 puffs tomorrow", () => {
   assert.deepEqual(plan.perDay, [{ day: day(1), value: 102 }]);
 });
 
-test("the first reading has nothing to subtract, and says so", () => {
+test("the first reading is a baseline and counts nothing", () => {
+  // The counter has been running for months; its number is not today's.
   const plan = meterEntry(1002, null, day(0));
-  assert.equal(plan.puffs, 1002);
-  assert.deepEqual(plan.perDay, [{ day: day(0), value: 1002 }]);
+  assert.equal(plan.baseline, true);
+  assert.equal(plan.puffs, 0);
+  assert.deepEqual(plan.perDay, [{ day: day(0), value: 0 }]);
 });
 
 test("a night skipped spreads the difference over the days, and the shares add up exactly", () => {

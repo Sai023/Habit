@@ -366,7 +366,11 @@ function habitCard(habit, ctx, price) {
     // minute — that is the whole reason it is measured rather than asked — so an override here is a
     // guess replacing a measurement, and a worse number wearing the same badge. It comes from the
     // watch, or from how long the phone was left alone, or it says "waiting for data" and waits.
-    typedByHand
+    // On a habit a sensor feeds, the override shows only while the sensor is silent. Somebody
+    // with a watch does not need "Enter it manually" under a number the watch just wrote — and
+    // asked not to see it; the day it stops writing, the button is back. The habit's own sheet
+    // still has the way in for the rarer case of a sensor that reported the wrong number.
+    typedByHand && !(auto && status !== NO_DATA)
       ? el("button.logbtn", { onclick: () => ctx.onLog(habit) },
           intervention ? "Enter today's count"
             : auto ? "Enter it manually"
