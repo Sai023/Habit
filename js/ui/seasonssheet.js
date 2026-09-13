@@ -19,7 +19,7 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { seasonHistory, seasonTally, seasonProgress } from "../season.js";
+import { seasonHistory, seasonTally, seasonProgress, seasonSchedule } from "../season.js";
 import * as fmt from "./format.js";
 
 export function openSeasonsSheet(host, { state, me, today, onSchedule, onDone }) {
@@ -28,6 +28,10 @@ export function openSeasonsSheet(host, { state, me, today, onSchedule, onDone })
   const members = [...state.members.keys()];
   const seasons = seasonHistory(state, today);
   const where = seasonProgress(state, today);
+  // The rule that STANDS, not the one today's season came from. On the evening a schedule is set
+  // the running season is still the hand-started one, and a card reading "Started by hand" over a
+  // sentence about the schedule reads as the schedule not having taken.
+  const rule = seasonSchedule(state);
   // Open on the one being played, or the most recent if none is. A group looking at this while a
   // season runs wants that one; a group between seasons wants the table they just finished.
   let openIndex = Math.max(0, seasons.findIndex((s) => s.current));
@@ -99,8 +103,8 @@ export function openSeasonsSheet(host, { state, me, today, onSchedule, onDone })
     if (!where || !where.index) return null;
     const live = seasons.find((s) => s.current);
     return el("div.season-rule",
-      el("div.season-rule-k", where.every
-        ? "Every month from the " + fmt.ordinal(where.every)
+      el("div.season-rule-k", rule
+        ? "Every month from the " + fmt.ordinal(rule.every)
         : "Started by hand"),
       live && where.end
         ? el("div.season-rule-now",
@@ -111,7 +115,7 @@ export function openSeasonsSheet(host, { state, me, today, onSchedule, onDone })
         ? el("div.season-rule-now", el("b", "Season " + where.index), " · " + fmt.seasonLeft(where))
         : el("div.season-rule-now", el("b", "Season " + where.index), " · no end"),
       el("div.season-rule-next", fmt.seasonNext(where)
-        || (where.every ? null : "Nothing follows this one until somebody starts it.")),
+        || (rule ? null : "Nothing follows this one until somebody starts it.")),
     );
   }
 
@@ -132,7 +136,7 @@ export function openSeasonsSheet(host, { state, me, today, onSchedule, onDone })
         // it. One button: the schedule sheet also offers starting one by hand.
         onSchedule
           ? el("button.tap", { onclick: () => { sheet.close(); onSchedule(); } },
-              where && where.every ? "Change the schedule"
+              rule ? "Change the schedule"
                 : seasons.length ? "Put seasons on a schedule" : "Start seasons")
           : null,
 
