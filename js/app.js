@@ -68,7 +68,7 @@ function paint() {
     manualSync: caps().manualSync,
     onScoring, onWorkout, onChooseProgram, onLevel, onWeekRow,
     syncing: ui.syncing,
-    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason, onSeasons, onHabitDetail,
+    onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onSchedule, onSeasons, onHabitDetail,
     onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
   });
 }
@@ -399,7 +399,52 @@ const onInvite = guard("invite", async () => {
 });
 
 /**
- * Draw a line under the standings.
+ * Every season the group has run, how they run, and the way to change that.
+ *
+ * Not demo-blocked: it writes nothing. The demo can read its own seasons, and the schedule
+ * button inside it is refused on its own terms.
+ */
+const onSeasons = guard("seasons", async () => {
+  const { openSeasonsSheet } = await import("./ui/seasonssheet.js");
+  openSeasonsSheet(document.body, {
+    state: ctx.state, me: ctx.me, today: ctx.today,
+    onSchedule,
+    onDone: () => refresh(),
+  });
+});
+
+/**
+ * Put seasons on a schedule: a new one on the same day every month, on its own.
+ *
+ * Offered first, because the alternative — remembering to press a button on the right morning —
+ * is the thing that left the board on "Season over". The sheet still offers starting one by hand,
+ * which falls through to the old form below.
+ */
+const onSchedule = guard("schedule", async () => {
+  if (demoBlocked()) return;
+  const [{ scheduleSheet }, { scheduleSeasons }, { seasonProgress, seasonSchedule }, { addDays }] =
+    await Promise.all([
+      import("./ui/schedulesheet.js"), import("./store.js"), import("./season.js"), import("./habits.js"),
+    ]);
+
+  const where = seasonProgress(ctx.state, ctx.today);
+  const rule = seasonSchedule(ctx.state);
+  // The day after the running season ends, when it has an end still ahead — the natural first day
+  // for a group that wants to finish what it is playing.
+  const running = !!(where && where.end && !where.ended);
+  const after = running ? addDays(where.end, 1) : null;
+  const chosen = await scheduleSheet(document.body, {
+    today: ctx.today, after, every: rule ? rule.every : null, running,
+  });
+  if (!chosen) return;
+  if (chosen.byHand) { await onNewSeason(); return; }
+
+  await scheduleSeasons(chosen.from, chosen.day);
+  await refresh();
+});
+
+/**
+ * Draw a line under the standings, by hand.
  *
  * Starts on the next Monday rather than today, because a season that begins mid-week opens with a
  * week half of which was played under the old one — and the first thing anybody would ask about
@@ -408,17 +453,6 @@ const onInvite = guard("invite", async () => {
  * Says plainly what survives. "Reset" is a word people have learned to read as "lose everything",
  * and the whole point of this is that it only clears the scoreboard.
  */
-/** Every season the group has run, and the way to start the next. */
-const onSeasons = guard("seasons", async () => {
-  if (demoBlocked()) return;
-  const { openSeasonsSheet } = await import("./ui/seasonssheet.js");
-  openSeasonsSheet(document.body, {
-    state: ctx.state, me: ctx.me, today: ctx.today,
-    onNewSeason,
-    onDone: () => refresh(),
-  });
-});
-
 const onNewSeason = guard("season", async () => {
   if (demoBlocked()) return;
   const [{ seasonSheet }, { startNewSeason }, { periodStart, isoWeekKey, addDays }, { seasonTally }] =

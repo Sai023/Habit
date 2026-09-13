@@ -107,14 +107,14 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
       el("h2.sec-title", "One currency, three sizes"),
       el("p.scoring-line",
         "A day is worth exactly a hundred. A week is its days added up, out of 700. A season is "
-        + "its weeks added up. Every number on the board is " + XP + "; only the size of the pot "
-        + "changes."),
+        + "its days added up too — a month of them. Every number on the board is " + XP + "; only "
+        + "the size of the pot changes."),
       el("dl.scoring-defs",
         el("dt", "of 100"),
         el("dd", "Today. What the day has earned so far, out of the hundred it is worth. Each "
           + "card underneath says what that habit is worth and how much of it you have taken."),
         el("dt", XP),
-        el("dd", "The week, out of 700 — and the season, which adds every week you play. A day "
+        el("dd", "The week, out of 700 — and the season, which adds every day you play. A day "
           + "you did not play adds nothing, so showing up is worth " + XP + " on its own."),
         el("dt", "a day"),
         el("dd", "The small print: your average. \"85 a day\" is how the week is going; the total "

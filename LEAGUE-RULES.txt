@@ -418,22 +418,35 @@ up without saying so), and the four categories as percentages.
 7. THE SEASON
 -------------
 
-A season is a stretch of whole weeks. Every completed week adds its XP
-to your total, so a week is worth between 0 and 700 and a season runs to
-thousands. Bonus is tallied beside it in its own column. This is the running
-tally: it only ever goes up, and it keeps going up across seasons.
+A season is a stretch of days. Every CLOSED day in it adds its score to
+your total, at up to 100 each, so a month-long season runs to about 3,000.
+The day being played is not in it until it closes. Bonus is tallied beside
+the total in its own column. This is the running tally: it only ever goes
+up, and it keeps going up until the season ends.
 
-Season standings are on POINTS. Crowns (weeks won) break a tie. It used to
-rank on crowns alone; three near-misses were worth exactly nothing under
+Season standings are on POINTS. Crowns break a tie. A crown is a WHOLE
+week won — Monday to Sunday, lying entirely inside the season. The days at
+either end that do not make a whole week count for XP and cannot be won:
+a season started on a Sunday does not hand out a crown for one day. It used
+to rank on crowns alone; three near-misses were worth exactly nothing under
 that rule.
 
-Scoring starts at the first WHOLE week. The stub before it is a warm-up.
-A chosen length always delivers that many whole weeks. Only one season is
-active at a time; booking a new one replaces a pending one and does not
-erase a finished one — every past season is readable from the strip on the
-board.
+Seasons run on a SCHEDULE: a new one starts on the same day of the month,
+every month, on its own — the 20th, for the first group. Nobody presses
+anything and nothing is written at midnight: every phone derives the same
+season from the one rule in the log the moment its clock passes the date.
+A schedule that begins between cycle days produces one short run-in season
+first, to reach the next cycle day. The day of the month is 1 to 28, so
+every month has it.
 
-                                                 season.js — seasonTally, endFor
+A season can still be started BY HAND, from a day and for a number of whole
+weeks (or with no end). Doing so ends the schedule. The newest rule always
+wins from its own first day: a running season is cut off the day before —
+"Replaced" rather than "Finished" — and one that ran its course is not
+shortened by a rule that begins after it. Every past season is readable
+from the strip on the board.
+
+                        season.js — seasonWindows, seasonTally, nextCycleDay
 
 
 8. STREAKS AND GRACE

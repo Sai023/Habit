@@ -271,27 +271,29 @@ function splitWeek(extra = []) {
   return replay([...events, ...extra]);
 }
 
-test("the days before the first whole week are warm-up, and score nothing", () => {
-  // This reverses an earlier rule, and the reversal is the point.
+test("the days before the first whole week count for XP, but there is no week to win", () => {
+  // The third reading of this rule, and the one that has to hold for a season that starts on the
+  // 20th of a month.
   //
-  // A season starting mid-week used to score that stub as a completed week, floored to the days it
-  // was actually running. Internally tidy, and it produced two things nobody wanted: a season
-  // started on a SUNDAY awarded a crown for one day, and a season set to run "1 week" finished
-  // with two weeks and two crowns in its table — because endFor treats the stub as extra while
-  // this counted it as one of the N. Two rules disagreeing about what a week was.
+  // A season starting mid-week first scored that stub as a completed week, floored to the days it
+  // ran — and a season started on a SUNDAY awarded a crown for one day. Then the stub scored
+  // nothing at all, which was fine while every season began on a Monday by choice, and is not
+  // fine for one that begins on whatever weekday the 20th is: a month-long season would open with
+  // up to six days that did not count and close with up to six more.
   //
-  // It also put the season's first number a week behind the board's, which is how it surfaced:
-  // "why is All time 59 when This week says 66%". They were different weeks.
-  //
-  // The cost is real and worth naming: a season started on a Friday now waits until the Sunday
-  // after next for its first crown, where it used to produce one that weekend. Consistent length
-  // is worth more than fast first feedback — and starting on a Monday, which is the default, gives
-  // both.
+  // So every day counts, at a hundred each, from the first day of the season to the last. What a
+  // stub cannot do is be WON: crowns are for whole weeks, Monday to Sunday, and a week of three
+  // days is not one. Both properties the earlier rules were protecting survive — no crown for a
+  // day, and a "1 week" season holding exactly one week — without a day of anybody's effort
+  // being thrown away.
   const s = splitWeek([E(ev.meta({ seasonFrom: day(4) }), at(4))]);
   const t = seasonTally(s, BOTH, day(7));
   assert.equal(t.weeks, 0, "the stub is not a week");
+  assert.equal(t.days, 3, "but its three closed days are in the season");
+  // Day 4 is a Friday. I lost Friday, Saturday and Sunday; they won them.
   assert.equal(t.rows.find((r) => r.memberId === ME).points, 0);
-  assert.equal(t.rows.find((r) => r.memberId === RIVAL).points, 0);
+  assert.equal(t.rows.find((r) => r.memberId === RIVAL).points, 300);
+  assert.equal(t.rows.find((r) => r.memberId === RIVAL).crowns, 0, "and no crown for a stub");
 });
 
 test("and the whole week that follows a mid-week start does score", () => {

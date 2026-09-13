@@ -93,7 +93,10 @@ test("points accumulate and cannot be dented by one bad week", () => {
   const alice = rows.find((r) => r.name === "Alice");
   // Two perfect weeks plus a bad one: still well ahead of nothing.
   assert.ok(alice.points > 1400, "two perfect weeks are fourteen hundreds");
-  assert.equal(alice.avg, Math.round(alice.points / alice.weeks));
+  // "A day", the way the board says it. It was "a week", and a season with a six-day run-in and
+  // a thirty-day month in it has no honest week to average by.
+  assert.equal(alice.days, 21, "every closed day was scored");
+  assert.equal(alice.avg, Math.round(alice.points / alice.days));
   // 700, not 100: a week is its seven days' hundreds summed, and a day is worth exactly a
   // hundred. She walks 12,000 against a 10,000 target every day, which is 120% of it — clipped
   // to the 1.15 ceiling — and that overshoot is BONUS, banked beside the total and never inside
@@ -132,7 +135,8 @@ test("a week the WATCH could not answer for is not a week they lost", () => {
   ]);
   const { rows } = seasonTally(s, ["a"], TODAY);
   assert.equal(rows[0].weeks, 1, "one week played, not three");
-  assert.equal(rows[0].avg, 700, "and the average is of what was played: seven full days");
+  assert.equal(rows[0].days, 7, "seven days scored, not twenty-one");
+  assert.equal(rows[0].avg, 100, "and the average is of what was played: seven full days");
 });
 
 test("but a week they simply did not log IS a week they lost", () => {
@@ -147,10 +151,11 @@ test("but a week they simply did not log IS a week they lost", () => {
   ]);
   const { rows } = seasonTally(s, ["a"], TODAY);
   assert.equal(rows[0].weeks, 3, "three weeks played, two of them badly");
-  // (700 + 0 + 0) / 3. The bonus rides beside the week that was played and cannot rescue the two
+  assert.equal(rows[0].days, 21);
+  // 700 over 21 days. The bonus rides beside the week that was played and cannot rescue the two
   // that were not — which is the point: beating a target is worth something, and it is worth
   // much less than turning up.
-  assert.equal(rows[0].avg, 233);
+  assert.equal(rows[0].avg, 33);
 });
 
 test("the standing is ranked on points, and crowns only break the tie", () => {

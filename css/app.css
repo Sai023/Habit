@@ -2223,3 +2223,40 @@ button.card-open:active { transform: scale(0.99); }
 .card-met { font-size: var(--fs-micro); font-weight: 700; color: var(--teal); white-space: nowrap; }
 .card-run { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; }
 .card-run-fire { font-size: 11px; line-height: 1; }
+
+/* ---------- seasons on a schedule ---------- */
+
+/* What follows the season on the strip. Quiet, because it is a fact about next month sitting
+   under a countdown about this one; but present, because a season that starts by itself is a
+   season nobody was warned about otherwise. */
+.season-strip-next { font-size: var(--fs-micro); color: var(--dim); line-height: 1.4; }
+.season-strip-next:empty { display: none; }
+
+/* How seasons run, at the top of the list of them: the rule, the one being played, the next. A
+   card, unlike the strip, because on this sheet it is the headline and the list is the detail. */
+.season-rule {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px var(--pad-card); margin-bottom: 14px;
+  border-radius: var(--r); background: var(--surface-hi);
+}
+.season-rule-k { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); }
+.season-rule-now { font-size: var(--fs-body); font-variant-numeric: tabular-nums; }
+.season-rule-next { font-size: var(--fs-small); color: var(--dim); line-height: 1.45; }
+.season-rule-next:empty { display: none; }
+
+/* A season's length beside its dates, so a six-day run-in reads as meant rather than as broken. */
+.season-item-len { margin-left: 6px; font-weight: 500; color: var(--dim); }
+
+/* The plan on the schedule sheet: two dated rows, the short first one named as such. */
+.season-plan { display: flex; flex-direction: column; gap: 6px; }
+.season-plan .season-dates { flex-wrap: wrap; }
+.season-plan-k {
+  flex-basis: 100%; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--teal);
+}
+.season-plan-n { margin-left: auto; font-weight: 500; color: var(--dim); font-size: var(--fs-small); }
+
+/* A month of days to pick from: a calendar's grid rather than a run of pills, so the 20th is
+   where the eye expects it. */
+.chips-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.chips-cal .chip-day { padding: 8px 0; text-align: center; font-variant-numeric: tabular-nums; }

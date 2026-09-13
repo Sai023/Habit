@@ -19,7 +19,7 @@ import {
   walk, valueForPeriod, targetFor, rawPeriodStatus, rawDayStatus, sourceFor, isTracking, periodKey, periodStart, periodEnd, isoDayOfWeek, HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
 import { leaderboard, dayScore, CATEGORY_LABEL, CATEGORY_ICON } from "./score.js";
-import { seasonTally, categoryBreakdown } from "./season.js";
+import { seasonTally, categoryBreakdown, seasonProgress } from "./season.js";
 import { noticesFor } from "./notices.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
 import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
@@ -31,7 +31,7 @@ import * as fmt from "./ui/format.js";
 // 3 adds the bonus fields. 4 adds `training`. 5 adds `lifetime`. 6 adds `lifetime.facts`.
 // Additive only: an older shell ignores what it does not know, and a newer one reads a missing
 // field as nothing, so three phones on three builds all stay readable.
-export const SUMMARY_VERSION = 6;
+export const SUMMARY_VERSION = 7;
 
 /**
  * The week the shell is told about is THE week — Monday to today — not the last seven days.
@@ -111,8 +111,9 @@ export function buildSummary(state, me, today, memberIds = null) {
   // sank it without knowing that a day is worth a hundred or how the four shares divide.
   const scored = dayScore(state, me, today, today);
   const streak = onGoalStreak(state, me, today);
-  const season = members.length ? seasonTally(state, members, today) : { weeks: 0, rows: [] };
+  const season = members.length ? seasonTally(state, members, today) : { weeks: 0, days: 0, rows: [] };
   const mySeason = season.rows.find((r) => r.memberId === me) || null;
+  const where = seasonProgress(state, today);
 
   return {
     v: SUMMARY_VERSION,
@@ -177,16 +178,32 @@ export function buildSummary(state, me, today, memberIds = null) {
     season: mySeason
       ? {
           weeks: season.weeks,
+          // Closed days in the season so far — what the total is a sum of, at 100 each.
+          days: season.days,
           rank: mySeason.rank,
           of: season.rows.length,
           crowns: mySeason.crowns,
           points: mySeason.points,
+          // "A day", as the board says it. It was "a week"; see seasonTally.
           avg: mySeason.avg,
           best: mySeason.best ? mySeason.best.pct : null,
           crownStreak: mySeason.crownStreak,
           bestCrownStreak: mySeason.bestCrownStreak,
           // Of the points total, how much came from beating targets rather than meeting them.
           bonus: mySeason.bonus,
+          // Which season, when it runs, how long is left, and the one that follows — the strip
+          // on the board, worded once here so the shell's card cannot say it differently. A
+          // scheduled season rolls over on its own and `every` says which day of the month.
+          index: where ? where.index : null,
+          from: where ? where.start : null,
+          to: where ? where.end : null,
+          daysLeft: where ? where.daysLeft : null,
+          ended: !!(where && where.ended),
+          every: where ? where.every : null,
+          nextFrom: where && where.next ? where.next.from : null,
+          dates: where && where.end ? fmt.dayLabel(where.start) + " → " + fmt.dayLabel(where.end) : null,
+          left: where && where.end ? fmt.seasonLeft(where) : null,
+          next: where ? fmt.seasonNext(where) : null,
         }
       : null,
     // What the workout log says about the person, for the native Insights tab. Null with no

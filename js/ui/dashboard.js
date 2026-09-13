@@ -13,7 +13,7 @@ import {
   leaderboard, categoryOver, dayScore, expectedBy, withoutWorstDay, categoryFor as categoryOf,
   CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
   CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES, CATEGORY_SHORT } from "../score.js";
-import { seasonTally, categoryBreakdown, pendingSeason, seasonProgress } from "../season.js";
+import { seasonTally, categoryBreakdown, seasonProgress } from "../season.js";
 import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { awards } from "../awards.js";
@@ -946,38 +946,26 @@ function seasonStrip(ctx) {
   // A button, because this is now the way into the season list — and the only reliable way into
   // starting one. The link at the foot of the All-time view vanished whenever a season was booked
   // and not yet running, which left a group with no entry point anywhere.
+  const next = fmt.seasonNext(p);
   return el("button.season-strip" + (p.ended ? ".is-over" : ""), {
     onclick: () => ctx.onSeasons && ctx.onSeasons(),
     "aria-label": "Seasons",
   },
-    // Named, because a strip of dates with a bar under it reads as the week — and this one
-    // ran Sunday to Sunday, which no week does.
+    // Named and numbered, because a strip of dates with a bar under it reads as the week — and
+    // this one can run from the 20th to the 19th, which no week does.
     el("div.season-strip-top",
       el("span.season-strip-dates",
-        el("span.season-strip-k", "Season"),
+        el("span.season-strip-k", p.index ? "Season " + p.index : "Season"),
         fmt.dayLabel(p.start), " → ", fmt.dayLabel(p.end)),
-      el("span.season-strip-left", countdown(p), el("span.season-strip-go", " ›")),
+      el("span.season-strip-left", fmt.seasonLeft(p), el("span.season-strip-go", " ›")),
     ),
     el("div.bar", { role: "presentation" },
       el("i", { style: "width:" + p.pct + "%" })),
+    // What follows. Under a schedule the next season starts by itself, and a season that begins
+    // with nobody pressing anything is a season nobody was warned about otherwise. Between
+    // hand-started seasons, this is the one place that says nothing is coming.
+    el("div.season-strip-next", next || (p.ended ? "Nothing follows until somebody starts the next one." : null)),
   );
-}
-
-/**
- * How long is left, in the largest unit that is still honest.
- *
- * "38 days" is a number somebody has to convert; "5 weeks" is the same fact already converted. It
- * switches to days inside a fortnight, because that is the point at which the days start mattering
- * individually — and to "today" on the last one, which is the only day the wording has to be
- * exactly right.
- */
-function countdown(p) {
-  if (p.ended) return "Season over";
-  if (p.daysLeft === 0) return "Ends today";
-  if (p.daysLeft === 1) return "1 day left";
-  if (p.daysLeft < 14) return p.daysLeft + " days left";
-  const weeks = Math.round(p.daysLeft / 7);
-  return weeks + " weeks left";
 }
 
 /**
@@ -999,15 +987,16 @@ function countdown(p) {
  * sheet resolves to no. The animation is drawing an eye to a question, not to a trigger.
  */
 function seasonBeacon(ctx) {
-  if (!ctx.onNewSeason) return null;
-  // Started once, gone for good. A malformed line still counts as "they have used this".
-  if (ctx.state.meta && ctx.state.meta.seasonFrom) return null;
+  if (!ctx.onSchedule) return null;
+  // Started once, gone for good — by schedule or by hand.
+  const meta = ctx.state.meta || {};
+  if ((meta.seasonRules && meta.seasonRules.length) || meta.seasonFrom || meta.seasonCycle) return null;
 
-  return el("button.beacon", { onclick: () => ctx.onNewSeason() },
+  return el("button.beacon", { onclick: () => ctx.onSchedule() },
     el("span.beacon-spark", "✨"),
     el("span.beacon-text",
       el("b", "Start the first season"),
-      el("span", "Sets everyone level and starts counting weeks."),
+      el("span", "Sets everyone level, and a new one starts every month on its own."),
     ),
     el("span.beacon-go", "→"),
   );
@@ -1053,17 +1042,17 @@ function offBoardNote(ctx) {
  * showing up over whoever had a single enormous fortnight.
  */
 function seasonSection(ctx, members) {
-  const pending = pendingSeason(ctx.state, ctx.today);
-  const { weeks, rows } = seasonTally(ctx.state, members, ctx.today);
+  const where = seasonProgress(ctx.state, ctx.today);
+  const { weeks, days, rows } = seasonTally(ctx.state, members, ctx.today);
 
   return el("section.sec",
     boardTabs(ctx),
     // The same strip, on the view it is actually about. Full width now rather than squeezed beside
     // a heading — the selected tab already says "All time", so the heading was saying it twice.
     seasonStrip(ctx),
-    weeks === 0
+    days === 0
       ? el("p.sec-note", { style: "padding:0 2px" },
-          "Nothing to tally yet — the first week has to finish. This week's board is still live.")
+          "Nothing to tally yet — the first day has to close. This week's board is still live.")
       // The rank NUMBER, not a crown. The season is ranked on points now, so its leader may
       // have won no weeks at all — and 👑 means "won a week" everywhere else in this app.
       // Putting it on the season leader would be two different claims wearing one symbol.
@@ -1073,44 +1062,48 @@ function seasonSection(ctx, members) {
           el("div.row-main",
             el("div.row-name", r.memberId === ctx.me ? "You" : r.name),
             el("div.row-meta",
-              r.crowns ? "👑 " + r.crowns + (r.crowns === 1 ? " week won" : " weeks won") : "no weeks won",
-              r.weeks ? " of " + r.weeks : "",
-              r.bestCrownStreak > 1 ? " · best run " + r.bestCrownStreak : "",
+              // Days first: every season has them, and a six-day run-in to the 20th has no
+              // week in it to have won.
+              r.days + " of " + days + (days === 1 ? " day" : " days") + " played",
+              weeks
+                ? " · " + (r.crowns
+                  ? "👑 " + r.crowns + (r.crowns === 1 ? " week won" : " weeks won")
+                  : "no weeks won") + " of " + weeks
+                : "",
               r.crownStreak > 1 ? " · 🔥 " + r.crownStreak + " in a row" : "",
             ),
             el("div.row-meta",
-              // "a week" rather than "%": with bonus in it a week can be worth more than a
-              // hundred, and a percentage that goes to 115 reads as a bug rather than a reward.
-              r.avg === null ? "nothing scored yet" : "averaging " + r.avg + " a week",
-              r.best ? " · best " + r.best.pct : "",
+              // "a day", the way the week's row says it. It was "a week", and a season that runs
+              // from the 20th to the 19th has no honest week to average by.
+              r.avg === null ? "nothing scored yet" : "averaging " + r.avg + " a day",
+              r.best ? " · best week " + r.best.pct : "",
               r.bonus ? " · " + r.bonus + " from bonus" : "",
             ),
           ),
           el("div.row-pct", String(r.points), el("span.row-unit", " " + fmt.XP)),
         ))),
-    weeks > 0 ? el("p.sec-note", { style: "padding:0 2px" },
-      "Every week you play adds its score to your total, so the season is won on " + fmt.XP + " rather "
+    days > 0 ? el("p.sec-note", { style: "padding:0 2px" },
+      "Every day you play adds its score to your total, so the season is won on " + fmt.XP + " rather "
       + "than on a handful of Sundays — and bonus " + fmt.XP + ", which only come from beating a goal "
-      + "rather than meeting it, are how somebody behind closes a gap. Crowns break a tie. "
-      + weeks + (weeks === 1 ? " week" : " weeks") + " counted so far.") : null,
+      + "rather than meeting it, are how somebody behind closes a gap. Whole weeks, Monday to Sunday, "
+      + "have a winner; crowns break a tie. "
+      + days + (days === 1 ? " day" : " days")
+      + (weeks ? " and " + weeks + (weeks === 1 ? " whole week" : " whole weeks") : "")
+      + " counted so far.") : null,
 
-    // Between the tap and the Monday.
+    // What comes next, and that it comes by itself.
     //
-    // A season always starts from a Monday, so for up to six days one is booked and not yet
-    // running. Saying nothing would leave the person who booked it looking at unchanged standings
-    // and wondering whether the button worked — and tapping it again, which is the one thing that
-    // should not be needed.
-    pending
+    // Under a schedule the next season is always booked, and saying so here — under the standings
+    // it will reset — is what stops the morning it happens from being a surprise. Booked by hand,
+    // it is the answer to "did the button work".
+    where && where.next
       ? el("p.sec-note", { style: "padding:0 2px" },
-          "A new season starts " + fmt.dayLabel(pending)
-          + ". These standings run until then, and reset that morning.")
+          fmt.seasonNext(where) + " These standings run until then, and reset that morning.")
       : null,
-    // Always offered, and no longer an either/or with the note above it. Somebody who has booked a
-    // season is exactly the person most likely to want to change it, and replacing the only control
-    // with an explanation left them nowhere to go.
+    // Always offered. Somebody who has booked a season is exactly the person most likely to want
+    // to change it, and replacing the only control with an explanation left them nowhere to go.
     ctx.onSeasons
-      ? el("button.link.sec-note", { onclick: () => ctx.onSeasons() },
-          pending ? "Seasons — change it →" : "Seasons →")
+      ? el("button.link.sec-note", { onclick: () => ctx.onSeasons() }, "Seasons →")
       : null,
   );
 }

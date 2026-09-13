@@ -9,8 +9,12 @@
 // wrong default for a thing called a season: without an end there is nothing to count down to and
 // no such thing as season two.
 //
-// Starting mid-week is honest rather than merely permitted, because a partial first week is now
-// scored only on the days the season was actually running — see weekStandings.
+// Starting mid-week is honest rather than merely permitted: every day of a season counts for XP,
+// and only whole weeks can be won — see seasonTally.
+//
+// This is the escape hatch now. Seasons run on a schedule by default (schedulesheet.js), and
+// starting one by hand ends that schedule from the day chosen here. The schedule sheet says so
+// before handing over; this one says what survives.
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
@@ -96,8 +100,8 @@ export function seasonSheet(host, { monday, today, weeks: playedWeeks }) {
             // Said before the choice, because the cost of starting today is a whole week of
             // waiting rather than a few days — scoring begins at the first WHOLE week, so the days
             // between now and Monday are warm-up and the first crown lands the Sunday after that.
-            : "The rest of this week is warm-up — nothing counts until Monday, and the first crown "
-              + "lands the Sunday after."),
+            : "Every day from then counts, but only a whole week can be won — so the first crown "
+              + "lands the Sunday after next."),
 
         el("h2.sec-title", "Runs for"),
         el("div.chips", LENGTHS.map((l) => el("button.chip" + (form.weeks === l.weeks ? ".on" : ""), {

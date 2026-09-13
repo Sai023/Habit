@@ -335,6 +335,23 @@ export async function startNewSeason(fromDay, weeks = null) {
   return commit(ev.meta({ seasonFrom: fromDay, seasonWeeks }));
 }
 
+/**
+ * Seasons from now on: a new one on the [day]-th of every month, starting [fromDay], on their own.
+ *
+ * One line, and every season after it is derived from it — nothing is written at each rollover,
+ * so there is nothing that can fail to be written. Replaces a hand-started season from [fromDay],
+ * and is itself replaced by the next rule written, schedule or by hand. See season.js.
+ */
+export async function scheduleSeasons(fromDay, day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fromDay || ""))) {
+    throw new Error("A season has to start on a real day.");
+  }
+  if (!Number.isInteger(day) || day < 1 || day > 28) {
+    throw new Error("Pick a day of the month every month has: 1 to 28.");
+  }
+  return commit(ev.meta({ seasonCycle: { from: fromDay, day } }));
+}
+
 export async function deleteHabit(habitId) {
   return commit(ev.deleteHabit(habitId));
 }

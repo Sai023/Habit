@@ -104,6 +104,13 @@ export function addDaysISO(day, n) {
   return t.toISOString().slice(0, 10);
 }
 
+/** Whole days from `a` to `b`; negative when b is earlier. */
+export function daysBetweenISO(a, b) {
+  const [y1, m1, d1] = a.split("-").map(Number);
+  const [y2, m2, d2] = b.split("-").map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / DAY_MS);
+}
+
 /** The Monday of the ISO week containing this day. */
 export function mondayOf(day) {
   const [y, m, d] = day.split("-").map(Number);
@@ -124,4 +131,46 @@ export function habitWeek(h) {
   if (h.open != null) return h.open >= 1 ? "done this " + unit : Math.round(h.open * 100) + "% of the way this " + unit;
   if (h.eligible) return h.hits ? "met this " + unit : "missed this " + unit;
   return null;
+}
+
+/** "20th", "1st", "22nd" — a day of the month, said the way people say it. */
+export function ordinal(n) {
+  const rem = n % 100;
+  if (rem >= 11 && rem <= 13) return n + "th";
+  const last = n % 10;
+  return n + (last === 1 ? "st" : last === 2 ? "nd" : last === 3 ? "rd" : "th");
+}
+
+/**
+ * How long is left of a season, in the largest unit that is still honest.
+ *
+ * "38 days" is a number somebody has to convert; "5 weeks" is the same fact already converted. It
+ * switches to days inside a fortnight, because that is the point at which the days start mattering
+ * individually — and to "today" on the last one, which is the only day the wording has to be
+ * exactly right. Takes the progress object from seasonProgress.
+ */
+export function seasonLeft(p) {
+  if (p.ended) return "Season over";
+  if (p.daysLeft === 0) return "Ends today";
+  if (p.daysLeft === 1) return "1 day left";
+  if (p.daysLeft < 14) return p.daysLeft + " days left";
+  const weeks = Math.round(p.daysLeft / 7);
+  return weeks + " weeks left";
+}
+
+/**
+ * The season after this one, as a sentence — or null when nothing follows.
+ *
+ * Under a schedule the next season starts by itself, and the sentence says so, because a season
+ * that begins with nobody pressing anything is a season nobody was warned about otherwise. Booked
+ * by hand, it is simply announced.
+ */
+export function seasonNext(p) {
+  if (!p.next) return null;
+  const name = p.next.index ? "Season " + p.next.index : "The next season";
+  if (p.next.every) {
+    return name + " starts " + dayLabel(p.next.from) + " on its own — a month, every month from the "
+      + ordinal(p.next.every) + ".";
+  }
+  return name + " starts " + dayLabel(p.next.from) + ".";
 }

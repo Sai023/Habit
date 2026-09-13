@@ -4,10 +4,10 @@
 // brilliant February is worth exactly as much as last week, and there is nothing to be proud of
 // except the seven days you happen to be standing in.
 //
-// So the weeks are tallied. Every completed week has a winner, the crowns stack up, and a running
-// points total grows for as long as the group exists — a number that only ever goes up, that one
-// bad week cannot dent, and that rewards the person who kept showing up over the person who had
-// one enormous fortnight.
+// So the days are tallied. Every closed day adds its hundred to a running total, every whole week
+// inside the season has a winner, the crowns stack up, and the total grows for as long as the
+// season runs — a number that only ever goes up, that one bad week cannot dent, and that rewards
+// the person who kept showing up over the person who had one enormous fortnight.
 //
 // ---- Derived, never stored ----
 //
@@ -16,114 +16,83 @@
 // then the standings and the days they came from disagree with nobody able to say which is right.
 // Every figure below is computed from the same replayed log as everything else, so a late-arriving
 // Tuesday moves the season the moment it lands, backwards if that is what actually happened.
+//
+// ---- Rules, and the windows they describe ----
+//
+// A season is a WINDOW of days, and windows come from RULES. Replay keeps `meta.seasonRules`, the
+// trail of every season-affecting meta line in the order it was written (see the T.META case in
+// habits.js). Two kinds:
+//
+//   { from, weeks }   started by hand: one window, `weeks` whole weeks long, or open-ended when
+//                     weeks is null. The old model, and still the escape hatch.
+//   { from, every }   a schedule: from `from`, a new season begins on the `every`-th of each month,
+//                     on its own, with nobody pressing anything. The first window runs from `from`
+//                     to the day before the next such date — a short run-in when `from` is not
+//                     itself a cycle day — and every window after it is a month.
+//
+// Each rule is in force until the day before the next rule begins, which is how "start one by
+// hand" ends a schedule and how a schedule ends a hand-started season: the newer rule is a hard
+// stop for the older one, whatever its own length said. A season cut short that way is REPLACED
+// rather than finished, because "finished" claims it ran its course.
+//
+// ---- Why a schedule is derived rather than fired ----
+//
+// The obvious way to roll a season over at midnight is a job that writes the next one. There is no
+// server here and no phone that is reliably awake at midnight, so the job would run whenever
+// somebody next opened the app — on one phone — and every other phone would show the old season
+// until it synced. Deriving the windows from the rule means every device computes the same season
+// from the same log the moment its clock passes the boundary, with nothing written and nothing to
+// sync. The rollover cannot be missed, because there is nothing to miss.
 
-import { periodsBetween, periodStart, periodEnd, addDays, daysBetween, isoWeekKey } from "./habits.js";
+import {
+  periodsBetween, periodStart, periodEnd, addDays, daysBetween, isoWeekKey,
+} from "./habits.js";
 import { leaderboard, categoryOver, categoryFor, CATEGORY_ORDER } from "./score.js";
 import { PERIOD } from "./schema.js";
 
-/**
- * When the season being played started, as a day.
- *
- * By default the earliest habit's birthday: before that there was nothing to score, and starting
- * from a member's join date would give whoever joined last a shorter, easier season.
- *
- * ---- Why it can be moved ----
- *
- * A group spends its first weeks getting the thing working, and those weeks are not a contest —
- * they are a phone syncing as the wrong person, a metric being renamed, a taper being argued
- * about. Carrying that into a standings table that is meant to last means the season opens with
- * results nobody agrees with and no way to draw a line under them.
- *
- * So `meta.seasonFrom` moves the line. It is a group-wide setting, last write wins, and it is
- * DERIVED-ONLY: nothing is deleted, no log is touched, no streak breaks. Weeks before it stop
- * being tallied and everything else — habits, targets, tapers, history, per-habit streaks — is
- * exactly as it was. Wiping the standings and wiping the data are different requests, and this
- * is the first one.
- *
- * An older build that does not know the key merges it into meta and never reads it, so it keeps
- * showing the whole season. That is the safe direction to be wrong in: it over-reports history
- * rather than inventing a reset nobody asked for.
- */
-export function seasonStart(state, today = null) {
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Days of the month a schedule may use: the ones every month has. */
+export const CYCLE_DAY_MIN = 1;
+export const CYCLE_DAY_MAX = 28;
+
+/** The day before there was anything to score: the earliest habit's birthday. */
+function firstHabitDay(state) {
   let earliest = null;
   for (const habit of state.habits.values()) {
     if (!habit.createdDay) continue;
     if (earliest === null || habit.createdDay < earliest) earliest = habit.createdDay;
   }
-
-  const line = state.meta && state.meta.seasonFrom;
-  // Only ever moves the start FORWARD. A line before the first habit describes weeks that never
-  // existed, and one that arrives malformed must not blank the standings.
-  if (typeof line === "string" && /^\d{4}-\d{2}-\d{2}$/.test(line)) {
-    // A line that has not arrived yet is not in force yet.
-    //
-    // A new season is always started FROM a Monday, so for up to six days the line sits in the
-    // future — and the confirm sheet says, in as many words, "from Monday the 7th". Honouring it
-    // the moment it is written made that a lie: the standings emptied on the tap, everybody dropped
-    // to zero points with no explanation, and the week people were still playing vanished from
-    // under them.
-    //
-    // `today` is optional so that asking what the line IS stays possible; every caller that renders
-    // a board passes it.
-    if (today && line > today) {
-      // Booked, not begun. Keep showing the season it replaces rather than dropping to the first
-      // habit's day — those standings are what everybody played for and they stay on screen until
-      // the morning the new one starts. See the T.META case in habits.js.
-      const prev = state.meta.seasonPrevFrom;
-      if (typeof prev === "string" && /^\d{4}-\d{2}-\d{2}$/.test(prev)) {
-        return earliest === null || prev > earliest ? prev : earliest;
-      }
-      return earliest;
-    }
-    if (earliest === null || line > earliest) return line;
-  }
   return earliest;
 }
 
-/**
- * The season that is coming but has not started, or null.
- *
- * Only ever set between somebody starting one and the Monday it begins on. The board says so for
- * those few days, because a countdown nobody can see is indistinguishable from nothing happening —
- * and the person who tapped it is the one most likely to check whether it worked.
- */
-export function pendingSeason(state, today) {
-  const line = state.meta && state.meta.seasonFrom;
-  if (typeof line !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(line)) return null;
-  return today && line > today ? line : null;
+/** The trail of season rules, in the order they were written. Replay already validated them. */
+function rulesOf(state) {
+  const rules = state.meta && Array.isArray(state.meta.seasonRules) ? state.meta.seasonRules : [];
+  return rules.filter((r) => r && ISO_DAY.test(r.from));
 }
 
 /**
- * How long a season runs, in whole ISO weeks — or null for one that never ends.
+ * The first `day`-th of a month STRICTLY after `from`.
  *
- * Null is the old behaviour and stays the default: a season with no length runs until somebody
- * starts another one. A number gives it a finish line, which is the only way a board can show a
- * countdown, and the only way "season two" means anything.
- *
- * Weeks rather than days, because a week is the unit the whole scoreboard is built on. A season
- * measured in days would end mid-week and its last week would be a partial one nobody could win.
+ * Strictly, so a schedule that begins on its own cycle day gets a whole month rather than a
+ * zero-day first season: "every month from the 20th, starting 20 September" runs to 19 October.
+ * Days are capped at 28 by the sheet and the store, so every month has the date and nothing here
+ * has to know how long February is.
  */
-export function seasonLength(state, today = null) {
-  const meta = state.meta || {};
-  // While a season is booked but not begun, `seasonWeeks` already describes the NEW one — so the
-  // length has to come from the same place the start does, or the board draws the old season's
-  // start against the new season's length and invents an end date neither of them has.
-  const pending = today && typeof meta.seasonFrom === "string" && meta.seasonFrom > today
-    && typeof meta.seasonPrevFrom === "string";
-  const n = pending ? meta.seasonPrevWeeks : meta.seasonWeeks;
-  return Number.isInteger(n) && n > 0 && n <= 104 ? n : null;
+export function nextCycleDay(from, day) {
+  const [y, m, d] = from.split("-").map(Number);
+  let yy = y;
+  let mm = m;
+  if (d >= day) {
+    mm += 1;
+    if (mm > 12) { mm = 1; yy += 1; }
+  }
+  return yy + "-" + String(mm).padStart(2, "0") + "-" + String(day).padStart(2, "0");
 }
 
 /**
- * The last day of the season, or null if it has no end.
- *
- * Counted from the MONDAY of the week the season began in, so a season started mid-week still ends
- * on a Sunday and its final week is a whole one. A four-week season started on a Saturday therefore
- * runs three weeks and two days — which is the honest reading of "four weeks of scoring", because
- * the week it started in only ever had two days of season in it.
- */
-/**
- * The last day of a season that starts on [from] and runs [weeks] weeks.
+ * The last day of a season that starts on [from] and runs [weeks] whole weeks.
  *
  * A season that starts mid-week gets the REST of that week plus its full weeks, rather than having
  * the stub consume one of them.
@@ -144,15 +113,162 @@ export function endFor(from, weeks) {
   return addDays(firstFull, weeks * 7 - 1);
 }
 
-export function seasonEnd(state, today = null) {
-  const start = seasonStart(state, today);
-  const weeks = seasonLength(state, today);
-  if (!start || !weeks) return null;
-  return endFor(start, weeks);
+/**
+ * Every season the rules describe, oldest first — those that have run, the one running, and the
+ * one booked next.
+ *
+ * A schedule is unrolled only as far as it needs to be: up to the window that contains `today`,
+ * plus the one after it, so the board can say when the next begins. Nothing is generated for a
+ * future nobody can see yet, and nothing is stored: a rule written once produces the same list on
+ * every device, every day, for as long as it stands.
+ */
+export function seasonWindows(state, today) {
+  const rules = rulesOf(state);
+  const out = [];
+
+  rules.forEach((rule, i) => {
+    // In force until the day before the next rule begins. A later rule that starts on or before
+    // this one's first day replaces it outright — booked, then re-booked — and it never ran.
+    const next = rules[i + 1];
+    const until = next ? addDays(next.from, -1) : null;
+    if (until !== null && until < rule.from) return;
+
+    if (rule.every) {
+      let from = rule.from;
+      for (;;) {
+        const boundary = nextCycleDay(from, rule.every);
+        let to = addDays(boundary, -1);
+        let cut = false;
+        if (until !== null && to > until) { to = until; cut = true; }
+        out.push({
+          from, to, weeks: null, every: rule.every, superseded: cut,
+          // The run-in: a first season shorter than a month because the schedule began between
+          // cycle days. Named so the sheet can say so, rather than leaving a six-day season to
+          // look like a mistake beside the month-long ones.
+          short: from.slice(8) !== String(rule.every).padStart(2, "0"),
+        });
+        // Past the window that holds today, one more is enough: it is the one being booked.
+        if (cut || from > today) break;
+        from = boundary;
+      }
+      return;
+    }
+
+    const own = endFor(rule.from, rule.weeks);
+    const to = own && until !== null ? (own < until ? own : until) : (own || until);
+    out.push({
+      from: rule.from, to, weeks: rule.weeks || null, every: null,
+      superseded: until !== null && (!own || until < own),
+      short: false,
+    });
+  });
+
+  return out.map((w, i) => ({
+    ...w,
+    index: i + 1,
+    pending: w.from > today,
+    // At most one, by construction: every window but the last is capped at the next one's start.
+    current: w.from <= today && (!w.to || w.to >= today),
+    ended: !!w.to && w.to < today,
+  }));
 }
 
 /**
- * Where the season is: when it started, when it ends, how much is left.
+ * The window the board is about: the one running, or — between seasons — the one that just ended.
+ *
+ * A finished season's standings are what everybody played for. They stay on screen until the
+ * morning the next one starts, rather than being swapped for an unrelated stretch from the
+ * beginning of time; and while a schedule stands there is no gap to fall into at all.
+ *
+ * Null when nothing has run yet, which the callers read as "everything since the first habit".
+ */
+function resolveWindow(state, today) {
+  const windows = seasonWindows(state, today);
+  const live = windows.find((w) => w.current);
+  if (live) return live;
+  const done = windows.filter((w) => w.ended);
+  return done.length ? done[done.length - 1] : null;
+}
+
+/**
+ * When the season being played started, as a day.
+ *
+ * By default the earliest habit's birthday: before that there was nothing to score, and starting
+ * from a member's join date would give whoever joined last a shorter, easier season.
+ *
+ * ---- Why it can be moved ----
+ *
+ * A group spends its first weeks getting the thing working, and those weeks are not a contest —
+ * they are a phone syncing as the wrong person, a metric being renamed, a taper being argued
+ * about. Carrying that into a standings table that is meant to last means the season opens with
+ * results nobody agrees with and no way to draw a line under them.
+ *
+ * So a season rule moves the line. It is DERIVED-ONLY: nothing is deleted, no log is touched, no
+ * streak breaks. Days before it stop being tallied and everything else — habits, targets, tapers,
+ * history, per-habit streaks — is exactly as it was. Wiping the standings and wiping the data are
+ * different requests, and this is the first one.
+ *
+ * Only ever moves the start FORWARD. A line before the first habit describes weeks that never
+ * existed, so it is clamped to the habit's day. `today` is optional so that asking what the latest
+ * line IS stays possible; every caller that renders a board passes it.
+ */
+export function seasonStart(state, today = null) {
+  const earliest = firstHabitDay(state);
+  let from = null;
+  if (today) {
+    const w = resolveWindow(state, today);
+    from = w ? w.from : null;
+  } else {
+    const rules = rulesOf(state);
+    from = rules.length ? rules[rules.length - 1].from : null;
+  }
+  if (from === null) return earliest;
+  if (earliest === null) return from;
+  return from > earliest ? from : earliest;
+}
+
+/**
+ * The season that is coming but has not started, or null.
+ *
+ * Under a schedule there is always one — the next month's — and the board says so, because a
+ * season that starts by itself is a season nobody was warned about otherwise. Started by hand, it
+ * is only ever set between somebody booking one and the day it begins.
+ */
+export function pendingSeason(state, today) {
+  const next = seasonWindows(state, today).find((w) => w.pending);
+  return next ? next.from : null;
+}
+
+/** The schedule in force, or null when seasons are started by hand. */
+export function seasonSchedule(state) {
+  const rules = rulesOf(state);
+  const last = rules.length ? rules[rules.length - 1] : null;
+  return last && last.every ? { from: last.from, every: last.every } : null;
+}
+
+/**
+ * How long a hand-started season runs, in whole ISO weeks — or null for one that never ends, and
+ * null for a scheduled one, whose length is a month and not a count of weeks.
+ */
+export function seasonLength(state, today = null) {
+  const w = today ? resolveWindow(state, today) : null;
+  if (w) return w.weeks;
+  const rules = rulesOf(state);
+  const last = rules.length ? rules[rules.length - 1] : null;
+  const n = last && !last.every ? last.weeks : null;
+  return Number.isInteger(n) && n > 0 && n <= 104 ? n : null;
+}
+
+/** The last day of the season, or null if it has no end. */
+export function seasonEnd(state, today = null) {
+  const w = today ? resolveWindow(state, today) : null;
+  if (w) return w.to;
+  const start = seasonStart(state, today);
+  return endFor(start, seasonLength(state, today));
+}
+
+/**
+ * Where the season is: when it started, when it ends, how much is left, what comes next.
  *
  * One call, because every one of these is useless on its own — "ends Sunday" means nothing without
  * knowing whether that is this Sunday, and a progress bar with no dates is decoration.
@@ -161,18 +277,30 @@ export function seasonProgress(state, today) {
   const start = seasonStart(state, today);
   if (!start) return null;
 
-  const end = seasonEnd(state, today);
-  const weeks = seasonLength(state, today);
+  const windows = seasonWindows(state, today);
+  const w = resolveWindow(state, today);
+  const next = windows.find((x) => x.pending) || null;
+  const end = w ? w.to : null;
   const done = seasonTally(state, [], today).weeks;
+  const base = {
+    start,
+    end,
+    weeks: w ? w.weeks : null,
+    done,
+    index: w ? w.index : null,
+    every: w ? w.every : null,
+    short: !!(w && w.short),
+    // The one booked, so the strip can say when — and, under a schedule, that it will happen on
+    // its own.
+    next: next ? { from: next.from, to: next.to, index: next.index, every: next.every } : null,
+  };
 
-  if (!end) return { start, end: null, weeks: null, done, daysLeft: null, ended: false, pct: null };
+  if (!end) return { ...base, daysLeft: null, ended: false, pct: null, days: null };
 
   const daysLeft = daysBetween(today, end);
   return {
-    start,
-    end,
-    weeks,
-    done,
+    ...base,
+    days: daysBetween(start, end) + 1,
     // Negative once it is over; the caller reads `ended` rather than the sign.
     daysLeft,
     ended: daysLeft < 0,
@@ -184,7 +312,7 @@ export function seasonProgress(state, today) {
   };
 }
 
-/** Every week the season has touched, oldest first. */
+/** Every whole week the season holds so far, oldest first. */
 export function seasonWeeks(state, today) {
   const start = seasonStart(state, today);
   if (!start) return [];
@@ -192,83 +320,29 @@ export function seasonWeeks(state, today) {
 }
 
 /**
- * The weeks an explicit window covers, up to today.
+ * The WHOLE weeks inside a window, Monday to Sunday, that have begun by today.
  *
- * Split out of seasonWeeks so a FINISHED season can be tallied by naming its dates, rather than
- * only ever the one the meta line currently points at. A season that has ended stops counting —
- * without that its standings would keep growing after the final whistle, and "final" would be the
- * one thing they were not.
+ * Crowns are for whole weeks. A season that starts on a Friday or ends on a Tuesday has days at
+ * each end that count for XP — every day does — but a week of two days is not a week anybody can
+ * be said to have won, so those stubs award nothing. That is what stops a season started on a
+ * Sunday handing out a crown for one day, which it once did.
  */
 export function weeksIn(from, to, today) {
   const last = to && to < today ? to : today;
   if (!from || last < from) return [];
-
-  // Scoring starts at the first WHOLE week, and the stub before it is warm-up.
-  //
-  // A season started on a Sunday used to score that Sunday as a completed week — it is the tail of
-  // an ISO week that closes the same night — so a crown was awarded for one day, and a season set
-  // to run "1 week" finished with two weeks and two crowns in its table. It also put the season's
-  // first number a week behind the one on the board, which is exactly how it was reported: "why is
-  // All time 59 when This week says 66%". They were different weeks.
-  //
-  // endFor already treats the stub as extra rather than as one of the N. This is the same rule
-  // seen from the other end, and the two disagreeing about what a week was is what produced both
-  // symptoms.
-  const firstFull = from === periodStart(isoWeekKey(from), PERIOD.WEEK)
-    ? from
-    : addDays(periodStart(isoWeekKey(from), PERIOD.WEEK), 7);
-  if (last < firstFull) return [];
-  return periodsBetween(firstFull, last, PERIOD.WEEK);
+  return periodsBetween(from, last, PERIOD.WEEK).filter((week) =>
+    periodStart(week, PERIOD.WEEK) >= from && (!to || periodEnd(week, PERIOD.WEEK) <= to));
 }
 
 /**
  * Every season this group has run, newest first.
  *
- * Built from the trail replay leaves behind — see the T.META case — plus whatever the meta line
- * points at now. Each entry carries only its window; the standings are derived from the log on
- * demand, so a season read back in a year is scored by today's engine rather than by a snapshot
- * taken at the time.
+ * Built from the rules replay leaves behind. Each entry carries only its window; the standings are
+ * derived from the log on demand, so a season read back in a year is scored by today's engine
+ * rather than by a snapshot taken at the time.
  */
 export function seasonHistory(state, today) {
-  const meta = state.meta || {};
-  const past = Array.isArray(meta.seasonPast) ? meta.seasonPast : [];
-  const out = past
-    .filter((x) => x && typeof x.from === "string")
-    .map((x) => ({ from: x.from, weeks: x.weeks || null }));
-
-  if (typeof meta.seasonFrom === "string") {
-    out.push({ from: meta.seasonFrom, weeks: meta.seasonWeeks || null });
-  }
-
-  return out
-    .map((x, i) => {
-      const own = endFor(x.from, x.weeks);
-      // Being REPLACED is an ending too, and only its own length was modelled.
-      //
-      // A season started with "No end" has no end date, so it stayed current for ever — a group
-      // that ran one, then started two more, had three seasons on screen and two of them labelled
-      // Running. The next season's start is a hard stop whatever this one's length said: the day
-      // before it begins is this one's last, and a season cut short that way is Replaced rather
-      // than Finished, because "finished" claims it ran its course.
-      const next = out[i + 1];
-      const capped = next ? addDays(next.from, -1) : null;
-      const to = own && capped ? (own < capped ? own : capped) : (own || capped);
-      const superseded = !!capped && (!own || capped < own);
-
-      return {
-        from: x.from,
-        to,
-        weeks: x.weeks,
-        superseded,
-        pending: x.from > today,
-        // At most one, by construction: every season but the last is capped at the next one's
-        // start, so only the final entry can still contain today.
-        current: x.from <= today && (!to || to >= today),
-        ended: !!to && to < today,
-        index: i + 1,
-      };
-    })
-    .reverse();
+  return seasonWindows(state, today).slice().reverse();
 }
 
 /**
@@ -283,10 +357,10 @@ export function weekStandings(state, memberIds, weekKey, notBefore = null) {
   const to = periodEnd(weekKey, PERIOD.WEEK);
   // Never count days from before the line.
   //
-  // Belt and braces now rather than the mechanism it once was: weeksIn no longer hands over a week
-  // that began before the season did, so this cannot fire. It stays because the property it
-  // protects — a season never scores a day that predates it — is one worth being unable to break
-  // by accident, and the cost of keeping it is a comparison.
+  // Belt and braces now rather than the mechanism it once was: weeksIn only hands over weeks that
+  // lie whole inside the season, so this cannot fire. It stays because the property it protects —
+  // a season never scores a day that predates it — is one worth being unable to break by
+  // accident, and the cost of keeping it is a comparison.
   const from = notBefore && notBefore > weekOpens ? notBefore : weekOpens;
   return leaderboard(state, memberIds, from, to, to);
 }
@@ -294,28 +368,40 @@ export function weekStandings(state, memberIds, weekKey, notBefore = null) {
 /**
  * The running tally.
  *
- * Only COMPLETED weeks award a crown. The week you are standing in is still being played, and
- * handing out its trophy on a Tuesday — then taking it back on a Thursday — would make the tally
- * something to refresh rather than something to build.
+ * XP is the sum of every CLOSED day in the season, at up to a hundred each — the day being played
+ * is still being played. Crowns go to whole weeks, and only once the week is over: handing out its
+ * trophy on a Tuesday, then taking it back on a Thursday, would make the tally something to
+ * refresh rather than something to build.
  */
 export function seasonTally(state, memberIds, today, window = null) {
   // `window` names a season explicitly, which is how a FINISHED one is read back. Without it the
-  // answer is always whichever season the meta line points at, and there is exactly one of those.
-  const start = window ? window.from : seasonStart(state, today);
-  const weeks = window ? weeksIn(window.from, window.to, today) : seasonWeeks(state, today);
-  const thisWeek = isoWeekKey(today);
-  const done = weeks.filter((w) => w !== thisWeek);
+  // answer is about the season the board is showing, and there is exactly one of those.
+  const w = window || resolveWindow(state, today) || { from: seasonStart(state, today), to: null };
+  if (!w.from) return { weeks: 0, days: 0, rows: [] };
+  // Never before there was anything to score — see seasonStart.
+  const earliest = firstHabitDay(state);
+  const start = earliest && earliest > w.from ? earliest : w.from;
+
+  // The closed days: yesterday at the latest, the season's last day once it is over.
+  const last = w.to && w.to < today ? w.to : addDays(today, -1);
+  const played = last >= start;
+  const span = played ? leaderboard(state, memberIds, start, last, last) : [];
+
+  const weeks = weeksIn(start, w.to, today);
+  const done = weeks.filter((week) => periodEnd(week, PERIOD.WEEK) < today);
 
   const tally = new Map(memberIds.map((id) => [id, {
     memberId: id,
     name: id,
     crowns: 0,
     weeks: 0,
+    days: 0,
     points: 0,
     // Kept apart from `points` as well as folded into it, because they answer different questions.
     // The total is where you stand; this is how much of it you earned by beating targets rather
     // than meeting them, which is the part somebody behind can actually use to close a gap.
     bonus: 0,
+    pct: null,
     best: null,
     avg: null,
     // Weeks in a row with a crown. The thing worth protecting, and the thing that makes losing one
@@ -324,6 +410,23 @@ export function seasonTally(state, memberIds, today, window = null) {
     bestCrownStreak: 0,
   }]));
 
+  // The total, from the closed days as one range — the same sum the board makes of a week, over
+  // the whole season. A day is worth exactly a hundred and the total has to keep meaning that;
+  // what beating the targets earned is its own column.
+  for (const row of span) {
+    const t = tally.get(row.memberId);
+    if (!t) continue;
+    t.name = row.name;
+    t.points = row.points;
+    t.bonus = row.bonusPoints || 0;
+    t.days = row.scoredDays || 0;
+    // "A day", the way the board says it: the mean of the days that were scored. A season with a
+    // six-day run-in and a thirty-day month in it has no honest "a week" to average by.
+    t.pct = row.pct;
+    t.avg = row.pct;
+  }
+
+  // Then the weeks, for the crowns.
   for (const week of done) {
     const rows = weekStandings(state, memberIds, week, start);
     for (const row of rows) {
@@ -337,17 +440,7 @@ export function seasonTally(state, memberIds, today, window = null) {
         continue;
       }
       t.weeks += 1;
-      // The week's points, as the board now shows them: every day's hundred, summed, so a week
-      // runs to 700 and a season to thousands — the running tally the change was for. It used to
-      // add the week's AVERAGE, so a season week was worth at most a hundred; same currency, no
-      // longer the same size.
-      //
-      // Bonus is tallied beside it, never inside it. A day is worth exactly a hundred and the
-      // total has to keep meaning that; what beating the targets earned is its own column.
-      const earned = row.points;
-      t.points += earned;
-      t.bonus += row.bonusPoints || 0;
-      if (!t.best || earned > t.best.pct) t.best = { week, pct: earned };
+      if (!t.best || row.points > t.best.pct) t.best = { week, pct: row.points };
       if (row.crown) {
         t.crowns += 1;
         t.crownStreak += 1;
@@ -358,16 +451,13 @@ export function seasonTally(state, memberIds, today, window = null) {
     }
   }
 
-  const rows = [...tally.values()].map((t) => ({
-    ...t,
-    avg: t.weeks ? Math.round(t.points / t.weeks) : null,
-  }));
+  const rows = [...tally.values()];
 
   // Ranked on POINTS, which is a change of game and worth saying so plainly.
   //
   // It used to rank on crowns, and crowns are all-or-nothing: three near-misses were worth exactly
   // as much as three terrible weeks, so the season was decided by a handful of Sundays and there
-  // was nothing to play for the moment one person was clear. Points accrue every week, so a strong
+  // was nothing to play for the moment one person was clear. Points accrue every day, so a strong
   // run always closes ground — and bonus points, which only come from beating a target rather than
   // meeting it, are what let somebody behind close it faster than the leader coasting.
   //
@@ -380,7 +470,7 @@ export function seasonTally(state, memberIds, today, window = null) {
   });
   rows.forEach((r, i) => { r.rank = i + 1; });
 
-  return { weeks: done.length, rows };
+  return { weeks: done.length, days: played ? daysBetween(start, last) + 1 : 0, rows };
 }
 
 /**

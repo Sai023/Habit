@@ -374,6 +374,31 @@ export function keptByHandAllWeek(state, habit, memberId) {
     && byHand(habit, sourceFor(state, habit, memberId), state.logs, memberId);
 }
 
+/**
+ * The season rule a meta line carries, or null if it carries none.
+ *
+ * Validated here, once, so nothing downstream has to ask whether a date is a date. A malformed
+ * line is dropped rather than obeyed: a season that starts on "yesterday" must not blank the
+ * standings. A schedule's day of the month is capped at 28, the last day every month has — the
+ * 29th, 30th and 31st would need a rule about February that nobody wants to explain.
+ */
+function seasonRule(p) {
+  const isDay = (x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
+  const cycle = p.seasonCycle;
+  if (cycle && typeof cycle === "object") {
+    const every = cycle.day;
+    if (isDay(cycle.from) && Number.isInteger(every) && every >= 1 && every <= 28) {
+      return { from: cycle.from, every };
+    }
+    return null;
+  }
+  if (isDay(p.seasonFrom)) {
+    const weeks = p.seasonWeeks;
+    return { from: p.seasonFrom, weeks: Number.isInteger(weeks) && weeks > 0 && weeks <= 104 ? weeks : null };
+  }
+  return null;
+}
+
 export function replay(events) {
   const habits = new Map();
   const members = new Map();
@@ -392,27 +417,18 @@ export function replay(events) {
     switch (e.type) {
       case T.META: {
         const next = { ...meta, ...p };
-        // Remember the season being replaced, so the board has something to show while the new one
-        // is still in the future.
+        // The trail of season rules, in the order they were written — see season.js for what a
+        // rule is and how windows come from it.
         //
-        // There is only ever one `seasonFrom`, and starting a season overwrites it. Between the tap
-        // and the Monday the line is not in force yet — correctly — and seasonStart used to fall all
-        // the way back to the first habit's day, so a finished season's standings were replaced by
-        // an unrelated week from the beginning of time, labelled "Season over". Derived here rather
-        // than written by the client: it is a fact about the log, and an old build that never sends
-        // it still produces it on replay.
-        if (p.seasonFrom && meta.seasonFrom && p.seasonFrom !== meta.seasonFrom) {
-          next.seasonPrevFrom = meta.seasonFrom;
-          next.seasonPrevWeeks = meta.seasonWeeks ?? null;
-          // And the whole run of them, so a finished season is still readable after the next two
-          // have been and gone. The standings are derived from the log either way — this only
-          // records WHICH windows to derive, which is the one thing a single overwritten field
-          // cannot remember.
-          next.seasonPast = [
-            ...(meta.seasonPast || []),
-            { from: meta.seasonFrom, weeks: meta.seasonWeeks ?? null },
-          ];
-        }
+        // There is only ever one `seasonFrom`, and starting a season overwrites it, so a group on
+        // its third season could not read who won the first two; and between booking a season and
+        // the day it began the line was not in force yet — correctly — so the board fell all the
+        // way back to the first habit's day and showed an unrelated week labelled "Season over".
+        // A trail remembers every window there ever was. Derived here rather than written by the
+        // client: it is a fact about the log, and every device produces the same one on replay.
+        // Never taken from the payload itself — a client cannot hand replay its own history.
+        const rule = seasonRule(p);
+        next.seasonRules = rule ? [...(meta.seasonRules || []), rule] : (meta.seasonRules || []);
         meta = next;
         break;
       }

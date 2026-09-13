@@ -36,6 +36,9 @@ export function demoState(now = Date.now()) {
 
   const events = [
     E(ev.meta({ name: "The Accountability Club" }), t0),
+    // Seasons on a schedule, the way a real group runs them: a new one on the 20th of every
+    // month, on its own. The demo's first is the run-in to the next 20th.
+    E(ev.meta({ seasonCycle: { from: start, day: 20 } }), t0),
     E(ev.member(DEMO_ME, "You"), t0),
     E(ev.member("thabo", "Thabo"), t0),
     E(ev.member("lerato", "Lerato"), t0),

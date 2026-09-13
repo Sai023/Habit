@@ -96,15 +96,17 @@ on the wrong one.
 
 | Rule | Owned by | Enforced by |
 |---|---|---|
-| A season is derived from one meta line, never a stored tally | `js/season.js` — `seasonStart` | `test/season-reset.test.mjs` |
-| A partial first week is scored only on the days it ran | `js/season.js` — `weekStandings` | `test/season-lifecycle.test.mjs` |
-| A finished season stops counting weeks | `js/season.js` — `seasonWeeks` | `test/season-lifecycle.test.mjs` |
+| A season is derived from the rule trail in meta, never a stored tally | `js/season.js` — `seasonWindows` | `test/season-reset.test.mjs`, `test/season-cycle.test.mjs` |
+| A scheduled season starts on the same day every month, on its own, on every device | `js/season.js` — `nextCycleDay`, `seasonWindows` | `test/season-cycle.test.mjs` |
+| The newest rule wins from its first day; the one before is cut off the day before | `js/season.js` — `seasonWindows` | `test/season-cycle.test.mjs` |
+| A finished season stops counting | `js/season.js` — `seasonTally` | `test/season-lifecycle.test.mjs` |
 | A week is the total of its days out of 700; the average is shown, never ranked | `js/score.js` — `scoreOver` | `test/habits.test.mjs` |
 | Ranked on points; crowns break a tie | `js/season.js` — `seasonTally` | `test/season.test.mjs` |
-| Scoring starts at the first WHOLE week; the stub before it is warm-up | `js/season.js` — `weeksIn` | `test/season-lifecycle.test.mjs` |
+| Every closed day in a season counts for XP; only WHOLE weeks can be won | `js/season.js` — `weeksIn`, `seasonTally` | `test/season-lifecycle.test.mjs`, `test/season-cycle.test.mjs` |
 | A chosen length always delivers that many WHOLE weeks | `js/season.js` — `endFor` | `test/season-lifecycle.test.mjs` |
 | A booked season does not erase the one it replaces | `js/season.js` — `seasonStart` | `test/season-lifecycle.test.mjs` |
 | Every season run is readable afterwards, by its own window | `js/season.js` — `seasonHistory` | `test/season-lifecycle.test.mjs` |
+| A schedule's day of the month is 1–28, validated once, on replay | `js/habits.js` — `seasonRule` | `test/season-cycle.test.mjs` |
 
 ## Workouts
 
