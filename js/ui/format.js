@@ -111,14 +111,6 @@ export function daysBetweenISO(a, b) {
   return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / DAY_MS);
 }
 
-/** The Monday of the ISO week containing this day. */
-export function mondayOf(day) {
-  const [y, m, d] = day.split("-").map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d));
-  const iso = t.getUTCDay() === 0 ? 7 : t.getUTCDay();
-  return addDaysISO(day, 1 - iso);
-}
-
 /**
  * How one habit went over a week, from the board's per-habit bookkeeping: "5 of 6 days",
  * "done this week", "40% of the way this month". Null when there is nothing to say yet.

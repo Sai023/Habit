@@ -19,6 +19,7 @@
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import * as fmt from "./format.js";
+import { endFor } from "../season.js";
 
 /**
  * Lengths worth offering, in whole ISO weeks.
@@ -55,11 +56,17 @@ export function seasonSheet(host, { monday, today, weeks: playedWeeks }) {
     // already selected. The trial run is a deliberate choice rather than the path of least effort.
     const form = { from: monday, weeks: 12 };
 
-    /** The last day, worked out the same way the engine does — see seasonEnd. */
+    /**
+     * The last day, from the engine's own rule rather than a copy of it.
+     *
+     * It was a copy, and the copy was wrong: it counted from the Monday of the starting week,
+     * which the engine stopped doing when the stub before the first whole week became extra
+     * rather than one of the N. A season started on a Wednesday for one week was previewed as
+     * ending that Sunday and actually ended the Sunday after — the sheet promising one thing and
+     * the strip showing another.
+     */
     function endsOn() {
-      if (!form.weeks) return null;
-      const mondayOfStart = fmt.mondayOf(form.from);
-      return fmt.addDaysISO(mondayOfStart, form.weeks * 7 - 1);
+      return endFor(form.from, form.weeks);
     }
 
     function paint() {
