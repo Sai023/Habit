@@ -264,15 +264,41 @@ const onLevel = guard("level", async () => {
 /**
  * A level reached overnight is celebrated on the first paint that sees it — once, and never over
  * another sheet, which would be a fanfare behind a form.
+ *
+ * Never headless. A background read of the engine shares this page's localStorage, so if it
+ * marked the level as seen, the person would open the app to nothing — after a notification
+ * that promised them a celebration.
  */
 async function celebrateLevelUp() {
-  if (!ctx || ctx.demo || onboarding || document.querySelector(".sheet-layer")) return;
+  if (!ctx || ctx.demo || onboarding || caps().headless || document.querySelector(".sheet-layer")) return;
   try {
     const [{ lifetime }, { levelUpDue, openLevelSheet }] = await Promise.all([
       import("./levels.js"), import("./ui/levelsheet.js"),
     ]);
     const life = lifetime(ctx.state, ctx.me, ctx.today);
     if (!levelUpDue(ctx.me, life.level)) return;
+    openLevelSheet(document.body, { state: ctx.state, me: ctx.me, today: ctx.today, celebrate: true, onDone: () => {} });
+  } catch (err) {
+    console.warn("[level]", err);
+  }
+}
+
+/**
+ * The shell asked for the level celebration — somebody tapped the notification.
+ *
+ * The ask can arrive before the page has state (a cold start from the shade), so it is kept
+ * until the first refresh, which calls back here. Shown even if the first paint already
+ * celebrated it: the notification promised a celebration and a tap on it must produce one, not
+ * a screen that already moved on. Idempotent while a level sheet is open.
+ */
+let levelAsked = false;
+async function showLevelIfAsked() {
+  if (!levelAsked || !ctx || onboarding || caps().headless) return;
+  if (document.querySelector(".sheet-layer .lv")) { levelAsked = false; return; }
+  if (document.querySelector(".sheet-layer")) return; // another sheet is up; try again next paint
+  levelAsked = false;
+  try {
+    const { openLevelSheet } = await import("./ui/levelsheet.js");
     openLevelSheet(document.body, { state: ctx.state, me: ctx.me, today: ctx.today, celebrate: true, onDone: () => {} });
   } catch (err) {
     console.warn("[level]", err);
@@ -628,7 +654,8 @@ async function refresh() {
   clock.schedule();
   tellShell(state, memberId, code);
   tellShellSummary(state, memberId);
-  celebrateLevelUp();
+  if (levelAsked) showLevelIfAsked();
+  else celebrateLevelUp();
 }
 
 let lastSummary = "";
@@ -806,7 +833,12 @@ async function boot() {
   installBridge({
     onData: () => { if (!isDemo) refresh(); },
     onReady: (setup) => { handover = setup; applyEmbedded(); announce(); },
-    onNavigate: (tab) => { ui.tab = tab; paint(); },
+    onNavigate: (tab) => {
+      // Not a tab: the shell is handing over a notification tap. See showLevelIfAsked.
+      if (tab === "level") { levelAsked = true; showLevelIfAsked(); return; }
+      ui.tab = tab;
+      paint();
+    },
   });
 
   // Pull down on Today to sync.

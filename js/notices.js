@@ -22,7 +22,9 @@
 // is the shell's dedupe key and the reason this can stay a pure function of the log rather than
 // becoming a queue somebody has to drain.
 
-import { taperWeekStart, targetFor, isTaperHeld, addDays, streak as habitStreak, isTracking } from "./habits.js";
+import { taperWeekStart, targetFor, isTaperHeld, addDays, daysBetween, streak as habitStreak, isTracking } from "./habits.js";
+import { titleBand } from "./levels.js";
+import { XP, dayLabel } from "./ui/format.js";
 import { AT_MOST, PERIOD } from "./schema.js";
 import { MILESTONES, tierFor, habitCrossed, habitSpan } from "./milestones.js";
 
@@ -201,4 +203,38 @@ function manyLine(list) {
   const parts = list.map((c) => c.name + " " + c.run + " " + c.unit);
   const last = parts.pop();
   return parts.join(", ") + " and " + last + ". " + countWord(list.length) + " at once is a good day.";
+}
+
+/**
+ * A level reached overnight.
+ *
+ * Levels bank at day close, so the level goes up while nobody is looking, and the first the
+ * person hears of it is whenever they next open the app. This is the sentence for the morning
+ * after — written here, once, and posted by the shell like every other notice.
+ *
+ * ---- Why "the last few days" and not only yesterday ----
+ *
+ * The shell reads the engine once a morning, and a phone that was off that morning would miss a
+ * notice that lived for one day. Three days is long enough to survive a weekend away and short
+ * enough that a level from last month is not announced as news. The id carries the level and not
+ * the day, so however many mornings it is derived, the shell posts it once.
+ *
+ * Nothing for Level 1: nobody reached it.
+ */
+export function levelNotice(life, today) {
+  if (!life || !life.reached || life.level < 2) return null;
+  const ago = daysBetween(life.reached, today);
+  if (ago < 1 || ago > 3) return null;
+  const band = titleBand(life.level);
+  const newTitle = band.from === life.level && life.level > 1;
+  const when = ago === 1 ? "Yesterday" : dayLabel(life.reached);
+  return {
+    id: "level|" + life.level,
+    kind: "level",
+    title: "Level " + life.level + " \u00b7 " + life.title + (newTitle ? " \u2014 a new title" : ""),
+    body: when + " took you to Level " + life.level + ". "
+      + life.xp.toLocaleString() + " " + XP + " banked"
+      + (life.next ? ", " + (life.next - life.xp).toLocaleString() + " to Level " + (life.level + 1) : "")
+      + ". Tap for the celebration.",
+  };
 }

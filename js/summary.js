@@ -20,7 +20,7 @@ import {
 } from "./habits.js";
 import { leaderboard, dayScore, CATEGORY_LABEL, CATEGORY_ICON } from "./score.js";
 import { seasonTally, categoryBreakdown, seasonProgress } from "./season.js";
-import { noticesFor } from "./notices.js";
+import { noticesFor, levelNotice } from "./notices.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
 import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
 import { pendingGoal } from "./edits.js";
@@ -169,11 +169,16 @@ export function buildSummary(state, me, today, memberIds = null) {
     //
     // Computed here rather than inside noticesFor because it needs the scorer, and that module is
     // deliberately kept unable to see it.
-    notices: noticesFor(state, me, today, streak, members.map((id) => ({
-      memberId: id,
-      name: state.members.get(id)?.name || "",
-      streak: id === me ? streak : onGoalStreak(state, id, today),
-    }))),
+    notices: [
+      ...noticesFor(state, me, today, streak, members.map((id) => ({
+        memberId: id,
+        name: state.members.get(id)?.name || "",
+        streak: id === me ? streak : onGoalStreak(state, id, today),
+      }))),
+      // A level reached overnight — your own only. Levels rank nobody, so a friend's is not
+      // news the way a friend's fifty days is.
+      levelNotice(lifetime(state, me, today), today),
+    ].filter(Boolean),
     // The long game. Weeks won, and a points total that only ever goes up.
     season: mySeason
       ? {

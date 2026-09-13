@@ -10,6 +10,7 @@ import { ev, SOURCE, METRIC, AT_LEAST, AGGREGATE, PERIOD } from "../js/schema.js
 import {
   LEVEL_MAX, FIRST_GAP, GAP_STEP, TITLES, gapTo, thresholdFor, titleFor, levelFor, lifetime, titleBand,
 } from "../js/levels.js";
+import { levelNotice } from "../js/notices.js";
 
 let passed = 0;
 const failures = [];
@@ -129,6 +130,30 @@ test("closed days bank; today rides along separately", () => {
   assert.equal(l.today, 50, "half a day so far, not yet counted");
   assert.equal(l.level, 2, "300 is exactly level 2 — and it happened overnight");
   assert.equal(l.levelUpToday, false);
+});
+
+test("the walk remembers the day whose banking reached the level", () => {
+  // Three perfect days: 300 banks with day 2, which is Level 2 on the morning of day 3.
+  const s = world([hit("me", 0), hit("me", 1), hit("me", 2), hit("me", 3), hit("me", 4)]);
+  assert.equal(lifetime(s, "me", day(3)).reached, day(2));
+  assert.equal(lifetime(s, "me", day(5)).reached, day(2), "and it stays that day until the next level");
+  assert.equal(lifetime(s, "me", day(1)).reached, null, "Level 1 was never reached");
+});
+
+test("the level notice is for the morning after, and the two after that", () => {
+  const s = world([hit("me", 0), hit("me", 1), hit("me", 2), hit("me", 3), hit("me", 4), hit("me", 5), hit("me", 6)]);
+  // Reached with day 2. The morning of day 3 is the notice; a phone that was off gets two more
+  // mornings; then it is old news — the celebration in the app still happens either way.
+  const notice = levelNotice(lifetime(s, "me", day(3)), day(3));
+  assert.equal(notice.id, "level|2", "one id per level, not per day, so it posts once");
+  assert.equal(notice.kind, "level");
+  assert.ok(notice.title.startsWith("Level 2 · Starter"), notice.title);
+  assert.ok(notice.body.startsWith("Yesterday took you to Level 2."), notice.body);
+  assert.ok(notice.body.includes("325 to Level 3"), notice.body);
+  assert.ok(levelNotice(lifetime(s, "me", day(5)), day(5)), "still worth saying three mornings on");
+  assert.equal(levelNotice(lifetime(s, "me", day(6)), day(6)), null, "and then not");
+  assert.equal(levelNotice(lifetime(s, "me", day(2)), day(2)), null, "nothing before it banks");
+  assert.equal(levelNotice(lifetime(s, "me", day(1)), day(1)), null, "and nothing for Level 1");
 });
 
 test("today alone can be a level-up in waiting", () => {

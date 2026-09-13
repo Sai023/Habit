@@ -147,13 +147,18 @@ function computeLifetime(state, memberId, today) {
     weekdays: Array.from({ length: 7 }, () => ({ xp: 0, days: 0 })),
   };
   const empty = {
-    ...levelFor(0), banked: 0, today: 0, days: 0, since: since || null, levelUpToday: false, ...records,
+    ...levelFor(0), banked: 0, today: 0, days: 0, since: since || null, levelUpToday: false, reached: null, ...records,
   };
   if (!since || since > today) return empty;
 
   const yesterday = addDays(today, -1);
   let banked = 0;
   let days = 0;
+  // The day whose banking carried them into the level they are on. Null at Level 1, which
+  // nobody reached. The notice that says "you went up overnight" is true for exactly one
+  // morning, and this is how it knows which.
+  let reached = null;
+  let nextAt = thresholdFor(2);
   const weeks = new Map();
   // One memo for the whole walk. A weekly or monthly habit is scored once per period rather than
   // once per day, which is most of the cost of two years of days.
@@ -164,6 +169,11 @@ function computeLifetime(state, memberId, today) {
     const xp = score.pct + score.bonus;
     banked += xp;
     days += 1;
+    if (nextAt !== null && banked >= nextAt) {
+      reached = d;
+      const level = levelFor(banked).level;
+      nextAt = level < LEVEL_MAX ? thresholdFor(level + 1) : null;
+    }
     if (!records.bestDay || xp > records.bestDay.xp) records.bestDay = { day: d, xp };
     if (score.pct >= 100) records.perfectDays += 1;
     const wd = records.weekdays[isoDayOfWeek(d) - 1];
@@ -187,6 +197,7 @@ function computeLifetime(state, memberId, today) {
     days,
     since,
     levelUpToday: levelFor(banked + provisional).level > standing.level,
+    reached,
     ...records,
     weeksPlayed: weeks.size,
   };

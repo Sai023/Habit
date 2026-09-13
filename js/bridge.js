@@ -120,6 +120,10 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
         focusSettings: !!info.focusSettings,
         manualSync: !!info.manualSync,
         healthApp: typeof info.healthApp === "string" ? info.healthApp : "",
+        // Running with nobody watching: the shell loaded this page in the background to read a
+        // fresh summary. Nothing that needs a person — a celebration, an update prompt — may
+        // happen, and nothing may be marked as seen.
+        headless: !!info.headless,
         native: true,
       };
       onReady(info.setup || null);
