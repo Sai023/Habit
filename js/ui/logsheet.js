@@ -32,8 +32,10 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { logValue, clearManual } from "../store.js";
 import {
-  valueForPeriod, targetFor, periodKey, periodEnd, manualOn, sourceFor,
+  valueForPeriod, targetFor, periodKey, periodEnd, manualOn, sourceFor, keptByHandAllWeek,
+  addDays, isoDayOfWeek,
 } from "../habits.js";
+import * as fmt from "./format.js";
 import { AGGREGATE, AT_MOST, AUTOMATIC_SOURCES, METRIC, PERIOD, SOURCE } from "../schema.js";
 
 const CADENCE = { [PERIOD.DAY]: "today", [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
@@ -65,31 +67,60 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   const isSum = habit.aggregate === AGGREGATE.SUM;
   const scale = SCALE[habit.metric];
   const unit = scale ? scale.unit : (UNIT[habit.metric] || "");
-  const key = periodKey(today, habit.period);
-  const current = valueForPeriod(state, habit, me, key);
-  const target = targetFor(state, habit, me, periodEnd(key, habit.period));
-
-  // Adding starts at one thing; setting starts from where you already are, so a small correction
-  // is a small edit rather than a retype.
-  let amount = isSum ? 1 : (current == null ? "" : (scale ? scale.to(current) : current));
-  let busy = false;
-  let error = "";
-
-  // A ceiling with nothing against it yet. "None" is the whole of what most people want to say
-  // here, and it is the one thing the sheet used to throw away.
-  //
-  // Only while nothing is logged. Once there is a number, "none" would mean undoing it, which is
-  // the separate action below — and offering both at once would be two buttons for one thought.
-  const canDeclareNone = habit.direction === AT_MOST && current == null;
-
-  // What you typed for TODAY, if anything, and what the day would say without it.
-  //
-  // Today rather than the period, because today is the only day this sheet can write to, and an
-  // undo that reached further than the thing it undoes is not an undo.
-  const typed = manualOn(state, habit, me, today);
   const src = sourceFor(state, habit, me);
   const automatic = AUTOMATIC_SOURCES.has(src);
   const underneath = UNDERNEATH[src] || "the sensor";
+
+  // ---- The day this sheet writes to ----
+  //
+  // Today, always — with one quiet exception. A steps habit kept by hand (no watch) can be
+  // entered for an earlier day of the same week, because a person without a sensor has only the
+  // evening they remember, and a missed evening was a missed day for good. The engine allows
+  // exactly that and nothing wider (see withinBackfill in habits.js); this sheet offers it only
+  // where it applies, and only to somebody who holds the habit's name for a moment. It is not
+  // advertised: the door exists for the person it was cut for, and a control that said "earlier
+  // days" would be read as an invitation by everybody else.
+  const allWeek = keptByHandAllWeek(state, habit, me);
+  let day = today;
+  let pickingDay = false;
+
+  let amount;
+  let busy = false;
+  let error = "";
+  let current, target, typed, canDeclareNone;
+
+  /** Everything the sheet says depends on which day it is about. */
+  function aim(d) {
+    day = d;
+    const key = periodKey(day, habit.period);
+    current = valueForPeriod(state, habit, me, key);
+    target = targetFor(state, habit, me, periodEnd(key, habit.period));
+    // Adding starts at one thing; setting starts from where you already are, so a small
+    // correction is a small edit rather than a retype.
+    amount = isSum ? 1 : (current == null ? "" : (scale ? scale.to(current) : current));
+    // A ceiling with nothing against it yet. "None" is the whole of what most people want to say
+    // here, and it is the one thing the sheet used to throw away. Only while nothing is logged:
+    // once there is a number, "none" would mean undoing it, which is the separate action below.
+    canDeclareNone = habit.direction === AT_MOST && current == null;
+    // What you typed for THIS day, if anything, and what the day would say without it.
+    typed = manualOn(state, habit, me, day);
+  }
+  aim(today);
+
+  /** "today", or the day's own name once it is not today. */
+  const when = () => (day === today ? (CADENCE[habit.period] || "today") : "on " + fmt.dayLabel(day).split(",")[0]);
+
+  // The days of this week up to today, for the picker.
+  const weekDays = [];
+  if (allWeek) {
+    for (let d = addDays(today, -(isoDayOfWeek(today) - 1)); d <= today; d = addDays(d, 1)) weekDays.push(d);
+  }
+  let holdTimer = null;
+  const holdStart = () => {
+    if (!allWeek || weekDays.length < 2) return;
+    holdTimer = setTimeout(() => { pickingDay = true; paint(); }, 600);
+  };
+  const holdEnd = () => { clearTimeout(holdTimer); holdTimer = null; };
 
   const sheet = openSheet(host);
   paint();
@@ -105,14 +136,27 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     sheet.paint(
       el("div.sheet-head",
         el("span.card-icon", habit.icon || "◆"),
-        el("span.sheet-title", habit.name || "Habit"),
+        el("span.sheet-title", {
+          // Held, not tapped. See the note by `allWeek`.
+          onpointerdown: holdStart, onpointerup: holdEnd, onpointerleave: holdEnd, onpointercancel: holdEnd,
+          oncontextmenu: (e) => { if (allWeek) e.preventDefault(); },
+        }, habit.name || "Habit"),
       ),
+
+      // The days of the week, once asked for. Today is last and lit; earlier days are the ones
+      // this exists for. Choosing one re-aims the whole sheet at it.
+      pickingDay
+        ? el("div.log-days", weekDays.map((d) => el("button.log-day" + (d === day ? ".is-on" : ""), {
+            onclick: () => { aim(d); paint(); },
+            "aria-pressed": d === day ? "true" : "false",
+          }, d === today ? "Today" : fmt.dayLabel(d).split(",")[0])))
+        : null,
 
       el("p.sheet-now",
         current == null
-          ? "Nothing logged " + (CADENCE[habit.period] || "today") + " yet."
+          ? "Nothing logged " + when() + " yet."
           : (scale ? scale.to(current) : current) + " " + unit + " "
-            + (CADENCE[habit.period] || "today") + " · "
+            + when() + " · "
             + (habit.direction === AT_MOST ? "limit " : "goal ")
             + (scale ? scale.to(target) : target),
       ),
@@ -134,7 +178,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
 
       canDeclareNone
         ? el("button.tap.tap-quiet", { onclick: () => save(0), disabled: busy },
-            "None " + (CADENCE[habit.period] || "today"))
+            "None " + when())
         : null,
 
       // Take back what you typed.
@@ -150,7 +194,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
       typed != null
         ? el("button.link.danger",
             { onclick: () => undo(), disabled: busy },
-            "Remove the " + (scale ? scale.to(typed) : typed) + " you entered today")
+            "Remove the " + (scale ? scale.to(typed) : typed) + " you entered " + when())
         : null,
       // What the day will say afterwards, before it says it.
       //
@@ -162,7 +206,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
       typed != null
         ? el("p.note-inline", automatic
             ? "The day goes back to whatever " + underneath + " reported."
-            : "That leaves nothing logged for today, which counts as a miss until you enter "
+            : "That leaves nothing logged " + when() + ", which counts as a miss until you enter "
               + "something.")
         : null,
 
@@ -171,7 +215,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
       el("div.sheet-actions",
         el("button.ghost", { onclick: () => sheet.close() }, "Cancel"),
         el("button.tap", { onclick: () => save(), disabled: busy },
-          busy ? "Saving…" : isSum ? "Add it" : "Save"),
+          busy ? "Saving…" : isSum ? "Add it" : day === today ? "Save" : "Save for " + fmt.dayLabel(day).split(",")[0]),
       ),
     );
   }
@@ -195,7 +239,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     if (busy) return;
     busy = true; error = ""; paint();
     try {
-      await clearManual(habit.habitId, today);
+      await clearManual(habit.habitId, day);
       sheet.close();
       onSaved();
     } catch (err) {
@@ -215,9 +259,10 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
 
     busy = true; error = ""; paint();
     try {
-      // Always against TODAY. For a weekly or monthly habit the period is derived from the day, so
-      // this lands in the right week or month without the sheet having to know which.
-      await logValue(habit.habitId, today, scale ? scale.from(n) : Math.round(n), "manual");
+      // Against the day the sheet is aimed at — today, unless the week picker above was used. For
+      // a weekly or monthly habit the period is derived from the day, so this lands in the right
+      // week or month without the sheet having to know which.
+      await logValue(habit.habitId, day, scale ? scale.from(n) : Math.round(n), "manual");
       sheet.close();
       onSaved();
     } catch (err) {

@@ -2098,3 +2098,13 @@ button.card-open:active { transform: scale(0.99); }
 .lv-fact-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .lv-fact-t { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
 .lv-fact-x { font-size: var(--fs-small); color: var(--text); line-height: 1.45; overflow-wrap: anywhere; }
+
+/* The week, for the one sheet that can write to earlier days of it. Plain chips; the row is the
+   whole affordance and it only appears once asked for. */
+.log-days { display: flex; flex-wrap: wrap; gap: 6px; }
+.log-day {
+  padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--dim); font: inherit; font-size: var(--fs-small); font-weight: 600; cursor: pointer;
+}
+.log-day.is-on { color: var(--teal); border-color: var(--teal); }
+.sheet-title { user-select: none; -webkit-user-select: none; }

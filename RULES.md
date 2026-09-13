@@ -67,6 +67,7 @@ on the wrong one.
 | A weekly goal is read at the START of its week, so a mid-week change lands on Monday | `js/habits.js` — `targetFor` (`goalDay`) | `test/edits.test.mjs` |
 | A goal set but not yet counting is announced with the day it lands | `js/edits.js` — `pendingGoal` | `test/edits.test.mjs` |
 | A log more than 2 days late is refused | `js/schema.js` — `MAX_BACKFILL_DAYS` | `test/retro.test.mjs` |
+| …except steps kept by hand, which may be entered for an earlier day of the same week — never across a Monday, never over a sensor | `js/habits.js` — `withinBackfill`, `keptByHandAllWeek` | `test/retro.test.mjs` |
 | Travel cannot be backdated at all — zero days, not two | `js/habits.js` — `T.EXEMPT` replay | `test/travel.test.mjs` |
 | Ending travel may only bring the last day forward | `js/habits.js` — `T.EXEMPT` replay | `test/travel.test.mjs` |
 | Nothing done today may re-score a finished week | `js/score.js` | `test/retroactive.test.mjs` |

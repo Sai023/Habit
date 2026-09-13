@@ -170,6 +170,50 @@ test("renaming a habit does not shift when its target started", () => {
 // Excusing the week after the fact
 // ===========================================================================
 
+// ---------------------------------------------------------------------------
+// The one exception to the two-day rule: steps kept by hand, within the week
+// ---------------------------------------------------------------------------
+//
+// A watch backfills a week on its own when it reconnects; a person without one has only the
+// evening they remember. So a steps habit somebody keeps BY HAND may be entered for an earlier
+// day of the same week — and nothing wider. Every edge of that scope is pinned here, because the
+// rule it carves an exception into is the one that keeps the board honest.
+
+/** Steps by hand, nothing logged, then one late entry authored on day `authored` for day `for`. */
+function lateSteps(forDay, authored, extra = {}) {
+  const src = extra.bound || SOURCE.MANUAL;
+  const habit = { ...HABIT, metric: extra.metric || METRIC.STEPS, period: extra.period || PERIOD.DAY, source: src };
+  return replay([
+    E(ev.member("m1", "Me"), at(0)),
+    E(ev.habit("h", habit), at(0)),
+    E(ev.bind("m1", "h", src), at(0)),
+    E(ev.log("h", "m1", day(forDay), 12000, extra.logSource || SOURCE.MANUAL), at(authored)),
+  ]);
+}
+const logged = (s, n) => s.logs.get("h|m1|" + day(n)) != null;
+
+test("steps kept by hand can be entered for an earlier day of the same week", () => {
+  // Monday's steps, typed on Friday. Four days late — past the two-day rule — same week.
+  assert.equal(logged(lateSteps(0, 4), 0), true);
+  assert.equal(statusOn(lateSteps(0, 4), 0), HIT);
+});
+
+test("but never across a Monday — the finished week stays finished", () => {
+  // Saturday's steps, typed the next Wednesday: a different week, and four days late.
+  assert.equal(logged(lateSteps(5, 9), 5), false);
+  // The two-day rule still covers the weekend from Monday and Tuesday, as it always did.
+  assert.equal(logged(lateSteps(6, 8), 6), true, "Sunday from Tuesday is two days, allowed as before");
+});
+
+test("only steps, only by hand, only typed — a watch keeps its two days", () => {
+  // Bound to a watch: a typed override is still limited to two days.
+  assert.equal(logged(lateSteps(0, 4, { bound: SOURCE.HEALTH_CONNECT }), 0), false);
+  // Bound by hand but the row claims a sensor wrote it: not the exception either.
+  assert.equal(logged(lateSteps(0, 4, { logSource: SOURCE.HEALTH_CONNECT }), 0), false);
+  // A different metric kept by hand — puffs — gets no such door.
+  assert.equal(logged(lateSteps(0, 4, { metric: METRIC.PUFFS }), 0), false);
+});
+
 test("a week cannot be marked as travel once it is over", () => {
   // The cleanest cheat of all: no numbers to argue with, just a range of days declared away. It
   // gets the same window a log gets, and for the same reason.

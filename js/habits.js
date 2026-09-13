@@ -24,7 +24,7 @@
 // exactly the person the leaderboard would otherwise punish.
 
 import {
-  T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY, AGGREGATE, SOURCE,
+  T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY, AGGREGATE, SOURCE, METRIC,
   HEALTH_METRICS, PAUSE_METRICS, isInterventionHabit,
   PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
   LEGACY_METRIC, LEGACY_NAME,
@@ -320,6 +320,42 @@ const logKey = (habitId, memberId, day) => habitId + "|" + memberId + "|" + day;
  * versions are SKIPPED, never thrown on: three sideloaded phones will not all update on the same
  * day, and an old build must degrade quietly rather than corrupt a shared log.
  */
+/**
+ * Is a log authored on `authoredDay` allowed to describe `p.day`?
+ *
+ * The two-day rule, and the one exception to it. The rule: a log more than MAX_BACKFILL_DAYS
+ * after its day is ignored, so last week's crown is not winnable on Tuesday. The exception: a
+ * steps habit somebody keeps BY HAND may be written for any earlier day of the same week. A
+ * watch backfills a week on its own when it reconnects; a person without one has only the
+ * evening they remember to type it, and a missed evening was a missed day for good — which is
+ * a penalty for not owning a watch, not for not walking.
+ *
+ * Tightly scoped, on purpose: steps only, only where the person's OWN binding is manual (an
+ * override typed over a watch keeps the two days), only logs that say they were typed, and never
+ * across a Monday — the finished week stays finished. See keptByHandAllWeek for the UI's half.
+ */
+function withinBackfill(habit, bindings, p, authoredDay) {
+  if (daysBetween(p.day, authoredDay) <= MAX_BACKFILL_DAYS) return true;
+  if (!habit || p.day > authoredDay) return false;
+  const bound = bindings.get(p.memberId + "|" + habit.habitId) || habit.source;
+  return habit.metric === METRIC.STEPS
+    && (habit.period || PERIOD.DAY) === PERIOD.DAY
+    && bound === SOURCE.MANUAL
+    && (p.source || SOURCE.MANUAL) === SOURCE.MANUAL
+    && isoWeekKey(p.day) === isoWeekKey(authoredDay);
+}
+
+/**
+ * The UI's half of the same rule: may this person enter this habit for earlier days of the week?
+ * True only for a steps habit they keep by hand. Everything else is today, and two days for the
+ * sensors that arrive late.
+ */
+export function keptByHandAllWeek(state, habit, memberId) {
+  return habit.metric === METRIC.STEPS
+    && (habit.period || PERIOD.DAY) === PERIOD.DAY
+    && sourceFor(state, habit, memberId) === SOURCE.MANUAL;
+}
+
 export function replay(events) {
   const habits = new Map();
   const members = new Map();
@@ -427,7 +463,7 @@ export function replay(events) {
         // rewritten — otherwise last week's crown is winnable on Tuesday. It keys off when the
         // OBSERVATION was made, not when it synced, so a week offline still backfills correctly.
         const authoredDay = dayKey(authoredAt(e), tz, startHour);
-        if (daysBetween(p.day, authoredDay) > MAX_BACKFILL_DAYS) break;
+        if (!withinBackfill(h, bindings, p, authoredDay)) break;
 
         const k = logKey(p.habitId, p.memberId, p.day);
         if (!logs.has(k)) logs.set(k, []);
@@ -457,7 +493,8 @@ export function replay(events) {
         const tz = (h && h.tz) || HABIT_DEFAULTS.tz;
         const startHour = h ? h.dayStartHour : HABIT_DEFAULTS.dayStartHour;
         const authoredDay = dayKey(authoredAt(e), tz, startHour);
-        if (daysBetween(p.day, authoredDay) > MAX_BACKFILL_DAYS) break;
+        // The same window as the log it withdraws, or a backfilled entry could not be taken back.
+        if (!withinBackfill(h, bindings, p, authoredDay)) break;
 
         const k = logKey(p.habitId, p.memberId, p.day);
         const list = logs.get(k);

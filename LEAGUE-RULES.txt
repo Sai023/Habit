@@ -466,6 +466,14 @@ same events to the same state.
   A log more than 2 days late is refused. Last week's crown is not
   winnable on Tuesday.
 
+  One exception, cut narrow: a STEPS habit kept BY HAND (bound to manual,
+  no watch) may be entered for an earlier day of the SAME week. A watch
+  backfills a week on its own when it reconnects; a person without one has
+  only the evening they remember. Never across a Monday, never for a habit
+  fed by a sensor, never for any other metric. On the entry sheet, hold the
+  habit's name for a moment and the week's days appear. It is not
+  advertised anywhere else.
+
   Travel cannot be backdated at all.
 
   A target change counts from tomorrow. Lowering the number tonight does
