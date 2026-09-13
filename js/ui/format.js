@@ -169,6 +169,12 @@ export function seasonNext(p) {
   if (!p.next) return null;
   const name = p.next.index ? "Season " + p.next.index : "The next season";
   if (p.next.every) {
+    // The run-in is not a month, and calling it one is exactly the kind of thing that reads as
+    // a bug on the morning it starts.
+    if (p.next.short && p.next.to) {
+      return name + " starts " + dayLabel(p.next.from) + " on its own — a short one, to "
+        + dayLabel(p.next.to) + "; then a month, every month from the " + ordinal(p.next.every) + ".";
+    }
     return name + " starts " + dayLabel(p.next.from) + " on its own — a month, every month from the "
       + ordinal(p.next.every) + ".";
   }

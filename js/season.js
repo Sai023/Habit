@@ -292,7 +292,7 @@ export function seasonProgress(state, today) {
     short: !!(w && w.short),
     // The one booked, so the strip can say when — and, under a schedule, that it will happen on
     // its own.
-    next: next ? { from: next.from, to: next.to, index: next.index, every: next.every } : null,
+    next: next ? { from: next.from, to: next.to, index: next.index, every: next.every, short: next.short } : null,
   };
 
   if (!end) return { ...base, daysLeft: null, ended: false, pct: null, days: null };
