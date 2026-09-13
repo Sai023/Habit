@@ -21,6 +21,8 @@ import { awards } from "../awards.js";
 import { neverMissed } from "../history.js";
 import { programFor, planFor } from "../workout.js";
 import { pendingGoal } from "../edits.js";
+import { lifetime } from "../levels.js";
+import { levelMark } from "./levelmark.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
   isInterventionHabit,
@@ -75,7 +77,12 @@ function header(ctx) {
   const queued = ctx.sync?.queued || 0;
   return el("header.hdr",
     el("div",
-      el("div.hdr-title", ctx.state.meta?.name || "Goal Buddy"),
+      el("div.hdr-title",
+        ctx.state.meta?.name || "Goal Buddy",
+        // Your level, beside the group's name: the two things this screen is about, in one line.
+        // The ring is the bar; tapping it explains. See levels.js for what it is and is not.
+        ctx.onLevel ? levelChip(ctx) : null,
+      ),
       el("div.hdr-sub", fmt.dayLabel(ctx.today), ctx.demo ? " · demo data" : ""),
     ),
     el("div.hdr-actions",
@@ -378,6 +385,25 @@ function habitCard(habit, ctx, price) {
     // and offers nothing, and "Tennis" is a rest day the program names on purpose.
     habit.metric === METRIC.SESSIONS ? workoutEntry(ctx) : null,
   );
+}
+
+/** The header's level chip: the ring, "Lv 7", the title. Tap for the sheet. */
+function levelChip(ctx) {
+  const life = lifetime(ctx.state, ctx.me, ctx.today);
+  return el("button.lvl-chip", {
+    onclick: () => ctx.onLevel(),
+    title: life.title + " · " + life.banked.toLocaleString() + " " + fmt.XP + " lifetime",
+    "aria-label": "Level " + life.level + ", " + life.title,
+  },
+    levelMark(life, 20, { tip: life.span ? (life.today / life.span) * 100 : 0 }),
+    el("span.lvl-chip-t", "Lv " + life.level),
+  );
+}
+
+/** A board row's level: a small ring with the number. */
+function rowLevel(ctx, memberId) {
+  const life = lifetime(ctx.state, memberId, ctx.today);
+  return el("span.lvl-row", { title: "Level " + life.level + " · " + life.title }, levelMark(life, 18));
 }
 
 /** "Goal → 3 from Mon, Sep 14", or nothing. */
@@ -1264,6 +1290,9 @@ function boardRow(row, ctx, unbroken) {
         // Beside the name rather than in the meta line below it. A badge is about the person, and
         // it is the one thing on this row worth seeing before the percentage.
         tierBadge(onGoalStreak(ctx.state, row.memberId, ctx.today)),
+        // And the level, as a ring so it cannot be read as a second medal. Flavour, not rank: the
+        // row is still ordered on the week's XP, and a later joiner's lower level costs nothing.
+        rowLevel(ctx, row.memberId),
       ),
       // The bar is the share of the points available SO FAR this week that this person has taken.
       // A day is worth 100, so by Friday there have been 500 on offer; 425 of them is 85%. A day

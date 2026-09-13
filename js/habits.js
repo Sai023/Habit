@@ -376,7 +376,17 @@ export function replay(events) {
         // tally and summary is driven by the member list, so removing the row is enough and
         // rewriting history would be the more dangerous half of the same job.
         if (p.removed) members.delete(p.memberId);
-        else members.set(p.memberId, { memberId: p.memberId, name: p.name || p.memberId });
+        else {
+          // The day they joined, kept from the FIRST member line: a rename later must not move
+          // it. Lifetime XP counts from here — see levels.js.
+          const prev = members.get(p.memberId);
+          const tz = (meta && meta.tz) || HABIT_DEFAULTS.tz;
+          members.set(p.memberId, {
+            memberId: p.memberId,
+            name: p.name || p.memberId,
+            since: prev && prev.since ? prev.since : dayKey(authoredAt(e), tz, HABIT_DEFAULTS.dayStartHour),
+          });
+        }
         break;
 
       case T.HABIT_DEF: {

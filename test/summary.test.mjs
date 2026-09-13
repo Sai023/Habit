@@ -312,6 +312,42 @@ test("a goal set but not yet counting is in the caption, with the day it starts"
 });
 
 // ---------------------------------------------------------------------------
+// Lifetime — the level, for the Insights header
+// ---------------------------------------------------------------------------
+
+test("the level crosses with the sentence the header states and the two numbers the bar draws", () => {
+  // Three perfect closed days (300 = Level 2 on the nose) and a half day so far.
+  const perfect = (n) => [
+    E(ev.log("steps", "m1", day(n), 11000, SOURCE.HEALTH_CONNECT), at(n)),
+    E(ev.log("sleep", "m1", day(n), 480, SOURCE.HEALTH_CONNECT), at(n)),
+    E(ev.log("puffs", "m1", day(n), 0, SOURCE.MANUAL), at(n)),
+  ];
+  const s = buildSummary(world([...perfect(0), ...perfect(1), ...perfect(2),
+    E(ev.log("steps", "m1", day(3), 5000, SOURCE.HEALTH_CONNECT), at(3)),
+  ]), "m1", day(3), ["m1", "m2"]);
+  const l = s.lifetime;
+  assert.equal(l.name, "Me");
+  assert.equal(l.level, 2);
+  assert.equal(l.title, "Starter");
+  // 100 a day plus 10 bonus for the steps beaten: base + bonus is one number here, by decision.
+  assert.equal(l.xp, 330, "banked: closed days only, bonus included");
+  assert.ok(l.today > 0 && l.today < 100, "today rides along, unbanked: " + l.today);
+  assert.equal(l.need, 295, "what the header states: 625 − 330");
+  assert.equal(l.pct, 9, "what the bar draws: 30 of 325");
+  assert.equal(l.days, 3);
+  assert.equal(l.since, day(0));
+  assert.match(l.sinceLabel, /^Mon/);
+  assert.equal(l.max, 100);
+});
+
+test("a brand-new member is Level 1 with nothing banked, not a missing block", () => {
+  const s = buildSummary(world(), "m1", day(0), ["m1", "m2"]);
+  assert.equal(s.lifetime.level, 1);
+  assert.equal(s.lifetime.xp, 0);
+  assert.equal(s.lifetime.need, 300);
+});
+
+// ---------------------------------------------------------------------------
 // Training — the workout record, for the native Insights tab
 // ---------------------------------------------------------------------------
 

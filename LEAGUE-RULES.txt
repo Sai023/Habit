@@ -24,7 +24,8 @@ CONTENTS
  10. Days that do not count
  11. What the log will not let you do
  12. Personal workout programs
- 13. Things shown but never scored
+ 13. Levels — lifetime XP
+ 14. Things shown but never scored
 
 
 1. THE DAY
@@ -566,7 +567,45 @@ A workout more than 2 days late is refused, like a log.
               programs.js, workout.js, workoutsheet.js, store.js, summary.js
 
 
-13. THINGS SHOWN BUT NEVER SCORED
+13. LEVELS — LIFETIME XP
+------------------------
+
+Every day you play adds its XP to a lifetime total: the same 0–100 the
+board scores for the day, plus what beating your goals earned, as one
+number. Every day since you joined, across every season. Nothing new is
+invented and nothing new can be gamed — a day is still worth at most 115,
+and an unreported day still adds nothing.
+
+IT ONLY GOES UP. A bad week costs nothing already earned. A level once
+reached is never lost.
+
+DAYS BANK WHEN THEY CLOSE. Today's XP can still fall (a ceiling habit can
+turn a hit into a miss at eleven at night), so today is drawn as a faint tip
+on the bar and is not in the level until midnight. A level reached at six
+and lost by eleven cannot happen.
+
+THE CURVE. Each level asks 25 XP more than the one before, starting at 300:
+Level 2 at 300, Level 3 at 625, Level 10 at 3,600, Level 20 at 9,975, Level
+50 at 44,100, Level 100 — the last — at 150,975. At 85 a day that is Level 2
+on day three, 10 in six weeks, 20 in four months, 50 in a year and a half,
+100 in about five years. Late levels are nine times rarer than early ones.
+
+TITLES, one per ten levels: Starter · Regular (10) · Steady (20) · Solid
+(30) · Committed (40) · Relentless (50) · Veteran (60) · Iron (70) ·
+Unbroken (80) · Master (90) · Legend (100).
+
+RECOGNITION, NOT POWER. Levels unlock nothing in the scoring and there is
+no lifetime leaderboard — somebody who joined a year later would never
+catch up, and the league lives on the week and the season. The level shows
+as a ring (never a medal: medals are streaks) beside your name on the web
+header, on every board row, and on the Insights header with the bar and
+the sentence "1,100 XP to Level 8". Reaching a level opens a one-time
+screen the next morning.
+
+                                          levels.js, levelsheet.js, summary.js
+
+
+14. THINGS SHOWN BUT NEVER SCORED
 ---------------------------------
 
   Calories burned     a card, a streak, a history screen, and a line under

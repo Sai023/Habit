@@ -114,6 +114,18 @@ on the wrong one.
 | Sets banked in an unfinished session survive until Finish, and both screens say so | `js/ui/workoutdraft.js` | — (UI; verified by hand) |
 | Rope intervals step up by the week of the program, counted from its start day | `js/workout.js` — `intervalsFor`, `progressionWeek` | `test/workout.test.mjs` |
 
+## Levels
+
+| Rule | Owned by | Enforced by |
+|---|---|---|
+| Lifetime XP is every closed day's score plus bonus, since the day you joined | `js/levels.js` — `lifetime` | `test/levels.test.mjs` |
+| Today is shown but not banked; a level cannot be reached and lost in one day | `js/levels.js` — `lifetime` (`today`, `levelUpToday`) | `test/levels.test.mjs` |
+| Each level asks 25 more than the last, from 300; Level 100 is the top | `js/levels.js` — `gapTo`, `thresholdFor`, `LEVEL_MAX` | `test/levels.test.mjs` |
+| A level begins ON its threshold | `js/levels.js` — `levelFor` | `test/levels.test.mjs` |
+| The join day is on the member and a rename does not move it | `js/habits.js` — `T.MEMBER` replay (`since`) | `test/levels.test.mjs` |
+| A level-up is celebrated once, and never on the first sight of a level | `js/ui/levelsheet.js` — `levelUpDue` | — (UI; verified by hand) |
+| Levels rank nobody; the board still orders on the week | `js/ui/dashboard.js` — `rowLevel` | `test/habits.test.mjs` (ranking) |
+
 ## The log itself
 
 | Rule | Owned by | Enforced by |
@@ -161,6 +173,7 @@ only. These are the tests to add to when either side gains a field.
 | The summary the shell draws from carries everything it reads | `js/summary.js` | `test/summary.test.mjs` |
 | The training record crosses already worded — "12 reps", "Tue, Sep 8" — never as a value and a unit | `js/summary.js` — `trainingSummary` | `test/summary.test.mjs`, `.../HabitSummaryTrainingTest.kt` |
 | The week crosses as XP with the bonus beside it; an older summary falls back to the average | `js/summary.js` — `board` | `test/summary.test.mjs`, `.../HabitSummaryBonusTest.kt` |
+| The level crosses as the sentence and the two bar numbers; the shell never learns the curve | `js/summary.js` — `lifetimeSummary` | `test/summary.test.mjs`, `.../HabitSummaryLifetimeTest.kt` |
 | What the sync read is repeated back in lines a person can read | `habit/HabitSyncWorker.kt` — `syncReport`, `readValue` | `.../SyncReportTest.kt` |
 | A row from the shell survives the web engine unchanged | `js/ingest.js` | `test/wire.test.mjs` |
 | A setup code means the same thing in both languages | `js/setup-code.js` | `test/setup-code.test.mjs`, `.../SetupCodeTest.kt` |

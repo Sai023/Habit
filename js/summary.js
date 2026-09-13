@@ -24,12 +24,13 @@ import { noticesFor } from "./notices.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
 import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
 import { pendingGoal } from "./edits.js";
+import { lifetime, LEVEL_MAX } from "./levels.js";
 import * as fmt from "./ui/format.js";
 
-// 3 adds the bonus fields. 4 adds `training`. Additive only: an older shell ignores what it does
-// not know, and a newer one reads a missing field as nothing, so three phones on three builds all
-// stay readable.
-export const SUMMARY_VERSION = 4;
+// 3 adds the bonus fields. 4 adds `training`. 5 adds `lifetime`. Additive only: an older shell
+// ignores what it does not know, and a newer one reads a missing field as nothing, so three phones
+// on three builds all stay readable.
+export const SUMMARY_VERSION = 5;
 
 /** How many days of history the shell gets. A week is what its screens actually draw. */
 const WINDOW_DAYS = 7;
@@ -185,6 +186,8 @@ export function buildSummary(state, me, today, memberIds = null) {
     // What the workout log says about the person, for the native Insights tab. Null with no
     // program chosen; see trainingSummary() for what is in it and what is deliberately not.
     training: trainingSummary(state, me, today),
+    // Lifetime XP and the level it has reached, for the Insights header. See levels.js.
+    lifetime: lifetimeSummary(state, me, today),
     board: mine
       ? {
           rank: mine.rank,
@@ -205,6 +208,34 @@ export function buildSummary(state, me, today, memberIds = null) {
           days: mine.scoredDays || 0,
         }
       : null,
+  };
+}
+
+/**
+ * The level, spoken for the shell: who, how far, and the sentence the bar needs.
+ *
+ * `need` is what the header states — "1,100 XP to Level 8" — and `pct` is what the bar draws;
+ * `today` is what the faint tip adds. The shell never learns the curve.
+ */
+function lifetimeSummary(state, me, today) {
+  const life = lifetime(state, me, today);
+  const member = state.members.get(me);
+  return {
+    name: (member && member.name) || "",
+    level: life.level,
+    title: life.title,
+    max: LEVEL_MAX,
+    xp: life.banked,
+    today: life.today,
+    pct: life.pct,
+    need: life.need,
+    next: life.next,
+    // The level's width in XP, so a shell can draw today as a share of it without the curve.
+    span: life.span,
+    levelUpToday: life.levelUpToday,
+    days: life.days,
+    since: life.since,
+    sinceLabel: life.since ? fmt.dayLabel(life.since) : null,
   };
 }
 

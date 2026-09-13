@@ -66,7 +66,7 @@ function paint() {
     ...ctx, ...ui, now: Date.now(), embedded: caps().embedded,
     focusSettings: caps().focusSettings,
     manualSync: caps().manualSync,
-    onScoring, onWorkout, onChooseProgram,
+    onScoring, onWorkout, onChooseProgram, onLevel,
     syncing: ui.syncing,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onNewSeason, onSeasons, onHabitDetail,
     onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
@@ -248,6 +248,30 @@ const onScoring = guard("scoring", async () => {
     state: ctx.state, me: ctx.me, today: ctx.today, onDone: () => {},
   });
 });
+
+/** Your level: where you stand, what the next one asks, and the titles. */
+const onLevel = guard("level", async () => {
+  const { openLevelSheet } = await import("./ui/levelsheet.js");
+  openLevelSheet(document.body, { state: ctx.state, me: ctx.me, today: ctx.today, onDone: () => {} });
+});
+
+/**
+ * A level reached overnight is celebrated on the first paint that sees it — once, and never over
+ * another sheet, which would be a fanfare behind a form.
+ */
+async function celebrateLevelUp() {
+  if (!ctx || ctx.demo || onboarding || document.querySelector(".sheet-layer")) return;
+  try {
+    const [{ lifetime }, { levelUpDue, openLevelSheet }] = await Promise.all([
+      import("./levels.js"), import("./ui/levelsheet.js"),
+    ]);
+    const life = lifetime(ctx.state, ctx.me, ctx.today);
+    if (!levelUpDue(ctx.me, life.level)) return;
+    openLevelSheet(document.body, { state: ctx.state, me: ctx.me, today: ctx.today, celebrate: true, onDone: () => {} });
+  } catch (err) {
+    console.warn("[level]", err);
+  }
+}
 
 /** Take a duplicate identity off the board. Confirmed by the sheet that offers it. */
 const onRemoveMember = guard("member", async (memberId) => {
@@ -564,6 +588,7 @@ async function refresh() {
   clock.schedule();
   tellShell(state, memberId, code);
   tellShellSummary(state, memberId);
+  celebrateLevelUp();
 }
 
 let lastSummary = "";
