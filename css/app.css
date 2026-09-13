@@ -1983,7 +1983,13 @@ button.card-open:active { transform: scale(0.99); }
    kept; this is one colour, one circle, and means how far you have come. The arc is the progress
    to the next level, the faint arc after it is today, not yet banked. */
 .lvl { display: block; flex: none; }
-.lvl .lvl-track { fill: none; stroke: var(--surface-hi); stroke-width: 10; }
+/* The unfilled part of the ring, in the ring's own colour at low opacity rather than a surface
+   tone. On a card or a sheet the surface tone vanished into the ground, so a level just reached
+   drew as a stray arc with no circle to complete — and beside a friend's three-quarter ring it
+   read as nothing rather than as "just started". Lighter than the tip (0.35), so what today
+   would add still reads as more than what is not there yet. */
+.lvl .lvl-track { fill: none; stroke: var(--teal); stroke-opacity: 0.16; stroke-width: 10; }
+.lvl.is-max .lvl-track { stroke: var(--amber); }
 .lvl .lvl-arc { fill: none; stroke: var(--teal); stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray 600ms ease-out; }
 .lvl .lvl-tip { fill: none; stroke: var(--teal); stroke-opacity: 0.35; stroke-width: 10; stroke-linecap: round; }
 .lvl .lvl-n { fill: var(--text); font-weight: 800; font-family: inherit; }
