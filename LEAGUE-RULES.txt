@@ -201,8 +201,16 @@ shows on Today and keeps a streak, but moves nobody's score (section 12).
      Zero is a real entry. "None today" logs a zero, and a logged zero is a
      HIT; nothing logged is a MISS. They are different days.
 
-     Because the score is SUM, you can only ever add. A mistyped 30 cannot be
-     corrected downward by logging — take it back (section 11) and re-enter.
+     THE COUNTER. A vape's puff counter never resets, so the entry screen asks
+     what the counter says and works the day out: 1,002 last night, 1,104
+     tonight, 102 puffs today. The day's puffs are what is scored; the
+     reading is kept on the entry so tomorrow can be worked out from it. A
+     night skipped spreads the difference evenly over the days since (each
+     day judged on its own share); a reading below the last one is a new
+     device and counts from zero; saving a reading again the same day
+     replaces that day's puffs rather than adding to them. "None today"
+     carries the reading forward. A vape with no counter can still be
+     entered as puffs directly — the link under the field.
 
      A ceiling you have never used pays its maximum bonus every day, because
      zero is as far under the limit as it goes. That lifts the Discipline

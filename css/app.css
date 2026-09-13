@@ -2159,3 +2159,13 @@ button.card-open:active { transform: scale(0.99); }
 /* On the hub, a class row carries its poster in a column of its own. */
 .wo-session.has-thumb { grid-template-columns: auto minmax(0, 1fr) auto auto; }
 .wo-session-thumb { width: 64px; height: 40px; border-radius: 6px; object-fit: cover; background: #000; }
+
+/* The counter field: one large number, typed, and the arithmetic under it. */
+.meter { display: flex; flex-direction: column; gap: 6px; }
+.meter-input {
+  width: 100%; padding: 12px 14px; border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-display); font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em; text-align: center;
+}
+.meter-input:focus { outline: 2px solid var(--teal); outline-offset: 0; border-color: transparent; }
+.meter-line { color: var(--text); }

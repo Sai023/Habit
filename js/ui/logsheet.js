@@ -30,10 +30,10 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { logValue, clearManual } from "../store.js";
+import { logValue, logMeter, clearManual } from "../store.js";
 import {
   valueForPeriod, targetFor, periodKey, periodEnd, manualOn, sourceFor, keptByHandAllWeek,
-  addDays, isoDayOfWeek,
+  addDays, isoDayOfWeek, lastReading, meterEntry,
 } from "../habits.js";
 import * as fmt from "./format.js";
 import { AGGREGATE, AT_MOST, AUTOMATIC_SOURCES, METRIC, PERIOD, SOURCE } from "../schema.js";
@@ -84,6 +84,17 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   let day = today;
   let pickingDay = false;
 
+  // ---- A counter, not a count ----
+  //
+  // A vape's puff counter never resets, so the sheet asks for what it says and works the day out
+  // from the last reading — see lastReading and meterEntry in habits.js. Somebody whose vape has
+  // no counter can still type the day's puffs: the link under the field switches the sheet back
+  // to a plain count for this entry.
+  const isMeter = habit.metric === METRIC.PUFFS;
+  let meter = isMeter;
+  let reading = "";
+  let last = null;
+
   let amount;
   let busy = false;
   let error = "";
@@ -104,8 +115,24 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     canDeclareNone = habit.direction === AT_MOST && current == null;
     // What you typed for THIS day, if anything, and what the day would say without it.
     typed = manualOn(state, habit, me, day);
+    if (isMeter) {
+      last = lastReading(state, habit, me, addDays(day, 1));
+      // Opens on the last reading, so a night with no puffs is Save with nothing changed, and a
+      // night with some is the new number typed over it.
+      reading = last ? String(last.reading) : "";
+    }
   }
   aim(today);
+
+  /** What the typed reading means, for the line under the field and for the save. */
+  function meterPlan() {
+    if (!meter) return null;
+    if (reading === "" || !Number.isFinite(Number(reading))) return null;
+    // The last reading BEFORE this day: a reading already typed today is being corrected, and
+    // must not be subtracted from itself.
+    const before = lastReading(state, habit, me, day);
+    return { ...meterEntry(Number(reading), before, day), before };
+  }
 
   /** "today", or the day's own name once it is not today. */
   const when = () => (day === today ? (CADENCE[habit.period] || "today") : "on " + fmt.dayLabel(day).split(",")[0]);
@@ -161,20 +188,26 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
             + (scale ? scale.to(target) : target),
       ),
 
-      el("label.field",
-        el("span.field-label", isSum ? "Add how many?" : "What's the total now?"),
-        el("div.stepper",
-          el("button.step", { onclick: () => bump(-1), "aria-label": "Less" }, "−"),
-          el("input", {
-            type: "number", min: "0", inputmode: "decimal",
-            step: scale ? scale.step : 1,
-            value: amount,
-            oninput: (e) => { amount = e.target.value; },
-          }),
-          el("button.step", { onclick: () => bump(1), "aria-label": "More" }, "+"),
-        ),
-      ),
-      unit ? el("p.note-inline", unit) : null,
+      meter
+        ? meterField()
+        : el("label.field",
+            el("span.field-label", isSum ? "Add how many?" : "What's the total now?"),
+            el("div.stepper",
+              el("button.step", { onclick: () => bump(-1), "aria-label": "Less" }, "−"),
+              el("input", {
+                type: "number", min: "0", inputmode: "decimal",
+                step: scale ? scale.step : 1,
+                value: amount,
+                oninput: (e) => { amount = e.target.value; },
+              }),
+              el("button.step", { onclick: () => bump(1), "aria-label": "More" }, "+"),
+            ),
+          ),
+      meter ? null : unit ? el("p.note-inline", unit) : null,
+      isMeter
+        ? el("button.link", { onclick: () => { meter = !meter; paint(); } },
+            meter ? "No counter? Enter the puffs directly" : "Enter the counter reading instead")
+        : null,
 
       canDeclareNone
         ? el("button.tap.tap-quiet", { onclick: () => save(0), disabled: busy },
@@ -221,6 +254,44 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   }
 
   /**
+   * The counter field, and the sentence that turns it into a day.
+   *
+   * "1,104 − 1,002 = 102 puffs today" is the whole of what the sheet is for, said before Save so
+   * a mistyped digit is caught while it is still a digit. A reading below the last one is read as
+   * a new device and said so; a gap of days is said too, with the share each day gets.
+   */
+  function meterField() {
+    const plan = meterPlan();
+    const n = (x) => Number(x).toLocaleString();
+    let line;
+    if (!plan) line = last ? "Last reading " + n(last.reading) + " on " + fmt.dayLabel(last.day).split(",")[0] + "." : "The number on the vape's counter.";
+    else if (!plan.before) line = "First reading. Today counts " + n(plan.puffs) + " — the counter so far. Tomorrow's entry works out the difference.";
+    else if (plan.reset) line = "Below the last reading (" + n(plan.before.reading) + ") — a new device. Today counts " + n(plan.puffs) + ".";
+    else if (plan.days === 1) line = n(reading) + " − " + n(plan.before.reading) + " = " + n(plan.puffs) + " puffs " + when() + ".";
+    else line = n(reading) + " − " + n(plan.before.reading) + " = " + n(plan.puffs) + " over " + plan.days + " days since "
+      + fmt.dayLabel(plan.before.day).split(",")[0] + " — about " + n(Math.round(plan.puffs / plan.days)) + " a day, each day given its share.";
+    return el("div.meter",
+      el("label.field",
+        el("span.field-label", "What does the counter say?"),
+        el("input.meter-input", {
+          type: "number", min: "0", inputmode: "numeric", step: 1,
+          value: reading,
+          oninput: (e) => { reading = e.target.value; repaintMeterLine(); },
+        }),
+      ),
+      el("p.note-inline.meter-line", line),
+    );
+  }
+
+  /** The sentence under the field, kept in step with the digits without rebuilding the field. */
+  function repaintMeterLine() {
+    const node = document.querySelector(".meter-line");
+    if (!node) return;
+    const fresh = meterField().querySelector(".meter-line");
+    node.textContent = fresh.textContent;
+  }
+
+  /**
    * @param exact a value chosen by a button rather than typed, so the field is bypassed entirely.
    *              Passed positionally by "None today"; everything else calls save() with nothing.
    *              The wrapping arrow matters — handing `save` straight to onclick would make the
@@ -251,6 +322,23 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
 
   async function save(exact) {
     if (busy) return;
+    // A counter reading: the day's puffs are worked out, not typed, and a gap of days is written
+    // as one entry per day so each is judged on its own.
+    if (meter && exact == null) {
+      const plan = meterPlan();
+      if (!plan) { error = "What does the counter say?"; return paint(); }
+      busy = true; error = ""; paint();
+      try {
+        await logMeter(habit.habitId, plan.perDay, Math.round(Number(reading)));
+        sheet.close();
+        onSaved();
+      } catch (err) {
+        error = "Couldn't save: " + (err && err.message ? err.message : err);
+        busy = false;
+        paint();
+      }
+      return;
+    }
     const n = exact != null ? exact : Number(amount);
     if (!Number.isFinite(n) || n < 0) { error = "Give it a number."; return paint(); }
     // Adding nothing to SOMETHING is just cancelling. Adding nothing to nothing is the day's
@@ -261,8 +349,10 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     try {
       // Against the day the sheet is aimed at — today, unless the week picker above was used. For
       // a weekly or monthly habit the period is derived from the day, so this lands in the right
-      // week or month without the sheet having to know which.
-      await logValue(habit.habitId, day, scale ? scale.from(n) : Math.round(n), "manual");
+      // week or month without the sheet having to know which. "None today" on a counter habit
+      // carries the last reading forward, so tomorrow's difference is still right.
+      await logValue(habit.habitId, day, scale ? scale.from(n) : Math.round(n), "manual",
+        isMeter && n === 0 && last ? last.reading : null);
       sheet.close();
       onSaved();
     } catch (err) {

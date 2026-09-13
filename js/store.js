@@ -7,8 +7,8 @@
 // sync engine drains the queue whenever it can, and merges what other people wrote.
 
 import { db } from "./db.js";
-import { replay, addDays, isTracking } from "./habits.js";
-import { ev, T, SOURCE, METRIC } from "./schema.js";
+import { replay, addDays, daysBetween, isTracking } from "./habits.js";
+import { ev, T, SOURCE, METRIC, MAX_BACKFILL_DAYS } from "./schema.js";
 import { uuid, groupCode as newGroupCode, normalizeGroupCode } from "./id.js";
 import { samplesToEvents, discreteEvent } from "./ingest.js";
 import { encodeSetup, encodeInvite } from "./setup-code.js";
@@ -389,9 +389,31 @@ export async function endTravelMode(exemptId, from, on = null) {
 // ---- logging ----
 
 /** A manual entry, or a value the user corrected by hand. */
-export async function logValue(habitId, day, value, source = "manual") {
+export async function logValue(habitId, day, value, source = "manual", reading = null) {
   const { memberId } = await identity();
-  return commit(ev.log(habitId, memberId, day, value, source));
+  return commit(ev.log(habitId, memberId, day, value, source, null, reading));
+}
+
+/**
+ * A counter reading, as several days' puffs. One event per day, the reading on the last of them
+ * — so the next reading is worked out from this one and the days in between each get their share.
+ */
+export async function logMeter(habitId, perDay, reading) {
+  const { memberId } = await identity();
+  const entryDay = perDay[perDay.length - 1].day;
+  // Do not write rows the engine will reject on replay anyway — see MAX_BACKFILL_DAYS. A day
+  // further back than that was an unreported day and stays one; its share of the puffs is on
+  // paper in the sheet's sentence and nowhere else.
+  const kept = perDay.filter((d) => daysBetween(d.day, entryDay) <= MAX_BACKFILL_DAYS);
+  // A reading REPLACES what was typed for each day it covers, even on a habit that adds. A
+  // corrected counter is the same day said again, not a second helping of it — so each day's
+  // typed entries are withdrawn first, in the same batch, and the log stays append-only.
+  const specs = [];
+  for (const d of kept) {
+    specs.push(ev.clearLog(habitId, memberId, d.day, SOURCE.MANUAL));
+    specs.push(ev.log(habitId, memberId, d.day, d.value, SOURCE.MANUAL, null, d.day === entryDay ? reading : null));
+  }
+  return commitAll(specs);
 }
 
 /**

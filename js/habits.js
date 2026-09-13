@@ -472,6 +472,7 @@ export function replay(events) {
           value: Number(p.value) || 0,
           ts: authoredAt(e),
           externalId: p.externalId || null,
+          reading: Number.isFinite(p.reading) ? p.reading : null,
         });
         break;
       }
@@ -700,6 +701,65 @@ function aggregateEntries(habit, list) {
  * Deliberately not "the day's value". On an automatic habit those differ exactly when this matters:
  * the day shows what you typed, and underneath it the watch has its own answer waiting.
  */
+/**
+ * The last counter reading typed for this habit before `day`, or null.
+ *
+ * ---- Why a vape is a meter ----
+ *
+ * A vape's puff counter never resets: it reads 1,002 tonight and 1,104 tomorrow night, and the
+ * day's puffs are the difference. Asking for "puffs today" asked people to do that subtraction
+ * in their head every evening, against a number they had to remember from the night before. So
+ * the sheet asks for the counter, keeps it on the entry, and works the day out from the last one.
+ *
+ * The VALUE on the log is still the day's puffs. Scoring, the taper, the board and the history all
+ * read that and nothing else, so nothing downstream learned a new rule. Only the entry did.
+ */
+export function lastReading(state, habit, memberId, beforeDay) {
+  let best = null;
+  const prefix = habit.habitId + "|" + memberId + "|";
+  for (const [key, entries] of state.logs) {
+    if (!key.startsWith(prefix)) continue;
+    const day = key.slice(prefix.length);
+    if (day >= beforeDay) continue;
+    for (const e of entries) {
+      if (e.source !== SOURCE.MANUAL || !Number.isFinite(e.reading)) continue;
+      if (!best || day > best.day || (day === best.day && e.ts > best.ts)) best = { day, reading: e.reading, ts: e.ts };
+    }
+  }
+  return best;
+}
+
+/**
+ * What a counter reading means for a day: the puffs, and over how many days they were smoked.
+ *
+ * Reading minus the last reading, over the days since it. One day is the ordinary case. More
+ * than one — a night the sheet was not opened — spreads the difference evenly across the days
+ * in between, because the counter cannot say which of them the puffs belong to and putting them
+ * all on the last one would blow a ceiling for a day that may have been fine. Days the engine
+ * will no longer accept a log for (MAX_BACKFILL_DAYS) keep their share on paper and lose it in
+ * fact; they were already unreported days.
+ *
+ * A reading BELOW the last one is a new device. Its count is the puffs since it was started, and
+ * the day is charged with that — which is the honest reading of a number that only goes up.
+ */
+export function meterEntry(reading, last, day) {
+  const r = Math.max(0, Math.round(Number(reading) || 0));
+  if (!last || !Number.isFinite(last.reading)) return { puffs: r, days: 1, reset: false, perDay: [{ day, value: r }] };
+  const gap = Math.max(1, daysBetween(last.day, day));
+  if (r < last.reading) return { puffs: r, days: 1, reset: true, perDay: [{ day, value: r }] };
+  const total = r - last.reading;
+  const perDay = [];
+  let left = total;
+  for (let i = gap - 1; i >= 0; i -= 1) {
+    const d = addDays(day, -i);
+    // The last day gets the remainder, so the shares add up to the difference exactly.
+    const share = i === 0 ? left : Math.floor(total / gap);
+    left -= share;
+    perDay.push({ day: d, value: share });
+  }
+  return { puffs: total, days: gap, reset: false, perDay };
+}
+
 export function manualOn(state, habit, memberId, day) {
   const entries = state.logs.get(logKey(habit.habitId, memberId, day));
   if (!entries || !entries.length) return null;

@@ -308,8 +308,12 @@ export const ev = {
    * One observation. `day` is a day KEY (see dayKey()), not a date — the two differ whenever
    * dayStartHour is not midnight, which is most of the time.
    */
-  log: (habitId, memberId, day, value, source, externalId = null) =>
-    ({ type: T.LOG, payload: p({ habitId, memberId, day, value: Number(value) || 0, source, externalId }) }),
+  // `reading` is the counter the value was worked out from, where there is one — a vape's puff
+  // counter, which never resets. The VALUE is still the day's puffs; the reading is kept so the
+  // next entry can be worked out from this one. See meterEntry in habits.js.
+  log: (habitId, memberId, day, value, source, externalId = null, reading = null) =>
+    ({ type: T.LOG, payload: p({ habitId, memberId, day, value: Number(value) || 0, source, externalId,
+      ...(Number.isFinite(reading) ? { reading } : {}) }) }),
 
   /**
    * Bind a member's device to a source for one habit.
