@@ -7,7 +7,7 @@
 import { el, render } from "../dom.js";
 import {
   valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, streak as habitStreak, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
-  visibilityFor, travelPeriod,
+  visibilityFor, travelPeriod, groupDayHabit,
 } from "../habits.js";
 import {
   leaderboard, categoryOver, dayScore, expectedBy, withoutWorstDay, categoryFor as categoryOf,
@@ -213,7 +213,7 @@ function correlationSection(habits, ctx) {
 }
 
 function timeLeft(ctx) {
-  const h = [...ctx.state.habits.values()][0];
+  const h = groupDayHabit(ctx.state);
   if (!h) return "";
   const now = new Date(ctx.now);
   const hoursGone = ((now.getHours() - h.dayStartHour) + 24) % 24;

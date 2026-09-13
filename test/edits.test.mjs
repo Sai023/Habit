@@ -218,18 +218,6 @@ const WEEKLY = (extra = []) => replay([
 ]);
 const pending = (s, id, n) => pendingGoal(s, s.habits.get(id), "me", day(n));
 
-test("a steps habit is judged on the calendar day, whatever day start the form carried", () => {
-  // Samsung Health's Saturday is midnight to midnight. A 04:00 day put Friday night's steps on
-  // Friday here and on Saturday there, and the two were compared side by side.
-  const steps = habitFields({ isNew: true, name: "Steps", type: STEPS, target: 8000, taper: false,
-    days: [1, 2, 3, 4, 5, 6, 7], tz: TZ, dayStartHour: 4, visibility: VISIBILITY.FULL, category: "fitness", source: SOURCE.HEALTH_CONNECT });
-  assert.equal(steps.dayStartHour, 0, "the provider's day");
-  // The vape keeps the group's day: a puff at one in the morning is the night before.
-  const puffs = habitFields({ isNew: true, name: "Vape", type: { ...STEPS, metric: METRIC.PUFFS, direction: AT_MOST }, target: 80, taper: false,
-    days: [1, 2, 3, 4, 5, 6, 7], tz: TZ, dayStartHour: 4, visibility: VISIBILITY.FULL, category: "discipline", source: SOURCE.MANUAL });
-  assert.equal(puffs.dayStartHour, 4);
-});
-
 test("a weekly goal raised on Saturday is pending until Monday, and says which Monday", () => {
   // Saturday of week 1 is day 5. Counts from Sunday (day 6); the first week opening on or after
   // that is Monday day 7.

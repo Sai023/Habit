@@ -9,9 +9,10 @@
 import assert from "node:assert/strict";
 import {
   replay, walk, streak, dayKey, addDays, daysBetween, isoDayOfWeek, rawDayStatus, valueOn, targetOn, publicValue, HIT, MISS, NO_DATA, EXEMPT,
+  groupDayHabit,
 } from "../js/habits.js";
 import { leaderboard } from "../js/score.js";
-import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE, METRIC, SCORED_METRICS } from "../js/schema.js";
+import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE, METRIC, SCORED_METRICS, PERIOD } from "../js/schema.js";
 
 // ---------------------------------------------------------------------------
 // Tiny harness
@@ -495,6 +496,26 @@ test("visibility controls what the group sees of a number", () => {
 // ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
+test("a steps habit is judged on the provider's day, whatever day start was ever saved", () => {
+  // Samsung Health's Saturday is midnight to midnight. A 04:00 day put the steps between midnight
+  // and four on Friday here and on Saturday there, and the two numbers for "Saturday" disagreed
+  // by exactly that many. Decided on replay so a habit saved before the rule — which is every
+  // habit the group has — is judged the same way without anybody re-saving it.
+  const s = replay([
+    E(ev.habit("steps", { name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, target: 8000,
+      aggregate: AGGREGATE.LAST, period: PERIOD.DAY, source: SOURCE.HEALTH_CONNECT, tz: "UTC", dayStartHour: 4 }), 1000),
+    E(ev.habit("puffs", { name: "Vape", metric: METRIC.PUFFS, direction: AT_MOST, target: 80,
+      aggregate: AGGREGATE.SUM, period: PERIOD.DAY, source: SOURCE.MANUAL, tz: "UTC", dayStartHour: 4 }), 1000),
+  ]);
+  assert.equal(s.habits.get("steps").dayStartHour, 0, "the provider's day, despite the 4 that was saved");
+  // The vape keeps the group's day: a puff at one in the morning is the night before.
+  assert.equal(s.habits.get("puffs").dayStartHour, 4);
+  // And the GROUP's day — the one a typed number lands on — comes from the vape, not from Steps,
+  // even though Steps was defined first. Otherwise a puff typed at one in the morning would
+  // have landed on the wrong night the moment Steps moved to midnight.
+  assert.equal(groupDayHabit(s).habitId, "puffs");
+});
+
 if (failures.length) {
   for (const { name, err } of failures) {
     console.error("\n✗ " + name);

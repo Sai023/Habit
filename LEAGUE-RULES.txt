@@ -151,8 +151,11 @@ shows on Today and keeps a streak, but moves nobody's score (section 12).
      THE DAY. Steps are judged on the calendar day, midnight to midnight —
      the day Samsung Health and every step app uses — not the 04:00 day the
      vape uses. Friday night's steps are Friday's in both apps. (Sleep keeps
-     the 04:00 day: a night belongs to the morning it ends.) Saving the Steps
-     habit in the editor applies this; past days keep their keys.
+     the 04:00 day: a night belongs to the morning it ends.) Decided on
+     replay, so it holds for every habit on every phone without anybody
+     re-saving anything; past days keep their keys. The GROUP's day — the
+     one a typed number lands on — still comes from a hand-kept habit, never
+     from Steps.
 
      RE-READING. The phone re-reads today and the two days before it on
      every sync — the same two days the log will still accept a row for —

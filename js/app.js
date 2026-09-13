@@ -10,7 +10,7 @@
 
 import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
-import { dayKey, latestGoal, travelPeriod, addDays } from "./habits.js";
+import { dayKey, latestGoal, travelPeriod, addDays, groupDayHabit } from "./habits.js";
 import { HABIT_DEFAULTS, PERIOD } from "./schema.js";
 import { installBridge, caps, isNative, setSyncConfig, openSettings, onAppResume } from "./bridge.js";
 import { showProblem, showNote } from "./ui/problem.js";
@@ -50,7 +50,7 @@ let pendingGoals = false;
  * habits agree about.
  */
 function dayKeyAt(state, at) {
-  const first = [...state.habits.values()][0];
+  const first = groupDayHabit(state);
   const tz = first?.tz || HABIT_DEFAULTS.tz;
   const startHour = first?.dayStartHour ?? HABIT_DEFAULTS.dayStartHour;
   return dayKey(at, tz, startHour);
@@ -742,7 +742,7 @@ function reminderFor(state, memberId, habit) {
 function quietUntil(state, memberId, today) {
   const away = travelPeriod(state, memberId, today);
   if (!away) return 0;
-  const habit = [...state.habits.values()][0];
+  const habit = groupDayHabit(state);
   const tz = (habit && habit.tz) || HABIT_DEFAULTS.tz;
   const startHour = habit ? habit.dayStartHour : HABIT_DEFAULTS.dayStartHour;
   // The morning after the last day away. dayStartHour is the app's midnight, so a 4am day start

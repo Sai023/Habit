@@ -17,7 +17,6 @@
 // to show is how the second copy ends up being the wrong one.
 
 import { latestGoal, targetFor, goalOn, periodKey, periodStart, periodEnd, addDays } from "./habits.js";
-import { PROVIDER_DAY_METRICS } from "./schema.js";
 
 /**
  * The number to put in front of somebody editing their own goal.
@@ -93,11 +92,11 @@ export function habitFields({ isNew, name, type, target, taper, days, tz, daySta
     taper: taper ? { amount: 1, everyDays: 7, floor: 0 } : null,
     days,
     tz,
-    // The day a sensor-counted metric is judged on is the day the sensor's own app uses. See
-    // PROVIDER_DAY_METRICS. Saving an existing habit applies it, which is how the group's Steps
-    // moves from a 04:00 day to Samsung Health's midnight one: past logs keep their day keys;
-    // the reads from tonight use the new window.
-    dayStartHour: PROVIDER_DAY_METRICS.has(type.metric) ? 0 : dayStartHour,
+    // Passed through as the form holds it. The day a sensor-counted metric is judged on is
+    // decided on replay (normalizeHabit, PROVIDER_DAY_METRICS), so a copy of that rule here
+    // would be a second opinion — and it was, briefly, and the habits saved before it kept
+    // their old day.
+    dayStartHour,
     source,
   };
   if (isNew) fields.target = target;

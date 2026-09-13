@@ -28,7 +28,7 @@ import {
   HEALTH_METRICS, PAUSE_METRICS, isInterventionHabit,
   PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
   LEGACY_METRIC, LEGACY_NAME,
-  SCORED_METRICS,
+  SCORED_METRICS, PROVIDER_DAY_METRICS,
 } from "./schema.js";
 
 export const HIT = "HIT";
@@ -270,6 +270,16 @@ function normalizeHabit(p, createdDay) {
   h.grace = { ...(GRACE_BY_PERIOD[h.period] || HABIT_DEFAULTS.grace), ...(p.grace || {}) };
   h.target = Number(h.target) || 0;
   h.dayStartHour = Number.isFinite(Number(h.dayStartHour)) ? Number(h.dayStartHour) : 4;
+  // A sensor-counted metric is judged on the day its provider uses: midnight to midnight.
+  //
+  // Decided HERE, on replay, and not on the form. It was on the form, which meant a habit
+  // created before the rule kept its 04:00 day until somebody re-saved it — and nobody did, so
+  // Goal Buddy's Saturday still ran from four in the morning while Samsung Health's ran from
+  // midnight, and the two numbers for the same day went on disagreeing by exactly the steps
+  // taken between midnight and four. A rule about what a day IS has to hold for every habit on
+  // every phone the moment the build lands, which only replay can promise. Sleep is not in the
+  // set: a night belongs to the morning it ends. See PROVIDER_DAY_METRICS.
+  if (PROVIDER_DAY_METRICS.has(h.metric)) h.dayStartHour = 0;
   // Which of the four shares this counts towards. A plain string, kept as given: score.js decides
   // what an unrecognised one means, so replay does not need a table of them.
   h.category = typeof p.category === "string" && p.category ? p.category : (h.category ?? null);
@@ -361,6 +371,21 @@ function byHand(habit, bound, logs, memberId) {
     if (entries.some((e) => AUTOMATIC_SOURCES.has(e.source))) return false;
   }
   return true;
+}
+
+/**
+ * The habit whose day is the GROUP's day: the first one that is not judged on a provider's day.
+ *
+ * The app's "today" — the day a typed number lands on, the day the Today tab shows, the hour
+ * the level banks — comes off one habit. It was simply the first habit, and the first habit is
+ * Steps, whose day is now midnight to midnight because Samsung Health's is. Taking the group's
+ * day from it would have moved every vape entry typed after midnight onto the wrong night. The
+ * group's day is the 04:00 one its hand-kept habits use; a sensor's habit keeps its own day for
+ * its own reads, and only for those.
+ */
+export function groupDayHabit(state) {
+  const all = [...state.habits.values()];
+  return all.find((h) => !PROVIDER_DAY_METRICS.has(h.metric)) || all[0] || null;
 }
 
 /**
