@@ -340,7 +340,7 @@ test("the summary carries the season's dates, what is left, and when the next be
   assert.ok(sum.season.next.includes("a month, every month"), sum.season.next);
   // On the 13th the next one is the run-in, and the sentence must not call it a month.
   const eve = buildSummary(group(SUNDAY_13, ARRANGED), "a", SUNDAY_13, ["a", "b"]);
-  assert.ok(eve.season.next.startsWith("Season 3 starts"), eve.season.next);
+  assert.ok(eve.season.next.startsWith("Season 2 starts"), eve.season.next);
   assert.ok(eve.season.next.includes("a short one"), eve.season.next);
   assert.ok(eve.season.next.includes("then a month, every month from the 20th"), eve.season.next);
 });
