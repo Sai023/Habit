@@ -11,7 +11,7 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { lifetime, TITLES, LEVEL_MAX, thresholdFor, gapTo } from "../levels.js";
+import { lifetime, titleBand, TITLES, LEVEL_MAX, thresholdFor, gapTo } from "../levels.js";
 import { levelMark } from "./levelmark.js";
 import * as fmt from "./format.js";
 
@@ -36,6 +36,26 @@ export function levelUpDue(memberId, level) {
   const seen = seenLevel(memberId);
   if (seen == null) { markSeen(memberId, level); return false; }
   return level > seen;
+}
+
+/**
+ * The title band: one pip per level from where this title began to where the next begins, the
+ * reached ones lit. Answers "is the end of the bar the next title?" — no, and here is how far
+ * that is.
+ */
+function bandPips(life) {
+  const band = titleBand(life.level);
+  if (!band.nextAt) return el("p.lv-band-note", "Legend. The last title there is.");
+  const pips = [];
+  for (let l = band.from; l <= band.nextAt; l += 1) {
+    pips.push(el("i.lv-pip" + (l <= life.level ? ".is-lit" : "") + (l === band.nextAt ? ".is-next" : ""),
+      { title: "Level " + l + (l === band.nextAt ? " · " + band.nextName : "") }));
+  }
+  return el("div.lv-band",
+    el("div.lv-pips", pips),
+    el("p.lv-band-note", band.nextName + " at Level " + band.nextAt + " · "
+      + (band.nextAt - life.level) + (band.nextAt - life.level === 1 ? " level" : " levels") + " away"),
+  );
 }
 
 export function openLevelSheet(host, { state, me, today, celebrate = false, onDone }) {
@@ -75,6 +95,13 @@ export function openLevelSheet(host, { state, me, today, celebrate = false, onDo
             ? el("i.lv-bar-tip", { style: "left:" + life.pct + "%; width:" + Math.min(100 - life.pct, (life.today / life.span) * 100) + "%" })
             : null,
         ),
+        // The ends, named. A bar at eight per cent under "654 XP" reads as a mistake until it
+        // says it runs from this level to the next.
+        el("div.lv-ends",
+          el("span", "Level " + life.level + " · " + n(life.at)),
+          life.max ? el("span", "the top") : el("span", "Level " + (life.level + 1) + " · " + n(life.next)),
+        ),
+        bandPips(life),
         el("p.lv-need", life.max
           ? "The top. There is nothing above Level " + LEVEL_MAX + "."
           : n(life.need) + " " + fmt.XP + " to Level " + (life.level + 1)

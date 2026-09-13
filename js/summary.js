@@ -24,7 +24,7 @@ import { noticesFor } from "./notices.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
 import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
 import { pendingGoal } from "./edits.js";
-import { lifetime, LEVEL_MAX } from "./levels.js";
+import { lifetime, titleBand, LEVEL_MAX } from "./levels.js";
 import * as fmt from "./ui/format.js";
 
 // 3 adds the bonus fields. 4 adds `training`. 5 adds `lifetime`. Additive only: an older shell
@@ -220,7 +220,14 @@ export function buildSummary(state, me, today, memberIds = null) {
 function lifetimeSummary(state, me, today) {
   const life = lifetime(state, me, today);
   const member = state.members.get(me);
+  const band = titleBand(life.level);
   return {
+    // The ends of the bar, so the shell can label them: this level began at `at`, the next at
+    // `next`. And the band, so it can draw the pips from `titleFrom` to `nextTitleAt`.
+    at: life.at,
+    titleFrom: band.from,
+    nextTitle: band.nextName,
+    nextTitleAt: band.nextAt,
     name: (member && member.name) || "",
     level: life.level,
     title: life.title,

@@ -63,6 +63,24 @@ export function titleFor(level) {
 }
 
 /**
+ * The band a level sits in: where its title began, and which title comes next and when.
+ *
+ * For the pips under the bar. A bar that runs from Level 3 to Level 4 answers "how far to the
+ * next level"; the pips answer the other question a bar at eight per cent provokes — "so is the
+ * end of it the next title?" — by drawing the ten levels of the band with the reached ones lit.
+ * At Legend there is no next, and `nextAt` is null.
+ */
+export function titleBand(level) {
+  let from = TITLES[0][0];
+  let next = null;
+  for (const [at, name] of TITLES) {
+    if (level >= at) from = at;
+    else { next = { name, at }; break; }
+  }
+  return { from, name: titleFor(level), nextName: next ? next.name : null, nextAt: next ? next.at : null };
+}
+
+/**
  * Where a lifetime total stands: the level, the title, and the distance to the next.
  *
  * `into` and `span` describe the bar — how far through this level, out of how much — and `need` is

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import { ev, SOURCE, METRIC, AT_LEAST, AGGREGATE, PERIOD } from "../js/schema.js";
 import {
-  LEVEL_MAX, FIRST_GAP, GAP_STEP, TITLES, gapTo, thresholdFor, titleFor, levelFor, lifetime,
+  LEVEL_MAX, FIRST_GAP, GAP_STEP, TITLES, gapTo, thresholdFor, titleFor, levelFor, lifetime, titleBand,
 } from "../js/levels.js";
 
 let passed = 0;
@@ -75,6 +75,13 @@ test("titles change every ten levels and a level between keeps the lower", () =>
   assert.equal(titleFor(50), "Relentless");
   assert.equal(titleFor(100), "Legend");
   assert.equal(TITLES.length, 11);
+});
+
+test("a band runs from where its title began to where the next begins", () => {
+  assert.deepEqual(titleBand(3), { from: 1, name: "Starter", nextName: "Regular", nextAt: 10 });
+  assert.deepEqual(titleBand(10), { from: 10, name: "Regular", nextName: "Steady", nextAt: 20 });
+  assert.deepEqual(titleBand(19), { from: 10, name: "Regular", nextName: "Steady", nextAt: 20 });
+  assert.deepEqual(titleBand(100), { from: 100, name: "Legend", nextName: null, nextAt: null });
 });
 
 test("garbage in reads as level 1, not a crash", () => {

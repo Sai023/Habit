@@ -334,6 +334,11 @@ test("the level crosses with the sentence the header states and the two numbers 
   assert.ok(l.today > 0 && l.today < 100, "today rides along, unbanked: " + l.today);
   assert.equal(l.need, 295, "what the header states: 625 − 330");
   assert.equal(l.pct, 9, "what the bar draws: 30 of 325");
+  assert.equal(l.at, 300, "the bar's left end");
+  assert.equal(l.next, 625, "the bar's right end");
+  assert.equal(l.titleFrom, 1);
+  assert.equal(l.nextTitle, "Regular");
+  assert.equal(l.nextTitleAt, 10);
   assert.equal(l.days, 3);
   assert.equal(l.since, day(0));
   assert.match(l.sinceLabel, /^Mon/);

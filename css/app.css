@@ -2065,3 +2065,12 @@ button.card-open:active { transform: scale(0.99); }
 .lv-rung.is-current .lv-rung-t { color: var(--teal); font-weight: 800; }
 .lv-rung-l { font-variant-numeric: tabular-nums; font-weight: 700; }
 .lv-rung-xp { font-variant-numeric: tabular-nums; font-size: var(--fs-micro); }
+
+/* The bar's ends, and the band of levels under it. */
+.lv-ends { display: flex; justify-content: space-between; font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; margin-top: -2px; }
+.lv-band { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.lv-pips { display: flex; gap: 5px; }
+.lv-pip { flex: 1; height: 5px; border-radius: 999px; background: var(--surface); }
+.lv-pip.is-lit { background: var(--teal); }
+.lv-pip.is-next { box-shadow: inset 0 0 0 1px var(--teal); }
+.lv-band-note { margin: 0; font-size: var(--fs-micro); color: var(--dim); }
