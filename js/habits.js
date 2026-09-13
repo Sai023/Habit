@@ -537,6 +537,9 @@ export function replay(events) {
           rounds: Number.isFinite(p.rounds) ? p.rounds : null,
           work: Number.isFinite(p.work) ? p.work : null,
           rest: Number.isFinite(p.rest) ? p.rest : null,
+          // A class followed along with: how long, and how it felt. See PILATES_WEEKLY.
+          minutes: Number.isFinite(p.minutes) ? p.minutes : null,
+          effort: typeof p.effort === "string" && p.effort ? p.effort : null,
           ts: authoredAt(e),
         };
         // Latest wins for the same session on the same day — a second Finish is a correction.

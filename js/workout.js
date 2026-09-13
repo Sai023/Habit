@@ -204,6 +204,14 @@ export function exerciseHistory(state, memberId, program) {
   const order = [];
   const byId = new Map();
   for (const session of Object.values(program.sessions)) {
+    // A class is its own row: one number, the minutes, and how it felt beside it.
+    if (session.kind === "video") {
+      if (!byId.has(session.id)) {
+        byId.set(session.id, { id: session.id, name: session.name, unit: "min", perSide: false, sessions: [] });
+        order.push(session.id);
+      }
+      continue;
+    }
     if (session.kind === "intervals") {
       if (!byId.has(session.id)) {
         byId.set(session.id, { id: session.id, name: session.name, unit: "rounds", perSide: false, sessions: [] });
@@ -226,6 +234,10 @@ export function exerciseHistory(state, memberId, program) {
   }
 
   for (const w of all) {
+    if (Number.isFinite(w.minutes) && byId.has(w.sessionId) && byId.get(w.sessionId).unit === "min") {
+      byId.get(w.sessionId).sessions.push({ day: w.day, sets: [w.minutes], total: w.minutes, best: w.minutes, effort: w.effort || null });
+      continue;
+    }
     if (Number.isFinite(w.rounds) && byId.has(w.sessionId)) {
       byId.get(w.sessionId).sessions.push({ day: w.day, sets: [w.rounds], total: w.rounds, best: w.rounds, work: w.work, rest: w.rest });
     }
@@ -267,6 +279,8 @@ export function exerciseHistory(state, memberId, program) {
 export function personalBests(state, memberId, program) {
   const out = new Map();
   for (const row of exerciseHistory(state, memberId, program)) {
+    // A class has no record to beat: twenty-five minutes is the length of the video.
+    if (row.unit === "min") continue;
     let bestSet = null, bestTotal = null;
     for (const ses of row.sessions) {
       if (row.unit === "rounds") {
@@ -328,7 +342,7 @@ export const MIN_INSIGHT_SESSIONS = 3;
 export function workoutInsights(state, memberId, program, today) {
   const empty = { sessions: 0, recent: 0, sets: 0, volume: { reps: 0, seconds: 0 },
     favourite: null, leastFavourite: null, mostImproved: null, busiestDay: null,
-    streakWeeks: 0, rope: null, pbs: new Map(), days: [] };
+    streakWeeks: 0, rope: null, classes: null, pbs: new Map(), days: [] };
   if (!program) return empty;
 
   const all = ((state.workouts && state.workouts.get(memberId)) || [])
@@ -434,6 +448,28 @@ export function workoutInsights(state, memberId, program, today) {
     ? { rounds, longestWork, week: progressionWeek(program, today) }
     : null;
 
+  // Classes: minutes moved, the one done most, and how they have been feeling lately.
+  let classes = null;
+  if (program.sessions && Object.values(program.sessions).some((x) => x.kind === "video")) {
+    const done = all.filter((w) => Number.isFinite(w.minutes));
+    const minutes = done.reduce((n, w) => n + w.minutes, 0);
+    const counts = new Map();
+    for (const w of done) counts.set(w.sessionId, (counts.get(w.sessionId) || 0) + 1);
+    let top = null;
+    for (const [id, count] of counts) if (!top || count > top.count) top = { id, count };
+    const session = top && program.sessions[top.id];
+    const felt = done.slice(-4).map((w) => w.effort).filter(Boolean);
+    const hard = felt.filter((f) => f === "hard").length;
+    const easy = felt.filter((f) => f === "easy").length;
+    classes = {
+      minutes,
+      favourite: session ? { id: session.id, name: session.name, count: top.count } : null,
+      // Four hard in a row is a sign to ease off; four easy, to move up. Neither is advice the
+      // app gives — the sentence says what was said and stops.
+      feeling: felt.length >= 3 ? (hard >= 3 ? "hard" : easy >= 3 ? "easy" : "right") : null,
+    };
+  }
+
   return {
     sessions: all.length,
     recent,
@@ -442,6 +478,7 @@ export function workoutInsights(state, memberId, program, today) {
     favourite, leastFavourite, mostImproved, busiestDay,
     streakWeeks,
     rope,
+    classes,
     pbs: personalBests(state, memberId, program),
     days: all.map((w) => w.day),
   };

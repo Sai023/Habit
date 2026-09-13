@@ -513,6 +513,67 @@ test("a rope program reports rounds, the longest interval and the week", () => {
   assert.equal(workoutInsights(s, ME, FIT, "2026-09-16").rope, null, "not a rope program");
 });
 
+// ---------------------------------------------------------------------------
+// Classes — a video followed along with (Pilates Weekly)
+// ---------------------------------------------------------------------------
+
+const PIL = PROGRAMS["pilates-weekly"];
+const cls = (n, sessionId, minutes, effort) => E(ev.workout(ME, "pilates-weekly", sessionId, day(n), {
+  exercises: [], minutes, effort,
+}), at(n));
+
+test("a class is a session with a video and no exercises, and the week suggests four of them", () => {
+  assert.equal(Object.values(PIL.sessions).length, 4);
+  for (const s of Object.values(PIL.sessions)) {
+    assert.equal(s.kind, "video");
+    assert.ok(s.video && s.video.id && s.video.channel, s.id + " credits its video");
+    assert.ok(s.minutes > 0);
+    assert.deepEqual(s.exercises, []);
+  }
+  assert.equal(planFor(PIL, day(0)).session.id, "flow", "Monday");
+  assert.equal(planFor(PIL, day(2)).rest, "Active recovery", "Wednesday");
+  assert.equal(planFor(PIL, day(3)).session.id, "tennis", "Thursday");
+});
+
+test("finishing a class keeps the minutes and how it felt", () => {
+  const s = state([E(ev.program(ME, "pilates-weekly"), at(0)), cls(0, "flow", 20, "right")]);
+  const last = lastSession(s, ME, "flow", day(1));
+  assert.equal(last.minutes, 20);
+  assert.equal(last.effort, "right");
+});
+
+test("a class is one row in the history: minutes, and the feeling beside them", () => {
+  const s = state([E(ev.program(ME, "pilates-weekly"), at(0)), cls(0, "flow", 20, "right"), cls(7, "flow", 15, "hard")]);
+  const row = exerciseHistory(s, ME, PIL).find((r) => r.id === "flow");
+  assert.equal(row.unit, "min");
+  assert.deepEqual(row.sessions.map((x) => x.total), [20, 15]);
+  assert.equal(row.sessions[1].effort, "hard");
+  assert.equal(row.trend, "down");
+});
+
+test("a class has no personal best — the video is as long as it is", () => {
+  const s = state([E(ev.program(ME, "pilates-weekly"), at(0)), cls(0, "flow", 20, "right")]);
+  assert.equal(personalBests(s, ME, PIL).size, 0);
+});
+
+test("the classes insight: minutes on the mat, the one done most, and how they have felt lately", () => {
+  const s = state([E(ev.program(ME, "pilates-weekly"), at(0)),
+    cls(0, "flow", 20, "hard"), cls(1, "core", 25, "hard"), cls(3, "tennis", 25, "hard"), cls(7, "flow", 20, "right"),
+  ]);
+  const ins = workoutInsights(s, ME, PIL, day(8));
+  assert.equal(ins.sessions, 4);
+  assert.equal(ins.classes.minutes, 90);
+  assert.equal(ins.classes.favourite.id, "flow");
+  assert.equal(ins.classes.favourite.count, 2);
+  assert.equal(ins.classes.feeling, "hard", "three of the last four were hard");
+  assert.equal(workoutInsights(s, ME, FIT, day(8)).classes, null, "not a class program");
+});
+
+test("below three reports, nothing is said about how classes feel", () => {
+  const s = state([E(ev.program(ME, "pilates-weekly"), at(0)), cls(0, "flow", 20, "hard"), cls(1, "core", 25, "hard")]);
+  assert.equal(workoutInsights(s, ME, PIL, day(2)).classes.feeling, null);
+});
+
 if (failures.length) {
   for (const f of failures) console.error("✗ " + f.name + "\n  " + f.err.message);
   console.error("✗ workout: " + failures.length + " failed, " + passed + " passed");

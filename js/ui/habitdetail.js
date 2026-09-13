@@ -302,11 +302,14 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
                 { title: fmt.dayLabel(ses.day) },
                 r.unit === "rounds"
                   ? ses.sets[0] + " × " + ses.work + "s"
-                  : ses.sets.join(" · "))))
+                  : r.unit === "min"
+                    ? ses.sets[0] + "m" + (ses.effort === "hard" ? " ↑" : ses.effort === "easy" ? " ↓" : "")
+                    : ses.sets.join(" · "))))
             : el("span.hd-exrow-none", "not yet"),
           last
             ? el("span.hd-exrow-total",
                 r.unit === "rounds" ? last.total + " rounds"
+                  : r.unit === "min" ? last.total + " min last time"
                   : last.total + (r.unit === "s" ? "s" : " " + r.unit) + " last time")
             : null,
         );

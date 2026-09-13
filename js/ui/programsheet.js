@@ -1,6 +1,6 @@
 // programsheet.js — which program to follow.
 //
-// Two of them, written for two specific people, so this is a choice rather than a search. It is
+// Three of them, written for three specific people, so this is a choice rather than a search. It is
 // one event, and the latest wins, so changing your mind is the same tap again. "None" is a real
 // option: somebody can compete on Workouts from a watch without following a plan at all.
 

@@ -32,6 +32,7 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { confirmSheet } from "./confirmsheet.js";
 import { finishWorkout } from "../store.js";
+import { caps, openVideo } from "../bridge.js";
 import {
   planFor, intervalsFor, lastSession, prefill, prescription, unitOf, isComplete, progress,
   sessionsOf, restDaysOf, personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS,
@@ -93,8 +94,23 @@ function trainingBlock(ins) {
   if (ins.volume.reps) tiles.push(tile(ins.volume.reps.toLocaleString(), "reps lifted"));
   if (ins.volume.seconds >= 60) tiles.push(tile(Math.round(ins.volume.seconds / 60), "minutes held"));
   if (ins.rope && ins.rope.rounds) tiles.push(tile(ins.rope.rounds, "rope rounds"));
+  if (ins.classes && ins.classes.minutes) tiles.push(tile(ins.classes.minutes, "minutes on the mat"));
 
   const lines = [];
+  if (ins.classes && ins.classes.favourite && ins.classes.favourite.count >= 2) {
+    lines.push(el("p.wo-fact",
+      el("span.wo-fact-k", "💚 Most done"),
+      el("span", ins.classes.favourite.name + " \u2014 " + ins.classes.favourite.count + " times"),
+    ));
+  }
+  if (ins.classes && ins.classes.feeling) {
+    lines.push(el("p.wo-fact",
+      el("span.wo-fact-k", "💬 Lately"),
+      el("span", ins.classes.feeling === "hard" ? "The last few felt hard. A rest day is part of the plan."
+        : ins.classes.feeling === "easy" ? "The last few felt easy. The intermediate classes are there when you want them."
+        : "The last few felt about right."),
+    ));
+  }
   if (ins.favourite) {
     lines.push(el("p.wo-fact",
       el("span.wo-fact-k", "💚 Favourite"),
@@ -162,6 +178,7 @@ function hub(sheet, ctx) {
   function start(session) {
     const args = { ...ctx, session, back: () => hub(sheet, ctx) };
     if (session.kind === "intervals") ropeSession(sheet, args);
+    else if (session.kind === "video") videoSession(sheet, args);
     else setsSession(sheet, args);
   }
 
@@ -170,7 +187,11 @@ function hub(sheet, ctx) {
     const last = lastSession(state, me, session.id, null);
     if (!last) return "not done yet";
     const sets = (last.exercises || []).reduce((n, e) => n + e.sets.filter(Number.isFinite).length, 0);
-    const what = Number.isFinite(last.rounds) ? last.rounds + " rounds" : sets + " sets";
+    // A class says how it felt, and its minutes only when it was cut short — the row already
+    // says how long the class is.
+    const what = Number.isFinite(last.minutes)
+      ? [last.minutes !== session.minutes ? last.minutes + " min" : null, last.effort ? EFFORT[last.effort] : null].filter(Boolean).join(" \u00b7 ") || "done"
+      : Number.isFinite(last.rounds) ? last.rounds + " rounds" : sets + " sets";
     return "last " + fmt.dayLabel(last.day) + " \u00b7 " + what;
   }
 
@@ -187,7 +208,9 @@ function hub(sheet, ctx) {
     if (at) return "In progress \u00b7 " + (at.of ? at.done + " of " + at.of + " sets" : at.done + " rounds");
     return session.kind === "intervals"
       ? ropeLine(session)
-      : session.exercises.length + " exercises \u00b7 " + lastLine(session);
+      : session.kind === "video"
+        ? session.minutes + " min \u00b7 " + lastLine(session)
+        : session.exercises.length + " exercises \u00b7 " + lastLine(session);
   };
 
   sheet.paint(
@@ -221,7 +244,9 @@ function hub(sheet, ctx) {
       el("h2.sec-title", "All sessions"),
       el("div.wo-sessions", sessions.map(({ session, days }) => el("button.wo-session"
         + (session.id === suggested ? ".is-today" : "")
-        + (draftProgress(program, session, today) ? ".is-open" : ""), { onclick: () => start(session) },
+        + (draftProgress(program, session, today) ? ".is-open" : "")
+        + (session.kind === "video" ? ".has-thumb" : ""), { onclick: () => start(session) },
+        session.kind === "video" ? thumb(session.video, "wo-session-thumb") : null,
         el("span.wo-session-main",
           el("span.wo-session-name", session.name),
           el("span.wo-session-sub", subFor(session)),
@@ -584,6 +609,134 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
 // ---------------------------------------------------------------------------
 // Rope: intervals, then the finisher
 // ---------------------------------------------------------------------------
+
+/** How a class felt, in the person's words. */
+const EFFORT = { easy: "easy", right: "just right", hard: "hard" };
+
+/** A YouTube thumbnail, sized by class. Loads from YouTube's image host; alt is the title. */
+function thumb(v, cls) {
+  const img = el("img." + cls, {
+    src: "https://i.ytimg.com/vi/" + v.id + "/hqdefault.jpg",
+    alt: v.title, loading: "lazy", decoding: "async",
+  });
+  return img;
+}
+
+/**
+ * The player, or the way to one.
+ *
+ * Three cases, decided by where the page is running:
+ *   • the shell says it can play — a thumbnail with a play button; the shell opens the video
+ *     in its own player, over the app, with no bridge attached (the point: this page's bridge
+ *     is visible to every frame in it, and a third party's player should not be one of them)
+ *   • the shell cannot — the same card, and the tap leaves for YouTube itself and comes back
+ *   • a plain browser — the video inline, since there is no bridge here to protect
+ */
+function player(v) {
+  const c = caps();
+  if (c.embedded && c.video) {
+    return el("button.wo-player.wo-player-card", {
+      onclick: () => openVideo({ id: v.id, title: v.title }),
+      "aria-label": "Play " + v.title,
+    }, thumb(v, "wo-player-thumb"), el("span.wo-play", "\u25B6"));
+  }
+  if (c.embedded) {
+    return el("a.wo-player.wo-player-card", {
+      href: "https://www.youtube.com/watch?v=" + v.id, target: "_blank", rel: "noopener",
+      "aria-label": "Play " + v.title + " on YouTube",
+    }, thumb(v, "wo-player-thumb"), el("span.wo-play", "\u25B6"));
+  }
+  const frame = document.createElement("iframe");
+  frame.className = "wo-player wo-player-frame";
+  frame.src = "https://www.youtube-nocookie.com/embed/" + v.id + "?playsinline=1&rel=0&modestbranding=1";
+  frame.title = v.title;
+  frame.allow = "accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+  frame.allowFullscreen = true;
+  return frame;
+}
+
+/**
+ * A class: press play, follow along, say how it went.
+ *
+ * Nothing is counted rep by rep. What is kept is that it was done, for how long, and how it
+ * felt — which is everything a person following a video can honestly report, and enough for
+ * the record to say "twenty-three classes, four hundred minutes on the mat, the tennis one
+ * most". Minutes open on the length of the class; a class stopped early is a smaller number
+ * and still a class.
+ */
+function videoSession(sheet, { state, program, session, me, today, back = null }) {
+  const previous = lastSession(state, me, session.id, today);
+  let minutes = session.minutes;
+  let effort = previous && previous.effort ? previous.effort : "right";
+  let busy = false;
+  let error = "";
+
+  async function finish() {
+    if (busy) return;
+    busy = true; error = ""; paint();
+    try {
+      await finishWorkout({ programId: program.id, sessionId: session.id, day: today, exercises: [], minutes, effort });
+      buzz([40, 30, 40]);
+      sheet.close();
+    } catch (err) {
+      error = "Couldn't save: " + (err && err.message ? err.message : err);
+      busy = false;
+      paint();
+    }
+  }
+
+  function paint() {
+    const v = session.video;
+    sheet.paint(
+      el("div.form.wo.wo-class",
+        el("div.sheet-head",
+          el("span.sheet-title", session.name),
+          el("span.wo-progress", session.minutes + " min"),
+        ),
+        el("p.sheet-now", session.focus + (session.level ? " \u00b7 " + session.level : "")),
+
+        player(v),
+        el("p.wo-credit", v.title, el("span.wo-credit-by", " \u2014 " + v.channel + ", on YouTube")),
+
+        previous
+          ? el("p.wo-last", "Last " + fmt.dayLabel(previous.day) + " \u00b7 " + (previous.minutes || session.minutes) + " min"
+              + (previous.effort ? " \u00b7 " + EFFORT[previous.effort] : ""))
+          : el("p.wo-last", "First time"),
+
+        program.warmup && !previous ? el("p.note-inline", program.warmup) : null,
+
+        // Afterwards: how long, and how it felt. Two questions, both with a sensible default,
+        // so the honest common case — did the whole class, it was fine — is one tap.
+        el("div.wo-class-log",
+          el("div.wo-class-row",
+            el("span.wo-class-k", "Minutes done"),
+            el("div.wo-stepper.wo-stepper-sm",
+              el("button.step", { onclick: () => { minutes = Math.max(0, minutes - 5); paint(); }, "aria-label": "Less" }, "\u2212"),
+              el("div.wo-value", String(minutes), el("span.wo-unit", " min")),
+              el("button.step", { onclick: () => { minutes += 5; paint(); }, "aria-label": "More" }, "+"),
+            ),
+          ),
+          el("div.wo-class-row",
+            el("span.wo-class-k", "How was it?"),
+            el("div.wo-effort", Object.entries(EFFORT).map(([key, label]) => el("button.wo-effort-chip" + (effort === key ? ".is-on" : ""), {
+              onclick: () => { effort = key; paint(); },
+              "aria-pressed": effort === key ? "true" : "false",
+            }, label))),
+          ),
+        ),
+
+        error ? el("p.err", error) : null,
+        el("div.sheet-actions",
+          el("button.ghost", { onclick: () => { if (back) back(); else sheet.close(); } }, back ? "\u2190 Back" : "Close"),
+          el("button.tap" + (minutes > 0 ? ".is-ready" : ""), { onclick: finish, disabled: busy || minutes <= 0 },
+            busy ? "Saving\u2026" : "Done \u00b7 " + minutes + " min"),
+        ),
+        el("p.note-inline", "Done counts the class as a workout for today. The video plays where it lives; nothing is copied."),
+      ),
+    );
+  }
+  paint();
+}
 
 function ropeSession(sheet, { state, program, session, me, today, back = null }) {
   const rx = intervalsFor(program, session, today);

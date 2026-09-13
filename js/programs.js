@@ -420,10 +420,85 @@ const ROPE_PROTOCOL = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Pilates Weekly — Anj
+// ---------------------------------------------------------------------------
+//
+// A third kind of session. Match Fit is sets, the rope is intervals; this is a class you follow
+// along with: four videos a week, chosen to sit around tennis — a full-body flow, deep core and
+// rotation, a tennis-specific session, and legs. Nothing is counted rep by rep. What is kept is
+// that it was done, how long, and how it felt, which is what a person following a class can
+// honestly say about it.
+//
+// The videos are other people's work and are credited by name. The app never copies them; it
+// plays them where they live and keeps the record of having pressed play.
+//
+// The document that came with this listed Friday under the wrong teacher. The video is the one
+// the document links to; the credit is the one the video carries.
+
+const video = (id, title, channel, seconds) => ({ id, title, channel, seconds });
+
+const PILATES_WEEKLY = {
+  id: "pilates-weekly",
+  name: "Pilates Weekly",
+  tagline: "Four Pilates classes a week, built around tennis: flow, core, rotation, legs.",
+  warmup: "Mat down, water within reach, and a minute of slow breathing before you press play. The class warms you up from there.",
+  before: {
+    title: "Before you start",
+    points: [
+      "Follow the teacher's cues over the count. A slower, controlled rep is the whole point of Pilates.",
+      "Stop at sharp joint pain — especially the lower back and wrists. Muscle burn is fine; a sharp edge is not.",
+      "Modify freely: knees down, smaller range, a pause. The class has beginner options and they are not cheating.",
+      "On a tennis day, do the class after the match or on the morning of a rest from tennis, not right before you play.",
+    ],
+  },
+  schedule: {
+    [MON]: "flow",
+    [TUE]: "core",
+    [WED]: { rest: "Active recovery", note: "Hydrate, and ten minutes of easy stretching or a slow walk. Nothing to log." },
+    [THU]: "tennis",
+    [FRI]: "lower",
+    [SAT]: { rest: "Rest" },
+    [SUN]: { rest: "Rest" },
+  },
+  restNote: "Two rest days and an easy Wednesday are part of the week, not gaps in it. Tissue adapts while it rests; four classes with three easy days beats seven classes with none.",
+  sessions: {
+    flow: {
+      id: "flow", name: "Full Body Flow", kind: "video", minutes: 20,
+      focus: "Full body flow & pelvic alignment",
+      level: "Beginner to intermediate",
+      video: video("DAdjf01N310", "20 Min Morning Pilates \u2014 Full Body Mat Workout", "Move With Nicole", 1186),
+      exercises: [],
+    },
+    core: {
+      id: "core", name: "Deep Core & Abs", kind: "video", minutes: 25,
+      focus: "Deep core, obliques & spinal rotation",
+      level: "Intermediate",
+      video: video("OJxXA4EwTf0", "25 Min Pilates Core & Abs Workout", "Move With Nicole", 1587),
+      exercises: [],
+    },
+    tennis: {
+      id: "tennis", name: "Pilates for Tennis", kind: "video", minutes: 25,
+      focus: "Rotational strength & mobility for matchplay",
+      level: "Intermediate",
+      video: video("QG4lLEwPkQc", "25 Min Pilates for Tennis Players \u2014 Strength + Mobility", "Tanya Rockovich \u00b7 tonedbyt", 1667),
+      exercises: [],
+    },
+    lower: {
+      id: "lower", name: "Lower Body", kind: "video", minutes: 25,
+      focus: "Legs, glutes & lower-chain mobility",
+      level: "Beginner to intermediate",
+      video: video("51jvnR_HxqQ", "25 Min Pilates Lower Body \u2014 Glutes & Thighs", "Boho Beautiful Yoga", 1626),
+      exercises: [],
+    },
+  },
+};
+
 export const PROGRAMS = {
   [MATCH_FIT.id]: MATCH_FIT,
   [ROPE_PROTOCOL.id]: ROPE_PROTOCOL,
+  [PILATES_WEEKLY.id]: PILATES_WEEKLY,
 };
 
 /** The list, for a picker. */
-export const PROGRAM_LIST = [MATCH_FIT, ROPE_PROTOCOL];
+export const PROGRAM_LIST = [MATCH_FIT, ROPE_PROTOCOL, PILATES_WEEKLY];

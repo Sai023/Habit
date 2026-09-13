@@ -18,7 +18,7 @@ import { ingestSamples, logDiscrete, getState } from "./store.js";
 import { todayFor } from "./ingest.js";
 
 let capabilities = {
-  version: 0, healthConnect: false, native: false,
+  version: 0, healthConnect: false, native: false, video: false,
   // Whether openFocus() goes anywhere. False on a shell where Focus is still a tab of its
   // own, so the control is simply not drawn rather than drawn and inert.
   focusSettings: false,
@@ -109,6 +109,10 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
         version: Number(info.version) || 0,
         healthConnect: !!info.healthConnect,
         embedded: !!info.embedded,
+        // Whether openVideo() opens a player. A shell that has one keeps the page's trust boundary
+        // intact: the video plays in a WebView of its own with no bridge attached, rather than in
+        // an iframe inside this one, where every frame can see PauseNative.
+        video: !!info.video,
         // Every field the shell announces has to be read out HERE. This object is rebuilt whole on
         // each announcement rather than merged, so a capability the shell sends and this line does
         // not name is silently dropped and reads as false forever — which is indistinguishable
@@ -336,6 +340,11 @@ export function requestSync() {
  */
 export function openHealthApp() {
   return call("openHealthApp", {});
+}
+
+/** Play a video in the shell's own player. Only offered where caps().video is true. */
+export function openVideo({ id, title }) {
+  return call("openVideo", { id, title });
 }
 
 function safeParse(json) {

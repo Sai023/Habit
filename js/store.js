@@ -433,7 +433,7 @@ export async function chooseProgram(programId) {
  * Only if this member is tracking a Workouts habit. Somebody following a program without
  * competing on workouts still gets their history; the board just never hears about it.
  */
-export async function finishWorkout({ programId, sessionId, day, exercises, rounds, work, rest }) {
+export async function finishWorkout({ programId, sessionId, day, exercises, rounds, work, rest, minutes, effort }) {
   const state = await getState();
   const { memberId } = await identity();
 
@@ -441,6 +441,8 @@ export async function finishWorkout({ programId, sessionId, day, exercises, roun
   if (Number.isFinite(rounds)) fields.rounds = rounds;
   if (Number.isFinite(work)) fields.work = work;
   if (Number.isFinite(rest)) fields.rest = rest;
+  if (Number.isFinite(minutes)) fields.minutes = minutes;
+  if (effort) fields.effort = effort;
   const done = await commit(ev.workout(memberId, programId, sessionId, day, fields));
 
   const workouts = [...state.habits.values()].find(

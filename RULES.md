@@ -114,6 +114,8 @@ on the wrong one.
 | Favourites and patterns are claimed only after three sessions, and no least favourite is invented | `js/workout.js` — `MIN_INSIGHT_SESSIONS`, `workoutInsights` | `test/workout.test.mjs` |
 | Sets banked in an unfinished session survive until Finish, and both screens say so | `js/ui/workoutdraft.js` | — (UI; verified by hand) |
 | Rope intervals step up by the week of the program, counted from its start day | `js/workout.js` — `intervalsFor`, `progressionWeek` | `test/workout.test.mjs` |
+| A class keeps minutes and how it felt, is one history row, and has no personal best | `js/workout.js` — `exerciseHistory`, `personalBests`, `workoutInsights` (`classes`) | `test/workout.test.mjs` |
+| A video never loads inside the bridged WebView; the shell plays it in a bridge-less player of its own | `js/ui/workoutsheet.js` — `player`; `habit/VideoPlayer.kt` | `.../VideoPlayerTest.kt` |
 
 ## Levels
 

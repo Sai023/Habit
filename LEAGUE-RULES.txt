@@ -500,8 +500,8 @@ same events to the same state.
 12. PERSONAL WORKOUT PROGRAMS
 -----------------------------
 
-Two programs, written for two people, live in the app as data: Match Fit and
-Rope Protocol. Follow one from the Workouts card ("Follow a program"). The
+Three programs, written for three people, live in the app as data: Match
+Fit, Rope Protocol and Pilates Weekly. Follow one from the Workouts card ("Follow a program"). The
 card then opens the program: today's suggested session at the top, every
 session below it, and the rest days named. Programs are not edited in the
 app; when a plan changes, the file changes.
@@ -566,6 +566,17 @@ weekday sessions actually land on (only when one day clearly leads), and the
 longest rope interval. "Weeks in a row" counts back from this week, and a
 week that has not had its session YET is not a gap. None of this is scored;
 the board only ever sees the finished workout.
+
+A CLASS (Pilates Weekly) is a video followed along with: four a week, built
+around tennis — flow, core, rotation, legs — each credited to its teacher
+and played where it lives. Nothing is counted rep by rep; what is kept is
+that it was done, for how many minutes, and how it felt (easy, just right,
+hard). Done counts the class as a workout for the day. A class has no
+personal best — the video is as long as it is. The program's front page
+shows minutes on the mat, the class done most, and how the last few felt.
+
+In the app the video plays in the shell's own player, over the app, with
+nothing of the app's attached to it. In a browser it plays inline.
 
 A session swiped away half-done is not lost. Every set banked stays in
 the draft until Finish; the program's front page marks that session "In
