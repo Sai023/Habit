@@ -520,8 +520,11 @@ notes are on the way in, and the warm-up is on screen until the first set.
 A session is logged one set at a time. Each set opens on what you did last
 time in that set — the first time ever, on the program's floor — so Done is
 the whole interaction when nothing changed and + then Done when you beat it.
-Banking a set starts the rest clock. Everything banked survives the app
-closing, until you tap Finish.
+A timed exercise (plank, hollow hold) has its own clock: Start, hold, and
+the phone buzzes when the low end of the prescription is reached; Stop
+banks the seconds. The number can still be typed by hand. Banking a set
+starts the rest clock. Everything banked survives the app closing, until
+you tap Finish.
 
 Rope days (Rope Protocol) are intervals: work, rest and rounds that step up
 by week, counted from the program's start date of 2 Sep 2026. The timer runs

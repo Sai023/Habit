@@ -2108,3 +2108,13 @@ button.card-open:active { transform: scale(0.99); }
 }
 .log-day.is-on { color: var(--teal); border-color: var(--teal); }
 .sheet-title { user-select: none; -webkit-user-select: none; }
+
+/* The hold timer. The count is the only thing on the panel while it runs; the target line under
+   it turns teal when the low end of the prescription is reached, and the phone says so too. */
+.wo-hold { align-items: stretch; }
+.wo-hold-face { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0 4px; }
+.wo-hold-clock { font-size: 56px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.wo-hold-target { font-size: var(--fs-small); color: var(--dim); }
+.wo-hold.is-reached .wo-hold-clock { color: var(--teal); }
+.wo-hold.is-reached .wo-hold-target { color: var(--teal); font-weight: 700; }
+.wo-start { margin-bottom: 4px; }

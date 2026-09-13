@@ -269,6 +269,12 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   let value = active ? prefill(exercises[active.ex], previous, active.set) : 0;
   let rest = null;       // { until: ms, total: s } while the rest clock runs
   let restTimer = null;
+  // A timed set in progress: the plank you are holding right now. Counts up from Start; Stop
+  // banks the seconds. The target is the low end of the prescription, and the phone buzzes when
+  // it is reached so nobody has to watch the number — which was the whole point of asking for a
+  // timer in the app rather than a stopwatch beside it.
+  let hold = null;       // { startedAt: ms, target: s, reached: bool }
+  let holdTimer = null;
   let busy = false;
   // Records as they stood when the session opened. Compared against, never updated mid-session,
   // so the second set that beats the old record is celebrated as beating it too — which is what
@@ -294,6 +300,7 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
 
   function focus(ex, set) {
     just = null;
+    if (hold) cancelHold();
     active = { ex, set };
     const banked = draft[exercises[ex].id] || [];
     value = Number.isFinite(banked[set]) ? banked[set] : prefill(exercises[ex], previous, set);
@@ -319,6 +326,49 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     active = next;
     value = active ? prefill(exercises[active.ex], previous, active.set) : 0;
     if (startClock && active) startRest(session.restSeconds || 60);
+    paint();
+  }
+
+  function startHold(ex) {
+    stopRest();
+    hold = { startedAt: Date.now(), target: ex.seconds ? ex.seconds[0] : 0, reached: false };
+    buzz(20);
+    paint();
+    holdTimer = setInterval(tickHold, 250);
+  }
+
+  /** The clock, moved in place; the one structural change is the target being reached. */
+  function tickHold() {
+    if (!hold) return;
+    const elapsed = (Date.now() - hold.startedAt) / 1000;
+    const clockEl = document.querySelector(".wo-hold-clock");
+    if (clockEl) clockEl.textContent = clock(elapsed);
+    if (!hold.reached && hold.target && elapsed >= hold.target) {
+      hold.reached = true;
+      buzz([80, 40, 80]);
+      const wrap = document.querySelector(".wo-hold");
+      if (wrap) wrap.classList.add("is-reached");
+      const line = document.querySelector(".wo-hold-target");
+      if (line) line.textContent = "target reached — keep going or stop";
+    }
+  }
+
+  /** Stop, and bank what was held. */
+  function stopHold() {
+    if (!hold) return;
+    const elapsed = Math.round((Date.now() - hold.startedAt) / 1000);
+    clearInterval(holdTimer);
+    holdTimer = null;
+    hold = null;
+    value = elapsed;
+    bank();
+  }
+
+  /** Abandon the hold without banking — a false start, a phone call. */
+  function cancelHold() {
+    clearInterval(holdTimer);
+    holdTimer = null;
+    hold = null;
     paint();
   }
 
@@ -351,6 +401,8 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     restTimer = null;
     rest = null;
   }
+  // A closed sheet must not leave a clock ticking into a DOM that is gone.
+  const stopAllClocks = () => { stopRest(); if (holdTimer) clearInterval(holdTimer); holdTimer = null; hold = null; };
 
   async function finish() {
     if (busy) return;
@@ -376,7 +428,7 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
         await finishWorkout({ programId: program.id, sessionId: session.id, day: today, exercises: exercisesOut });
       }
       clearDraft(session.id);
-      stopRest();
+      stopAllClocks();
       sheet.close();
     } catch (err) {
       busy = false;
@@ -406,14 +458,34 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   function activeControl(ex) {
     const unit = unitOf(ex);
     const step = ex.seconds ? 5 : 1;
+    const setLabel = active ? " · set " + (active.set + 1) + " of " + ex.sets : "";
+
+    // A timed exercise gets a clock. Running: the count and Stop, nothing else on the panel, so
+    // the one tap a person makes while shaking on a plank cannot land on the wrong control.
+    if (ex.seconds && hold) {
+      return el("div.wo-active.wo-hold" + (hold.reached ? ".is-reached" : ""),
+        el("div.wo-hold-face",
+          el("b.wo-hold-clock", clock((Date.now() - hold.startedAt) / 1000)),
+          el("span.wo-hold-target", hold.reached ? "target reached — keep going or stop" : "target " + hold.target + "s"),
+        ),
+        el("button.tap.wo-done", { onclick: stopHold }, "Stop" + setLabel),
+        el("button.link", { onclick: cancelHold }, "Cancel this hold"),
+      );
+    }
+
     return el("div.wo-active",
+      // Timed: Start is the way in. The stepper stays below it for a hold timed elsewhere, or a
+      // number to correct — the same set can be typed as well as timed.
+      ex.seconds
+        ? el("button.tap.wo-done.wo-start", { onclick: () => startHold(ex) }, "\u25B6 Start hold" + setLabel)
+        : null,
       el("div.wo-stepper",
         el("button.step", { onclick: () => { value = Math.max(0, value - step); paint(); }, "aria-label": "Less" }, "−"),
         el("div.wo-value", String(value), el("span.wo-unit", " " + unit + (ex.perSide ? "/side" : ""))),
         el("button.step", { onclick: () => { value += step; paint(); }, "aria-label": "More" }, "+"),
       ),
-      el("button.tap.wo-done", { onclick: bank },
-        "Done" + (active ? " · set " + (active.set + 1) + " of " + ex.sets : "")),
+      el("button.tap" + (ex.seconds ? ".tap-quiet" : "") + ".wo-done", { onclick: bank },
+        (ex.seconds ? "Enter " + value + "s by hand" : "Done") + (ex.seconds ? "" : setLabel)),
     );
   }
 
@@ -496,7 +568,7 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
         exercises.map(exerciseCard),
 
         el("div.sheet-actions",
-          el("button.ghost", { onclick: () => { stopRest(); if (back) back(); else sheet.close(); } },
+          el("button.ghost", { onclick: () => { stopAllClocks(); if (back) back(); else sheet.close(); } },
             back ? "\u2190 Back" : "Later"),
           el("button.tap" + (isComplete(session, draft) ? ".is-ready" : ""), { onclick: finish, disabled: busy },
             busy ? "Saving\u2026" : (finisherOf ? "Finish " + session.name.toLowerCase() : "Finish workout")),

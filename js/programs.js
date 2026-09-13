@@ -144,15 +144,18 @@ const MATCH_FIT = {
           cue: "Not there yet? Drop to your knees, same straight line from knees to head.",
           watch: "Hips sagging low or piking up — both mean the core isn't holding the line.",
         }),
-        ex("pike-pushup", "Incline pike push-up", 3, reps(6, 10), {
+        // Was the incline pike push-up, which was too much too soon. Shoulder taps load the same
+        // shoulders from a plank rather than a press, and are the step that leads back to it.
+        ex("shoulder-tap", "Plank shoulder taps", 3, reps(10, 16), {
+          perSide: true,
           steps: [
-            "Place your hands on a sturdy chair seat, low step, or couch edge, feet on the floor behind you.",
-            "Walk your feet in toward your hands until your hips are high, forming a bent-over V shape.",
-            "Bend your elbows to lower the top of your head toward your hands.",
-            "Press back up through your palms to the starting position.",
+            "Start in a high plank: hands under your shoulders, feet a little wider than your hips.",
+            "Brace your stomach and squeeze your glutes so your body is one straight line.",
+            "Lift one hand and tap the opposite shoulder, keeping your hips square to the floor.",
+            "Set the hand back down and tap the other shoulder. That is one each side.",
           ],
-          cue: "Your shoulder-press substitute — the higher the surface, the easier. Lower it as it gets comfortable, and work toward hands-on-floor down the line.",
-          watch: "Elbows flaring straight out sideways — keep them tracking over your fingers.",
+          cue: "The wider your feet, the easier it is to keep your hips still. Too easy? Bring them together.",
+          watch: "Hips rocking side to side as you lift a hand — slow down, or widen your feet.",
         }),
         ex("dip", "Tricep dip", 3, reps(8, 12), {
           steps: [
