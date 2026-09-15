@@ -586,7 +586,26 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
       for (const key of keys) {
         const status = w.statuses.get(key);
         if (status === undefined || status === EXEMPT) continue; // before it existed, or excused
-        if (status === NO_DATA) { noData += 1; hQuiet += 1; continue; }
+        if (status === NO_DATA) {
+          // Silence is only silence once the period has CLOSED. A sensor that has said nothing
+          // about the day still being played is early, not quiet — counting it had the board
+          // saying "Steps silent 1 day" at seven in the morning, before the phone had synced
+          // once, and telling the reader "nothing came through from your phone — those earned
+          // nothing" about a week that was two days old. The open period falls through and is
+          // scored on its progress so far, which is what it is.
+          //
+          // And a WEEKLY or monthly habit with nothing logged is behind pace, not unreported:
+          // the scorer judges it either way (see habitScore, "paced habits are always judged"),
+          // so a closed empty week is a miss here too, or the row would excuse what the total
+          // has already charged for.
+          if (key !== w.currentKey) {
+            if (habit.period === PERIOD.DAY) { noData += 1; hQuiet += 1; continue; }
+            eligible += 1;
+            hEligible += 1;
+            judged += 1;
+            continue;
+          }
+        }
 
         if (key === w.currentKey) {
           const p = progressFor(state, habit, memberId, key);

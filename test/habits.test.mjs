@@ -386,6 +386,41 @@ test("crown goes to the top of the board, and nothing goes to the bottom", () =>
   assert.equal(rows.filter((r) => r.crown).length, 1);
 });
 
+test("a sensor that has not reported TODAY is early, not silent", () => {
+  // Carol's watch reported every closed day and nothing yet today. At seven in the morning that
+  // is normal; the board said "Steps silent 1 day" and offered her the sync fix for it.
+  const s = threeMembers({ carolSource: SOURCE.HEALTH_CONNECT, carolLogs: [0, 1, 2, 3, 4, 5] });
+  const carol = leaderboard(s, ["m1", "m2", "m3"], day(0), day(6), day(6)).find((r) => r.name === "Carol");
+  assert.equal(carol.noData, 0, "nothing to fix");
+  assert.equal(carol.perHabit[0].quiet, 0);
+  assert.equal(carol.perHabit[0].eligible, 6, "six closed days judged");
+  assert.equal(carol.perHabit[0].open, 0, "and today open at nothing so far");
+});
+
+test("a weekly habit with nothing logged is behind pace, not unreported", () => {
+  // Three workouts a week from a watch. On Tuesday with none yet the week is 0 of 3 so far —
+  // the scorer charges for the pace either way, and the row must not excuse it as "silent".
+  const weekly = replay([
+    E(ev.member("m1", "Alice"), at(D0, 6)),
+    E(ev.habit("h1", {
+      tz: TZ, dayStartHour: 4, name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST,
+      target: 3, period: "week", aggregate: AGGREGATE.SUM, source: SOURCE.HEALTH_CONNECT, scored: true,
+    }), at(D0, 6)),
+    E(ev.bind("m1", "h1", SOURCE.HEALTH_CONNECT), at(D0, 6)),
+  ]);
+  // Mid-week: open at zero, nothing quiet.
+  const tue = leaderboard(weekly, ["m1"], day(0), day(6), day(1))[0];
+  assert.equal(tue.noData, 0);
+  assert.equal(tue.perHabit[0].quiet, 0);
+  assert.equal(tue.perHabit[0].open, 0, "0 of 3 so far");
+  // The week after, with the empty week closed: a miss, judged, still not "silent".
+  const next = leaderboard(weekly, ["m1"], day(0), day(13), day(8))[0];
+  const h = next.perHabit[0];
+  assert.equal(h.quiet, 0);
+  assert.equal(h.eligible, 1, "the closed week was judged");
+  assert.equal(h.hits, 0, "and missed");
+});
+
 test("a silent pipeline is still reported, so the diagnostic can offer the fix", () => {
   // Carol's habit is automatic and she logged only 2 of 7 days, so 5 days are NO_DATA rather
   // than misses. The clown's suppression rule used to be the one place the app told somebody
