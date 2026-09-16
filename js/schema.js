@@ -167,6 +167,19 @@ export const AUTOMATIC_SOURCES = new Set([
 ]);
 
 /**
+ * HOW a value got onto the log — its provenance, distinct from `source` (which says WHICH feed).
+ *
+ *   sensor  a device or the app measured it (health connect, strava, phone, pause)
+ *   meter   read off a cumulative counter and turned into a day's total (see meterEntry)
+ *   typed   a person entered the number themselves
+ *
+ * Stamped at the write boundary where the method is actually known; derivable from source+reading
+ * for events written before this field existed. It lets analytics weight a measurement above a
+ * self-reported number — see CONFIDENCE in dailyfacts.js — rather than treating all values alike.
+ */
+export const ENTRY_METHOD = { SENSOR: "sensor", METER: "meter", TYPED: "typed" };
+
+/**
  * What the phone can work out on its own, without a watch.
  *
  * Only sleep, and only as a fallback. A watch answers it properly — but most people take theirs
@@ -330,9 +343,10 @@ export const ev = {
   // next entry can be worked out from this one. See meterEntry in habits.js.
   // `window` is { start, end } in epoch ms — when the thing measured actually ran, for a night's
   // sleep. Carried for the history to show; nothing is judged on it.
-  log: (habitId, memberId, day, value, source, externalId = null, reading = null, window = null) =>
+  log: (habitId, memberId, day, value, source, externalId = null, reading = null, window = null, entryMethod = null) =>
     ({ type: T.LOG, payload: p({ habitId, memberId, day, value: Number(value) || 0, source, externalId,
       ...(Number.isFinite(reading) ? { reading } : {}),
+      ...(entryMethod ? { entryMethod } : {}),
       ...(window && Number.isFinite(window.start) && Number.isFinite(window.end) && window.end > window.start
         ? { start: window.start, end: window.end } : {}) }) }),
 
@@ -446,4 +460,36 @@ export function isKnown(type, payload) {
   if (!Object.values(T).includes(type)) return false;
   const v = Number(payload && payload.v) || 1;
   return v <= SCHEMA_VERSION;
+}
+
+const _isStr = (x) => typeof x === "string" && x.length > 0;
+const _isDay = (x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
+
+/**
+ * Is this event well-formed enough to replay safely?
+ *
+ * The write boundary (store.commit) refuses to write one that fails, and replay skips one that
+ * slips in anyway — the defence against a "poison event" injected straight at the API, malformed
+ * but the right type, that would otherwise throw mid-replay and freeze every device in the room.
+ * Deliberately lenient: it checks only the fields a reducer dereferences, so no event that is
+ * valid today is rejected. Unknown-but-known-type shapes pass; isKnown gates the type and version.
+ */
+export function validate(type, payload) {
+  const p = payload || {};
+  switch (type) {
+    case T.LOG:          return _isStr(p.habitId) && _isStr(p.memberId) && _isDay(p.day) && Number.isFinite(Number(p.value));
+    case T.LOG_CLEAR:    return _isStr(p.habitId) && _isStr(p.memberId) && _isDay(p.day);
+    case T.HABIT_DEF:    return _isStr(p.habitId);
+    case T.HABIT_DELETE: return _isStr(p.habitId);
+    case T.MEMBER:       return _isStr(p.memberId);
+    case T.MEMBER_MERGE: return _isStr(p.from) && _isStr(p.into);
+    case T.GOAL:         return _isStr(p.memberId) && _isStr(p.habitId);
+    case T.BINDING:      return _isStr(p.memberId) && _isStr(p.habitId);
+    case T.PROGRAM:      return _isStr(p.memberId);
+    case T.WORKOUT:      return _isStr(p.memberId) && _isDay(p.day);
+    case T.VITALS:       return _isStr(p.memberId) && _isDay(p.day);
+    case T.EXEMPT:       return _isStr(p.memberId) && _isDay(p.from) && _isDay(p.to);
+    case T.META:         return true;
+    default:             return true;
+  }
 }

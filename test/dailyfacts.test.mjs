@@ -59,7 +59,8 @@ test("dailyFacts projects one row per tracked day-habit per day, from the join d
   assert.equal(d0.met, true);
   assert.equal(d0.weekday, "Monday");
   assert.equal(d0.dow, 1);
-  assert.equal(d0.source, "manual", "a typed number reads as manual, not sensor");
+  assert.equal(d0.method, "typed", "a typed number's provenance is 'typed'");
+  assert.equal(d0.confidence, 0.6, "and it is weighted below a measurement");
 });
 
 test("a Friday miss lands as MISS, not NO_DATA, and carries the weekday", () => {

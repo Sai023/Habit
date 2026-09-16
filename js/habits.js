@@ -26,7 +26,7 @@
 import {
   T, AT_LEAST, AT_MOST, AUTOMATIC_SOURCES, VISIBILITY, AGGREGATE, SOURCE, METRIC,
   HEALTH_METRICS, PAUSE_METRICS, isInterventionHabit,
-  PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown,
+  PERIOD, GRACE_BY_PERIOD, MAX_BACKFILL_DAYS, HABIT_DEFAULTS, isKnown, validate,
   LEGACY_METRIC, LEGACY_NAME,
   SCORED_METRICS, PROVIDER_DAY_METRICS,
 } from "./schema.js";
@@ -472,6 +472,7 @@ export function replay(events) {
   for (const e of sortEvents(events)) {
     let p = e.payload || {};
     if (!isKnown(e.type, p)) continue;
+    if (!validate(e.type, p)) continue; // malformed but right-typed — skip, don't let it throw mid-replay
     if (e.type === T.MEMBER_MERGE) continue; // consumed by the pre-scan above
 
     // Rewrite an aliased member id to its canonical one, once, for every case below.
@@ -585,12 +586,19 @@ export function replay(events) {
         const k = logKey(p.habitId, p.memberId, p.day);
         if (!logs.has(k)) logs.set(k, []);
         const start = Number(p.start), end = Number(p.end);
+        const reading = Number.isFinite(p.reading) ? p.reading : null;
+        const src = p.source || SOURCE.MANUAL;
+        // Provenance. Stamped at the write boundary where it is known; for older events without it,
+        // derived: a reading is a meter, an automatic source is a sensor, anything else was typed.
+        const entryMethod = p.entryMethod
+          || (reading !== null ? "meter" : (AUTOMATIC_SOURCES.has(src) ? "sensor" : "typed"));
         logs.get(k).push({
-          source: p.source || "manual",
+          source: src,
           value: Number(p.value) || 0,
           ts: authoredAt(e),
           externalId: p.externalId || null,
-          reading: Number.isFinite(p.reading) ? p.reading : null,
+          reading,
+          entryMethod,
           // When it ran — a night's sleep, from the watch, the phone's quiet gap, or typed. Only
           // a pair that makes sense is kept; the value stands on its own either way.
           start: Number.isFinite(start) && Number.isFinite(end) && end > start ? start : null,
@@ -971,6 +979,16 @@ export function manualOn(state, habit, memberId, day) {
   const typed = entries.filter((e) => e.source === SOURCE.MANUAL);
   if (!typed.length) return null;
   return aggregateEntries(habit, typed);
+}
+
+/** How the day's winning value got here — "typed" | "sensor" | "meter" | null — same precedence
+ *  as valueOn (a manual entry wins), so it describes the number the app actually shows. */
+export function methodOn(state, habit, memberId, day) {
+  const entries = state.logs.get(logKey(habit.habitId, memberId, day));
+  if (!entries || !entries.length) return null;
+  const manual = entries.filter((e) => e.source === SOURCE.MANUAL);
+  const list = manual.length ? manual : entries;
+  return list[list.length - 1].entryMethod || null;
 }
 
 export function valueOn(state, habit, memberId, day) {

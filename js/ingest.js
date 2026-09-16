@@ -24,7 +24,7 @@
 // distinction that keeps this cheap.
 
 import { dayKey, daysBetween, valueOn, targetFor, sourceFor, isTracking } from "./habits.js";
-import { ev, METRIC, MAX_BACKFILL_DAYS, AT_MOST, AGGREGATE } from "./schema.js";
+import { ev, METRIC, MAX_BACKFILL_DAYS, AT_MOST, AGGREGATE, ENTRY_METHOD } from "./schema.js";
 
 /** Backstop for a value that keeps creeping without ever flipping the verdict. */
 export const THROTTLE_MS = 30 * 60 * 1000;
@@ -101,7 +101,7 @@ export function samplesToEvents(state, memberId, batch, opts = {}) {
         if (now - last < throttleMs) continue;
       }
 
-      events.push(ev.log(habit.habitId, memberId, day, value, source, sample.externalId || null));
+      events.push(ev.log(habit.habitId, memberId, day, value, source, sample.externalId || null, null, null, ENTRY_METHOD.SENSOR));
       emitted.set(habit.habitId + "|" + day, now);
     }
   }
@@ -118,7 +118,7 @@ export function samplesToEvents(state, memberId, batch, opts = {}) {
 export function discreteEvent(state, memberId, habitId, day, amount = 1, source = "pause", externalId = null) {
   const habit = state.habits.get(habitId);
   if (!habit) return null;
-  return ev.log(habitId, memberId, day, amount, source, externalId);
+  return ev.log(habitId, memberId, day, amount, source, externalId, null, null, ENTRY_METHOD.SENSOR);
 }
 
 /** Today's day key for a habit, using its pinned timezone rather than the device's. */

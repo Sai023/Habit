@@ -27,19 +27,23 @@
 //     has a minimum and is simply absent below it — a null, never a guess.
 //   • EXEMPT days (travel, booked rest) are not misses. They are excluded from met-rates and from
 //     correlations, so a holiday cannot read as a collapse in discipline.
-//   • Provenance is coarse but honest: manual (typed) vs sensor (measured). Per-entry unit and
-//     entry-method are a planned enrichment (see docs/DATA-ARCHITECTURE.md); when the events carry
-//     them, this row grows the fields and the patterns can weight by confidence.
+//   • Provenance is exact and weighted: each row carries the value's method (typed / sensor /
+//     meter, stamped at the write boundary) and a confidence (a measurement over a self-reported
+//     number), so analytics can lean on the surer days. Unit stays the metric until a habit's
+//     unit can actually change — that is the change-event wave (see docs/DATA-ARCHITECTURE.md).
 //
 // Only DAY-period habits are projected: weekly and monthly habits have a different natural grain
 // and their own (future) period-fact model. Behavioural pattern-finding is a daily question.
 
 import {
-  valueOn, manualOn, rawDayStatus, targetOn, isTracking,
+  valueOn, methodOn, rawDayStatus, targetOn, isTracking,
   addDays, daysBetween, isoDayOfWeek, isoWeekKey,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
 import { PERIOD, AT_MOST } from "./schema.js";
+
+/** How much a value can be leaned on, by how it was captured — for weighting, not for hiding. */
+export const CONFIDENCE = { sensor: 1, meter: 0.9, typed: 0.6 };
 
 /** A correlation needs at least this many qualifying days ON EACH SIDE before it says anything. */
 export const MIN_PER_SIDE = 5;
@@ -59,7 +63,7 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
  * @param opts.habitIds   restrict to these habit ids (default: every DAY habit the member tracks)
  * @returns Fact[] sorted by (habitId, day). A Fact is:
  *   { day, habitId, habitName, metric, unit, direction, memberId,
- *     value, target, status, met, reported, source, dow, weekday, isoWeek, exempt }
+ *     value, target, status, met, reported, method, confidence, dow, weekday, isoWeek, exempt }
  */
 export function dailyFacts(state, { me, to, from = null, habitIds = null } = {}) {
   if (!state || !me || !to) return [];
@@ -84,6 +88,7 @@ export function dailyFacts(state, { me, to, from = null, habitIds = null } = {})
       const status = rawDayStatus(state, habit, me, day);
       const value = valueOn(state, habit, me, day);
       const reported = value !== null && value !== undefined;
+      const method = reported ? methodOn(state, habit, me, day) : null;
       facts.push({
         day,
         habitId: habit.habitId,
@@ -97,9 +102,11 @@ export function dailyFacts(state, { me, to, from = null, habitIds = null } = {})
         status,
         met: status === HIT,
         reported,
-        // Typed vs measured. manualOn wins outright in valueOn, so a manual reading present means
-        // the day's value was typed; otherwise a reported value came from a sensor.
-        source: manualOn(state, habit, me, day) !== null ? "manual" : (reported ? "sensor" : null),
+        // Provenance of the value the app shows: "typed" | "sensor" | "meter" | null, stamped at
+        // the write boundary (see ENTRY_METHOD). `confidence` weights a measurement above a
+        // self-reported number so analytics can lean on the surer days without hiding the rest.
+        method,
+        confidence: method ? (CONFIDENCE[method] || 0) : 0,
         dow: isoDayOfWeek(day),
         weekday: WEEKDAYS[isoDayOfWeek(day) - 1],
         isoWeek: isoWeekKey(day),

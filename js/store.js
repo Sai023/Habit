@@ -8,7 +8,7 @@
 
 import { db } from "./db.js";
 import { replay, addDays, daysBetween, isTracking } from "./habits.js";
-import { ev, T, SOURCE, METRIC, MAX_BACKFILL_DAYS } from "./schema.js";
+import { ev, T, SOURCE, METRIC, MAX_BACKFILL_DAYS, validate, ENTRY_METHOD } from "./schema.js";
 import { uuid, groupCode as newGroupCode, normalizeGroupCode } from "./id.js";
 import { samplesToEvents, discreteEvent } from "./ingest.js";
 import { encodeSetup, encodeInvite } from "./setup-code.js";
@@ -294,6 +294,9 @@ export async function rename(myName) {
  */
 export async function commit(spec) {
   const { memberId } = await identity();
+  // The write boundary: a bug that builds a malformed event should fail loudly here, not write
+  // junk that every device then has to replay. (Same check replay uses to skip a poison event.)
+  if (!validate(spec.type, spec.payload)) throw new Error("refusing to write a malformed " + spec.type);
   const event = {
     eventId: uuid(),
     type: spec.type,
@@ -310,6 +313,7 @@ export async function commit(spec) {
 /** Commit several events as one batch — one derive invalidation, one queue pass. */
 export async function commitAll(specs) {
   if (!specs || !specs.length) return [];
+  for (const s of specs) if (!validate(s.type, s.payload)) throw new Error("refusing to write a malformed " + s.type);
   const { memberId } = await identity();
   const now = Date.now();
   // A millisecond apart, deliberately. Identical timestamps make replay fall back to comparing
@@ -431,7 +435,8 @@ export async function endTravelMode(exemptId, from, on = null) {
 /** A manual entry, or a value the user corrected by hand. */
 export async function logValue(habitId, day, value, source = "manual", reading = null, window = null) {
   const { memberId } = await identity();
-  return commit(ev.log(habitId, memberId, day, value, source, null, reading, window));
+  const method = reading != null ? ENTRY_METHOD.METER : ENTRY_METHOD.TYPED;
+  return commit(ev.log(habitId, memberId, day, value, source, null, reading, window, method));
 }
 
 /**
@@ -451,7 +456,7 @@ export async function logMeter(habitId, perDay, reading) {
   const specs = [];
   for (const d of kept) {
     specs.push(ev.clearLog(habitId, memberId, d.day, SOURCE.MANUAL));
-    specs.push(ev.log(habitId, memberId, d.day, d.value, SOURCE.MANUAL, null, d.day === entryDay ? reading : null));
+    specs.push(ev.log(habitId, memberId, d.day, d.value, SOURCE.MANUAL, null, d.day === entryDay ? reading : null, null, ENTRY_METHOD.METER));
   }
   return commitAll(specs);
 }

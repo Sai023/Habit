@@ -57,7 +57,8 @@ of **daily facts** — one row per `(habit, member, day)` — built **once** fro
   target,    // the goal in force that day (after taper/goal changes)
   status,    // HIT | MISS | NO_DATA | EXEMPT
   met, reported,
-  source,    // "manual" (typed) | "sensor" (measured) | null  — coarse provenance
+  method,    // "typed" | "sensor" | "meter" | null  — how the value got here (ENTRY_METHOD)
+  confidence,// 1 sensor · 0.9 meter · 0.6 typed · 0 none — for weighting, not hiding
   dow, weekday, isoWeek,
   exempt }
 ```
@@ -115,11 +116,17 @@ pattern after it is a cheap in-memory reduction.
 
 Done: read-model (§3); soft-delete + restore keeps history; re-add routes to restore; **identity merge** — see below.
 
-**Next wave — provenance (make every event self-describing).** Add `unit` and `entryMethod`
-(typed / sensor / corrected / backfilled) to log payloads, and formalise `v` into a validated
-schema per event type at the write boundary (this is also the poison-event defence). Then the
-read-model's `unit`/`source` fields become exact rather than inferred, and analytics can weight by
-confidence (sensor > typed > backfilled).
+**Provenance — shipped.** Log events carry `entryMethod` (`typed` / `sensor` / `meter`, via
+`ENTRY_METHOD`), stamped at the write boundary where the method is known (`store.logValue` types,
+`logMeter` meters, `ingest` senses) and derived for older events from source + reading. The
+read-model surfaces it as `method` plus a `confidence` weight (sensor 1 · meter 0.9 · typed 0.6),
+so analytics can lean on measured days above self-reported ones. `schema.validate(type, payload)`
+is the write boundary: `store.commit`/`commitAll` refuse to write a malformed event, and replay
+skips one that slips in — the poison-event defence (a right-typed but broken row injected at the
+API can no longer freeze a replay). Residual, deliberately left: a *valid-shaped* payload with
+toxic content is not caught by field validation; a replay-level try/catch would defend it but is
+held back to keep genuine engine bugs failing loudly. `unit` stays the metric until a habit's unit
+can actually change — the change-event wave below.
 
 **Identity — shipped.** A `habit_member_merge` event (`{ from, into }`) says two ids are the
 same person. Replay resolves it once, union-find, at the single point it reads a payload's
