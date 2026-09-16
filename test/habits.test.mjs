@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import {
   replay, walk, streak, dayKey, addDays, daysBetween, isoDayOfWeek, rawDayStatus, valueOn, targetOn, publicValue, HIT, MISS, NO_DATA, EXEMPT,
-  groupDayHabit,
+  groupDayHabit, windowOn,
 } from "../js/habits.js";
 import { leaderboard } from "../js/score.js";
 import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE, METRIC, SCORED_METRICS, PERIOD } from "../js/schema.js";
@@ -549,6 +549,40 @@ test("a steps habit is judged on the provider's day, whatever day start was ever
   // even though Steps was defined first. Otherwise a puff typed at one in the morning would
   // have landed on the wrong night the moment Steps moved to midnight.
   assert.equal(groupDayHabit(s).habitId, "puffs");
+});
+
+test("a night carries when it ran, and the window shown is the reading's own", () => {
+  // The watch said 23:10 to 07:05; the phone's quiet gap said 23:40 to 06:58; then a correction
+  // was typed with its own times. Each is kept; the one shown follows valueOn's precedence.
+  const sleep = { ...manualHabit, name: "Sleep", metric: METRIC.SLEEP, source: SOURCE.HEALTH_CONNECT, target: 420 };
+  const night = (h, m, dayOff = 0) => Date.UTC(2026, 2, 2 + dayOff, h, m);
+  const s = replay([
+    E(ev.member("m1", "Alice"), at(D0, 6)),
+    E(ev.habit("h1", { tz: TZ, dayStartHour: 4, ...sleep, scored: true }), at(D0, 6)),
+    E(ev.bind("m1", "h1", SOURCE.HEALTH_CONNECT), at(D0, 6)),
+    E(ev.log("h1", "m1", day(0), 475, SOURCE.HEALTH_CONNECT, null, null, { start: night(23, 10, -1), end: night(7, 5) }), at(day(0), 8)),
+    E(ev.log("h1", "m1", day(0), 438, SOURCE.PAUSE, null, null, { start: night(23, 40, -1), end: night(6, 58) }), at(day(0), 9)),
+    E(ev.log("h1", "m1", day(1), 400, SOURCE.HEALTH_CONNECT, null, null, { start: 5, end: 1 }), at(day(1), 8)),
+  ]);
+  const h = s.habits.get("h1");
+  const w = windowOn(s, h, "m1", day(0));
+  assert.equal(w.source, SOURCE.HEALTH_CONNECT, "the fuller record, as valueOn takes it — not merely the latest");
+  assert.equal(w.start, night(23, 10, -1));
+  assert.equal(windowOn(s, h, "m1", day(1)), null, "a window that ends before it starts is not kept");
+
+  const typed = replay([
+    E(ev.member("m1", "Alice"), at(D0, 6)),
+    E(ev.habit("h1", { tz: TZ, dayStartHour: 4, ...sleep, scored: true }), at(D0, 6)),
+    E(ev.log("h1", "m1", day(0), 475, SOURCE.HEALTH_CONNECT, null, null, { start: night(23, 10, -1), end: night(7, 5) }), at(day(0), 8)),
+    E(ev.log("h1", "m1", day(0), 420, SOURCE.MANUAL, null, null, { start: night(0, 0), end: night(7, 0) }), at(day(0), 9)),
+  ]);
+  assert.equal(windowOn(typed, typed.habits.get("h1"), "m1", day(0)).source, SOURCE.MANUAL, "a typed night wins outright");
+  const untimed = replay([
+    E(ev.member("m1", "Alice"), at(D0, 6)),
+    E(ev.habit("h1", { tz: TZ, dayStartHour: 4, ...sleep, scored: true }), at(D0, 6)),
+    E(ev.log("h1", "m1", day(0), 475, SOURCE.HEALTH_CONNECT), at(day(0), 8)),
+  ]);
+  assert.equal(windowOn(untimed, untimed.habits.get("h1"), "m1", day(0)), null, "a reading with no window has none");
 });
 
 if (failures.length) {

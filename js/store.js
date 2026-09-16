@@ -406,9 +406,9 @@ export async function endTravelMode(exemptId, from, on = null) {
 // ---- logging ----
 
 /** A manual entry, or a value the user corrected by hand. */
-export async function logValue(habitId, day, value, source = "manual", reading = null) {
+export async function logValue(habitId, day, value, source = "manual", reading = null, window = null) {
   const { memberId } = await identity();
-  return commit(ev.log(habitId, memberId, day, value, source, null, reading));
+  return commit(ev.log(habitId, memberId, day, value, source, null, reading, window));
 }
 
 /**

@@ -98,6 +98,29 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   let amount;
   let busy = false;
   let error = "";
+
+  // A night typed as two clock times rather than a number of hours. Off by default: the hours
+  // field is one number and most people know it; the times are for the person who would rather
+  // say "eleven to seven" and have the app do the sum — and whose history then shows the night.
+  let byClock = false;
+  let bedAt = "23:00";
+  let wokeAt = "07:00";
+
+  /** The window the two times describe, ending on this day; null if they make no night. */
+  function nightWindow() {
+    const [bh, bm] = bedAt.split(":").map(Number);
+    const [wh, wm] = wokeAt.split(":").map(Number);
+    if (![bh, bm, wh, wm].every(Number.isFinite)) return null;
+    const [y, mo, d] = day.split("-").map(Number);
+    const end = new Date(y, mo - 1, d, wh, wm).getTime();
+    let start = new Date(y, mo - 1, d, bh, bm).getTime();
+    // Bedtime after wake time means the night before; bedtime before it means a nap or an early
+    // night that ended the same day. Either way the window has to end after it starts.
+    if (start >= end) start -= 24 * 60 * 60 * 1000;
+    if (end - start > 20 * 60 * 60 * 1000) return null;
+    return { start, end };
+  }
+
   let current, target, typed, canDeclareNone;
 
   /** Everything the sheet says depends on which day it is about. */
@@ -182,6 +205,18 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
 
       meter
         ? meterField()
+        : byClock
+        ? el("div.field",
+            el("span.field-label", "Fell asleep \u2192 woke up"),
+            el("div.night-times",
+              el("input", { type: "time", value: bedAt, oninput: (e) => { bedAt = e.target.value; } }),
+              el("span.season-arrow", "\u2192"),
+              el("input", { type: "time", value: wokeAt, oninput: (e) => { wokeAt = e.target.value; } }),
+            ),
+            (() => { const w = nightWindow(); return w
+              ? el("p.note-inline", fmt.value(METRIC.SLEEP, Math.round((w.end - w.start) / 60_000)) + " \u00b7 the night before, when bedtime is after the wake time")
+              : el("p.note-inline", "Bedtime, then wake time."); })(),
+          )
         : el("label.field",
             el("span.field-label", isSum ? "Add how many?" : "What's the total now?"),
             el("div.stepper",
@@ -195,10 +230,14 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
               el("button.step", { onclick: () => bump(1), "aria-label": "More" }, "+"),
             ),
           ),
-      meter ? null : unit ? el("p.note-inline", unit) : null,
+      meter || byClock ? null : unit ? el("p.note-inline", unit) : null,
       isMeter
         ? el("button.link", { onclick: () => { meter = !meter; paint(); } },
             meter ? "No counter? Enter the puffs directly" : "Enter the counter reading instead")
+        : null,
+      habit.metric === METRIC.SLEEP
+        ? el("button.link", { onclick: () => { byClock = !byClock; paint(); } },
+            byClock ? "Enter the hours instead" : "Enter bedtime and wake time instead")
         : null,
 
       canDeclareNone
@@ -316,6 +355,21 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
 
   async function save(exact) {
     if (busy) return;
+    if (byClock && exact == null) {
+      const w = nightWindow();
+      if (!w) { error = "Those two times don\u2019t make a night."; return paint(); }
+      busy = true; error = ""; paint();
+      try {
+        await logValue(habit.habitId, day, Math.round((w.end - w.start) / 60_000), "manual", null, w);
+        sheet.close();
+        onSaved();
+      } catch (err) {
+        error = "Couldn\u2019t save: " + (err && err.message ? err.message : err);
+        busy = false;
+        paint();
+      }
+      return;
+    }
     // A counter reading: the day's puffs are worked out, not typed, and a gap of days is written
     // as one entry per day so each is judged on its own.
     if (meter && exact == null) {

@@ -26,7 +26,7 @@ import {
   companionTotal,
 } from "../history.js";
 import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
-import { sourceFor, isTracking, HIT, MISS, NO_DATA, EXEMPT } from "../habits.js";
+import { sourceFor, isTracking, HIT, MISS, NO_DATA, EXEMPT, windowOn } from "../habits.js";
 import { programFor, planFor, exerciseHistory, sessionsOf } from "../workout.js";
 import { draftsInProgress } from "./workoutdraft.js";
 import { AT_MOST, METRIC, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
@@ -208,8 +208,18 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         el("b", unit(e.value)),
         e.target ? el("span", (reduce ? " of " : " of ") + unit(e.target)) : null,
       ),
+      // When the night ran, where whoever reported it said. Under the number rather than beside
+      // it: the minutes are the verdict, the clock is the story.
+      nightLine(e),
       companionLine(e),
     );
+  }
+
+  function nightLine(e) {
+    if (habit.metric !== METRIC.SLEEP || e.period !== PERIOD.DAY) return null;
+    const w = windowOn(state, habit, me, e.from);
+    if (!w) return null;
+    return el("p.hd-extra", el("span.hd-extra-icon", "\uD83C\uDF19"), fmt.windowLabel(w));
   }
 
   /**

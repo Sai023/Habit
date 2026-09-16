@@ -172,3 +172,17 @@ export function seasonNext(p) {
   }
   return name + " starts " + dayLabel(p.next.from) + ".";
 }
+
+/** "23:14" — a clock time in the reader's own zone. Used for when a night began and ended. */
+export function clockLabel(ms) {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * "23:14 \u2192 07:09" for a night; with "(phone quiet)" when it is the phone's estimate rather than
+ * a watch's record, because the two are not the same claim and the history should say which.
+ */
+export function windowLabel(w) {
+  if (!w) return null;
+  return clockLabel(w.start) + " \u2192 " + clockLabel(w.end) + (w.source === "pause" ? " (phone quiet)" : "");
+}

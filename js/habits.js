@@ -527,12 +527,17 @@ export function replay(events) {
 
         const k = logKey(p.habitId, p.memberId, p.day);
         if (!logs.has(k)) logs.set(k, []);
+        const start = Number(p.start), end = Number(p.end);
         logs.get(k).push({
           source: p.source || "manual",
           value: Number(p.value) || 0,
           ts: authoredAt(e),
           externalId: p.externalId || null,
           reading: Number.isFinite(p.reading) ? p.reading : null,
+          // When it ran — a night's sleep, from the watch, the phone's quiet gap, or typed. Only
+          // a pair that makes sense is kept; the value stands on its own either way.
+          start: Number.isFinite(start) && Number.isFinite(end) && end > start ? start : null,
+          end: Number.isFinite(start) && Number.isFinite(end) && end > start ? end : null,
         });
         break;
       }
@@ -811,6 +816,28 @@ function aggregateEntries(habit, list) {
  * Deliberately not "the day's value". On an automatic habit those differ exactly when this matters:
  * the day shows what you typed, and underneath it the watch has its own answer waiting.
  */
+/**
+ * When the day's reading actually ran, if whoever reported it said: { start, end, source }.
+ *
+ * The same precedence as valueOn — a typed entry wins outright, then the latest automatic one —
+ * so the window shown beside a number is the window of the reading that produced it, and not a
+ * watch's night under a number somebody corrected by hand.
+ */
+export function windowOn(state, habit, memberId, day) {
+  const entries = state.logs.get(logKey(habit.habitId, memberId, day));
+  if (!entries || !entries.length) return null;
+  const timed = entries.filter((e) => e.start !== null && e.end !== null);
+  if (!timed.length) return null;
+  const latest = (list) => list.reduce((a, b) => (b.ts >= a.ts ? b : a));
+  const manual = timed.filter((e) => e.source === SOURCE.MANUAL);
+  if (manual.length) { const p = latest(manual); return { start: p.start, end: p.end, source: p.source }; }
+  // Between sensors, the fuller record — each source's latest reading, the largest of those.
+  const bySource = new Map();
+  for (const e of timed) bySource.set(e.source, latest([...(bySource.has(e.source) ? [bySource.get(e.source)] : []), e]));
+  const pick = [...bySource.values()].reduce((a, b) => (b.value > a.value ? b : a));
+  return { start: pick.start, end: pick.end, source: pick.source };
+}
+
 /**
  * The last counter reading typed for this habit before `day`, or null.
  *

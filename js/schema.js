@@ -323,9 +323,13 @@ export const ev = {
   // `reading` is the counter the value was worked out from, where there is one — a vape's puff
   // counter, which never resets. The VALUE is still the day's puffs; the reading is kept so the
   // next entry can be worked out from this one. See meterEntry in habits.js.
-  log: (habitId, memberId, day, value, source, externalId = null, reading = null) =>
+  // `window` is { start, end } in epoch ms — when the thing measured actually ran, for a night's
+  // sleep. Carried for the history to show; nothing is judged on it.
+  log: (habitId, memberId, day, value, source, externalId = null, reading = null, window = null) =>
     ({ type: T.LOG, payload: p({ habitId, memberId, day, value: Number(value) || 0, source, externalId,
-      ...(Number.isFinite(reading) ? { reading } : {}) }) }),
+      ...(Number.isFinite(reading) ? { reading } : {}),
+      ...(window && Number.isFinite(window.start) && Number.isFinite(window.end) && window.end > window.start
+        ? { start: window.start, end: window.end } : {}) }) }),
 
   /**
    * Bind a member's device to a source for one habit.

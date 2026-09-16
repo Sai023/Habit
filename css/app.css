@@ -2336,3 +2336,11 @@ button.card-open:active { transform: scale(0.99); }
 /* The active set's own clock, and Start for the person who rested longer than the clock. */
 .wo-work { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: var(--fs-small); color: var(--dim); }
 .wo-work-k b { color: var(--teal); font-variant-numeric: tabular-nums; }
+
+/* A night typed as two clock times. */
+.night-times { display: flex; align-items: center; gap: 10px; }
+.night-times input[type="time"] {
+  flex: 1; min-width: 0; padding: 10px 12px; border-radius: var(--r-sm);
+  border: 1px solid var(--line); background: var(--surface-hi); color: var(--text);
+  font-size: var(--fs-head); font-variant-numeric: tabular-nums; color-scheme: dark;
+}

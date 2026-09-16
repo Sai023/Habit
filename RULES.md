@@ -123,6 +123,7 @@ on the wrong one.
 | Rope intervals step up by the week of the program, counted from its start day | `js/workout.js` — `intervalsFor`, `progressionWeek` | `test/workout.test.mjs` |
 | A class keeps minutes and how it felt, is one history row, and has no personal best | `js/workout.js` — `exerciseHistory`, `personalBests`, `workoutInsights` (`classes`) | `test/workout.test.mjs` |
 | A video never loads inside the bridged WebView; the shell plays it in a bridge-less player of its own | `js/ui/workoutsheet.js` — `player`; `habit/VideoPlayer.kt` | `.../VideoPlayerTest.kt` |
+| A sleep reading may carry when the night ran; the window shown follows valueOn's precedence (typed wins, then the fuller sensor) | `js/habits.js` — `windowOn`; `habit/HabitModel.kt` — `Sample.from/to` | `test/habits.test.mjs`, `.../HabitModelTest.kt` |
 | A finished workout carries a clock: Go, each set's start and end, Done; a guided set's span is its work alone, an unguided one owns the minutes since the one before | `js/ui/workoutsheet.js` — `go`, `startSet`, `sessionClock`; `js/workout.js` — `spansOf` | `test/workout.test.mjs` |
 | The next set begins when the rest clock runs out; Start moves it later; Done during the rest means no rest | `js/ui/workoutsheet.js` — `startRest`, `bank` | — (UI; verified by hand) |
 | The screen stays on from Go to Finish, Back or close, and a freshly loaded page always lets it go | `js/bridge.js` — `keepScreenOn`; `habit/HabitBridge.kt` — `keepScreenOn`, `announceReady` | — (verified by hand) |

@@ -648,6 +648,12 @@ suggests, it never locks a door.
 
 A workout more than 2 days late is refused, like a log.
 
+A NIGHT'S TIMES. A sleep reading carries when the night ran where whoever
+reported it knew: the watch's first-asleep to last-awake, the phone's
+quiet gap ("phone quiet"), or two clock times typed by hand — the log
+sheet takes bedtime and wake time and does the sum. The history shows
+"23:14 → 07:09" under the night's minutes. Nothing is judged on it.
+
 THE CLOCK. Every workout finished in the app carries one: when the sheet
 was opened, when each set was banked, when Done was pressed. "Every
 workout →" on the hub lists them newest first, and any one opens to its
