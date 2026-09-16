@@ -18,6 +18,7 @@ import { workoutLog, MIN_INSIGHT_SESSIONS } from "../workout.js";
 import { vitalsInsights } from "../vitals.js";
 import * as fmt from "./format.js";
 import { EFFORT } from "./workoutsheet.js";
+import { confirmSheet } from "./confirmsheet.js";
 
 /** "18:32" — a clock time in the reader's own zone, since the workout was theirs. */
 function clockOf(ms) {
@@ -34,11 +35,73 @@ function setsLine(e) {
     n === null ? "–" : String(n) + (i === e.sets.length - 1 ? unitSuffix(e.unit) : ""))));
 }
 
-export function openWorkoutHistory(host, { state, me, today, onDone }) {
+/** "September 2026" — the month a day falls in, for the headers. */
+function monthLabel(day) {
+  const [y, m] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+export function openWorkoutHistory(host, { state, me, today, openAt = null, onRemove = null, onDone }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
   const log = workoutLog(state, me, today);
   const burn = vitalsInsights(log);
-  let open = null; // index into log
+  // Opened at one workout — from an exercise's sheet — or at the list.
+  let open = openAt ? log.findIndex((w) => w.day === openAt.day && w.sessionId === openAt.sessionId) : -1;
+  if (open < 0) open = null;
+  // Which session the list is narrowed to, or null for all. Over months the list is long, and
+  // "every Push + Core" is the question a person scrolling it is usually asking.
+  let only = null;
+  let busy = false;
+
+  /** The sessions in the log, each once, most done first — the chips that narrow the list. */
+  function sessionChips() {
+    const counts = new Map();
+    for (const w of log) counts.set(w.sessionId, { name: w.sessionName, n: (counts.get(w.sessionId) || { n: 0 }).n + 1 });
+    if (counts.size < 2) return null;
+    const chips = [...counts.entries()].sort((a, b) => b[1].n - a[1].n);
+    return el("div.chips.wl-filter",
+      el("button.chip" + (only === null ? ".on" : ""), { onclick: () => { only = null; paint(); } }, "All " + log.length),
+      chips.map(([id, c]) => el("button.chip" + (only === id ? ".on" : ""), { onclick: () => { only = id; paint(); } },
+        c.name + " " + c.n)),
+    );
+  }
+
+  /** The list, under month headers, so a year of workouts still has landmarks in it. */
+  function list() {
+    const shown = log.map((w, i) => [w, i]).filter(([w]) => only === null || w.sessionId === only);
+    const out = [];
+    let month = null;
+    for (const [w, i] of shown) {
+      const m = w.day.slice(0, 7);
+      if (m !== month) {
+        month = m;
+        const inMonth = shown.filter(([x]) => x.day.slice(0, 7) === m);
+        const minutes = inMonth.reduce((n, [x]) => n + (x.minutes || 0), 0);
+        out.push(el("div.wl-month",
+          el("span", monthLabel(w.day)),
+          el("span.wl-month-n", inMonth.length + (inMonth.length === 1 ? " workout" : " workouts") + (minutes ? " \u00b7 " + minutes + " min" : "")),
+        ));
+      }
+      out.push(row(w, i));
+    }
+    return el("div.wl-list", out);
+  }
+
+  /** Take this one back, after asking. */
+  async function remove(w) {
+    if (!onRemove || busy) return;
+    const ok = await confirmSheet(document.body, {
+      title: "Remove this workout?",
+      body: w.sessionName + " on " + fmt.dayLabel(w.day) + " comes off the history and stops counting for the day. "
+        + "The record it set, if any, goes with it.",
+      confirmLabel: "Remove", cancelLabel: "Keep it",
+    });
+    if (!ok) return;
+    busy = true; paint();
+    const done = await onRemove(w.day, w.sessionId);
+    busy = false;
+    if (done) sheet.close(); else paint();
+  }
 
   /** One workout, closed: what, when, how much, and what the watch said. */
   function row(w, i) {
@@ -128,6 +191,11 @@ export function openWorkoutHistory(host, { state, me, today, onDone }) {
       !w.timed
         ? el("p.note-inline", "Logged before the app kept a clock, so there are no minutes and nothing for a watch to line up with.")
         : null,
+      // The way out for a finish that was a test or a mistake. A link, and a confirm behind it:
+      // the sets are the person's own record and a fat thumb must not be able to erase a month.
+      onRemove
+        ? el("button.link.sec-note.wl-remove", { onclick: () => remove(w), disabled: busy }, busy ? "Removing\u2026" : "Remove this workout")
+        : null,
     );
   }
 
@@ -158,7 +226,8 @@ export function openWorkoutHistory(host, { state, me, today, onDone }) {
               + ".")
           : el("p.sheet-now", "No workouts logged yet. Finish one from the hub and it lands here."),
         burnBlock(),
-        el("div.wl-list", log.map(row)),
+        sessionChips(),
+        list(),
         log.length && log.length < MIN_INSIGHT_SESSIONS
           ? el("p.note-inline", "Trends and records need a few more sessions to say anything worth saying.")
           : null,

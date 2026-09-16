@@ -500,6 +500,36 @@ export async function finishWorkout({ programId, sessionId, day, exercises, roun
   return done;
 }
 
+/**
+ * Take a workout back — a test, a tap by mistake.
+ *
+ * Two events, and the second is the one that is easy to forget: the finish also wrote the
+ * Workouts habit a typed entry for that day, and a workout that is gone from the history but
+ * still counted on the board would be a season standing on a session nobody did. The day's
+ * typed entries are withdrawn, and any OTHER app workout that day is logged again, so a day with
+ * two sessions keeps the one that stays.
+ */
+export async function removeWorkout(day, sessionId) {
+  const state = await getState();
+  const { memberId } = await identity();
+  const mine = (state.workouts && state.workouts.get(memberId)) || [];
+  const target = mine.find((w) => w.day === day && w.sessionId === sessionId);
+  if (!target) return false;
+
+  const specs = [ev.workout(memberId, target.programId, sessionId, day, { removed: true })];
+  const workouts = [...state.habits.values()].find(
+    (h) => h.metric === METRIC.SESSIONS && isTracking(state, h, memberId),
+  );
+  if (workouts) {
+    specs.push(ev.clearLog(workouts.habitId, memberId, day, SOURCE.MANUAL));
+    for (const other of mine.filter((w) => w.day === day && w.sessionId !== sessionId)) {
+      specs.push(ev.log(workouts.habitId, memberId, day, 1, SOURCE.MANUAL, "workout:" + day + ":" + other.sessionId));
+    }
+  }
+  await commitAll(specs);
+  return true;
+}
+
 /** One discrete thing that just happened — an urge resisted, a workout done. */
 export async function logDiscrete(habitId, day, amount = 1, source = "pause") {
   const state = await getState();

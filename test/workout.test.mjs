@@ -12,7 +12,7 @@ import { PROGRAMS, PROGRAM_LIST } from "../js/programs.js";
 import {
   programFor, planFor, progressionWeek, intervalsFor, lastSession, prefill, prescription,
   isComplete, progress, unitOf, exerciseHistory, sessionsOf, restDaysOf,
-  personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS, spansOf, workoutLog,
+  personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS, spansOf, workoutLog, exerciseLog,
 } from "../js/workout.js";
 import { ev, T, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
@@ -351,6 +351,33 @@ test("a class in the log is its minutes and how it felt; a rope day is its round
   assert.equal(rope.rounds, 8);
   assert.equal(rope.minutes, 10);
   assert.equal(spansOf(s.workouts.get(ME).find((w) => w.rounds === 8))[0].id, "rope", "the rope's own stretch");
+});
+
+test("a workout taken back is gone from the log, and the day stops counting it", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [8, 8, 8] }] }), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { removed: true }), at(0) + 1000),
+  ]);
+  assert.equal((s.workouts.get(ME) || []).length, 0);
+  assert.deepEqual(workoutLog(s, ME, day(0)), []);
+});
+
+test("an exercise's own log lists every session it was in, newest first, with the record", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [8, 8, 8] }] }), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(2), { exercises: [{ id: "pushup", sets: [10, 8, 7] }] }), at(2)),
+    E(ev.workout(ME, "match-fit", "circuit", day(4), { exercises: [{ id: "pushup", sets: [9, 9, 9] }, { id: "squat", sets: [15, 15, 15] }] }), at(4)),
+  ]);
+  const log = exerciseLog(s, ME, "pushup", day(5));
+  assert.deepEqual(log.rows.map((r) => r.day), [day(4), day(2), day(0)], "newest first, across sessions");
+  assert.equal(log.rows[0].sessionName, "Metabolic Circuit", "the circuit's push-ups count as push-ups");
+  assert.deepEqual(log.best, { value: 10, day: day(2) }, "best single set");
+  assert.deepEqual(log.bestTotal, { value: 27, day: day(4) }, "best day, which is not the day of the best set");
+  assert.deepEqual(log.series.map((x) => x.total), [24, 25, 27], "oldest first for the chart");
+  assert.deepEqual(log.rows[1].pb, [true, false, false], "the ten beat the eight that stood");
+  assert.equal(exerciseLog(s, ME, "burpee", day(5)).rows.length, 0);
 });
 
 // ---------------------------------------------------------------------------

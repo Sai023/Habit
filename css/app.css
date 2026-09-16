@@ -2344,3 +2344,41 @@ button.card-open:active { transform: scale(0.99); }
   border: 1px solid var(--line); background: var(--surface-hi); color: var(--text);
   font-size: var(--fs-head); font-variant-numeric: tabular-nums; color-scheme: dark;
 }
+
+/* ---------- an exercise over months ---------- */
+
+/* The row opens now. It keeps the panel's look and gains only a chevron and a press. */
+button.hd-exrow { width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; color: inherit; }
+button.hd-exrow:active { transform: scale(0.995); }
+.hd-exrow-go { margin-left: auto; color: var(--dim); font-weight: 700; }
+
+/* A dozen sessions as bars in a row: the shape of a month at a glance, the record lit, the
+   last one in the ring colour. Nothing to read; that is the point. */
+.hd-spark { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 3px; height: 26px; }
+.hd-spark i { flex: 1; max-width: 14px; border-radius: 2px 2px 0 0; background: var(--teal-dim); opacity: 0.7; }
+.hd-spark i.is-last { background: var(--teal); opacity: 1; }
+.hd-spark i.is-best { background: var(--amber); opacity: 1; }
+
+/* The exercise's own sheet: bars for every session, then the sessions. */
+.ex-chart { display: flex; flex-direction: column; gap: 6px; }
+.ex-bars { display: flex; align-items: flex-end; gap: 4px; height: 96px; padding: 0 2px; }
+.ex-bar { flex: 1; min-width: 4px; border-radius: 3px 3px 0 0; background: var(--teal-dim); }
+.ex-bar.is-today { background: var(--teal); }
+.ex-bar.is-best { background: var(--amber); }
+.ex-chart-foot { display: flex; justify-content: space-between; font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
+.ex-list { display: flex; flex-direction: column; gap: 8px; }
+.ex-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 12px; background: var(--surface-hi); border: 0; border-radius: var(--r-sm); cursor: pointer; font: inherit; color: inherit;
+}
+.ex-row:active { transform: scale(0.995); }
+.ex-row-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.ex-row-when { font-size: var(--fs-small); font-weight: 700; }
+.ex-row-facts { font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* The workout log over months: a header per month, chips to narrow it, and a way out. */
+.wl-month { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 2px 2px; }
+.wl-month span:first-child { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); }
+.wl-month-n { font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
+.wl-filter { margin-bottom: 2px; }
+.wl-remove { color: var(--danger); align-self: flex-start; }

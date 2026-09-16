@@ -648,3 +648,45 @@ function bestsBefore(state, memberId, program, day) {
   }
   return out;
 }
+
+/**
+ * One exercise, every time it was done, newest first — the rows an exercise's own sheet lists.
+ *
+ * Built from the workout log so each row carries the day, the sets with the record marked, the
+ * total, and what the watch said about THIS exercise on that day. Across programs, because the
+ * circuit and Monday's push day share a push-up, and so does the program somebody switched from.
+ * `best` is the best single set ever and the day it was set; `bestTotal` the best session.
+ */
+export function exerciseLog(state, memberId, exerciseId, today = null) {
+  const rows = [];
+  let best = null;
+  let bestTotal = null;
+  for (const w of workoutLog(state, memberId, today)) {
+    const e = w.exercises.find((x) => x.id === exerciseId);
+    if (!e || !e.sets.some(Number.isFinite)) continue;
+    const ev = w.vitals && w.vitals.exercises ? w.vitals.exercises.find((x) => x.id === exerciseId) : null;
+    const span = (w.spans || []).find((x) => x.id === exerciseId);
+    rows.push({
+      day: w.day,
+      sessionId: w.sessionId,
+      sessionName: w.sessionName,
+      name: e.name,
+      unit: e.unit,
+      perSide: e.perSide,
+      sets: e.sets,
+      pb: e.pb,
+      total: e.total,
+      best: e.best,
+      minutes: span && span.ms >= 30_000 ? Math.round(span.ms / 60_000) : null,
+      kcal: ev && Number.isFinite(ev.kcal) ? Math.round(ev.kcal) : null,
+      kcalPerMin: ev && Number.isFinite(ev.kcal) && span && span.ms >= 60_000 ? ev.kcal / (span.ms / 60_000) : null,
+      hrAvg: ev && Number.isFinite(ev.hrAvg) ? Math.round(ev.hrAvg) : null,
+      hrMax: ev && Number.isFinite(ev.hrMax) ? Math.round(ev.hrMax) : null,
+    });
+    if (e.best !== null && (!best || e.best > best.value)) best = { value: e.best, day: w.day };
+    if (!bestTotal || e.total > bestTotal.value) bestTotal = { value: e.total, day: w.day };
+  }
+  // Oldest-first for the chart; the rows above are newest-first for the list.
+  const series = rows.slice().reverse().map((r) => ({ day: r.day, total: r.total, best: r.best }));
+  return { rows, series, best, bestTotal, unit: rows.length ? rows[0].unit : "reps", name: rows.length ? rows[0].name : exerciseId };
+}

@@ -234,10 +234,33 @@ const onWorkout = guard("workout", async () => {
   });
 });
 
-/** Every workout, one by one — the log the hub's training block adds up. */
-const onHistory = guard("history", async () => {
+/** Every workout, one by one — the log the hub's training block adds up. Opens at one, if asked. */
+const onHistory = guard("history", async (openAt = null) => {
   const { openWorkoutHistory } = await import("./ui/workouthistory.js");
-  openWorkoutHistory(document.body, { state: ctx.state, me: ctx.me, today: ctx.today, onDone: () => {} });
+  openWorkoutHistory(document.body, {
+    state: ctx.state, me: ctx.me, today: ctx.today, openAt,
+    onRemove: isDemo ? null : onRemoveWorkout,
+    onDone: () => {},
+  });
+});
+
+/** One exercise over months, from the Workouts detail. A row there opens the workout it came from. */
+const onExercise = guard("exercise", async (exerciseId) => {
+  const { openExerciseSheet } = await import("./ui/exercisesheet.js");
+  openExerciseSheet(document.body, {
+    state: ctx.state, me: ctx.me, today: ctx.today, exerciseId,
+    onOpenWorkout: (day, sessionId) => onHistory({ day, sessionId }),
+    onDone: () => {},
+  });
+});
+
+/** Take a workout back. Confirmed by the sheet that offers it. */
+const onRemoveWorkout = guard("remove", async (day, sessionId) => {
+  if (demoBlocked()) return false;
+  const { removeWorkout } = await import("./store.js");
+  const done = await removeWorkout(day, sessionId);
+  if (done) await refresh();
+  return done;
 });
 
 /** Pick which program to follow. Two to choose from, and the choice is one event. */
@@ -404,6 +427,7 @@ const onHabitDetail = guard("habit detail", async (habitId) => {
     onLog, onEdit: onEditHabit,
     // The Workouts habit's detail carries the program: today's session and per-exercise history.
     onWorkout: isDemo ? null : onWorkout, onChooseProgram: isDemo ? null : onChooseProgram,
+    onExercise,
     onDone: () => refresh(),
   });
 });

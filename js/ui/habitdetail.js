@@ -107,7 +107,7 @@ const TONE = {
   [EXEMPT]: "is-rest",
 };
 
-export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram }) {
+export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram, onExercise = null }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
 
   const reduce = habit.direction === AT_MOST;
@@ -275,7 +275,8 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     }
     const plan = planFor(program, today);
     const rows = exerciseHistory(state, me, program);
-    const SHOW = 5;
+    // How many sessions the sparkline draws. A dozen is a month of a twice-a-week session.
+    const SPARK = 12;
     // A session swiped away half-done is still here, and this is where somebody looks for it.
     const open = draftsInProgress(program, sessionsOf(program).map((x) => x.session), today);
 
@@ -296,31 +297,47 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
               plan && plan.session ? "Open \u2192" : "Pick a session \u2192")
           : null,
       ),
+      // One row per exercise: the shape of the last dozen sessions as bars, the last one's sets
+      // as a chip, the trend. A row opens the exercise's own sheet — every session, the record,
+      // the watch — and a tap there opens the workout it came from. Five chips of "10 · 10 · 10"
+      // used to sit here; over months they said less and less and led nowhere.
       el("div.hd-exlist", rows.map((r) => {
-        const recent = r.sessions.slice(-SHOW);
         const last = r.sessions[r.sessions.length - 1];
-        return el("div.hd-exrow",
+        const recent = r.sessions.slice(-SPARK);
+        const top = Math.max(1, ...recent.map((s) => s.total));
+        // The record's bar, lit once: the most recent session that holds the best total. Lighting
+        // every equal one made a plateau read as twelve records.
+        const bestTotal = r.sessions.length ? Math.max(...r.sessions.map((s) => s.total)) : 0;
+        const bestAt = recent.map((s) => s.total).lastIndexOf(bestTotal);
+        const lastChip = !last ? null
+          : r.unit === "rounds" ? last.sets[0] + " \u00d7 " + last.work + "s"
+          : r.unit === "min" ? last.total + " min" + (last.effort === "hard" ? " \u2191" : last.effort === "easy" ? " \u2193" : "")
+          : last.sets.join(" \u00b7 ");
+        const tag = onExercise && last ? "button.hd-exrow" : "div.hd-exrow";
+        return el(tag, onExercise && last ? { onclick: () => { sheet.close(); onExercise(r.id); } } : {},
           el("div.hd-exrow-head",
             el("span.hd-exrow-name", r.name),
             r.trend
               ? el("span.hd-exrow-trend." + r.trend,
-                  r.trend === "up" ? "↑ up" : r.trend === "down" ? "↓ down" : "= same")
+                  r.trend === "up" ? "\u2191 up" : r.trend === "down" ? "\u2193 down" : "= same")
               : null,
+            onExercise && last ? el("span.hd-exrow-go", "\u203A") : null,
           ),
-          recent.length
-            ? el("div.hd-exrow-sets", recent.map((ses) => el("span.hd-exchip" + (ses === last ? ".is-last" : ""),
-                { title: fmt.dayLabel(ses.day) },
-                r.unit === "rounds"
-                  ? ses.sets[0] + " × " + ses.work + "s"
-                  : r.unit === "min"
-                    ? ses.sets[0] + "m" + (ses.effort === "hard" ? " ↑" : ses.effort === "easy" ? " ↓" : "")
-                    : ses.sets.join(" · "))))
+          recent.length > 1
+            ? el("div.hd-spark", recent.map((s, i) => el("i" + (i === bestAt ? ".is-best" : "") + (s === last ? ".is-last" : ""), {
+                style: "height:" + Math.max(8, Math.round((s.total / top) * 100)) + "%",
+              })))
+            : null,
+          last
+            ? el("span.hd-exchip.is-last", { title: fmt.dayLabel(last.day) }, lastChip)
             : el("span.hd-exrow-none", "not yet"),
           last
             ? el("span.hd-exrow-total",
-                r.unit === "rounds" ? last.total + " rounds"
-                  : r.unit === "min" ? last.total + " min last time"
-                  : last.total + (r.unit === "s" ? "s" : " " + r.unit) + " last time")
+                fmt.dayLabel(last.day).split(",")[0] + " \u00b7 "
+                + (r.unit === "rounds" ? last.total + " rounds"
+                  : r.unit === "min" ? last.total + " min"
+                  : last.total + (r.unit === "s" ? "s" : " " + r.unit))
+                + (r.sessions.length > 1 ? " \u00b7 " + r.sessions.length + " sessions" : ""))
             : null,
         );
       })),

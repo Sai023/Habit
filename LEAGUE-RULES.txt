@@ -669,6 +669,16 @@ out the next set begins on its own; Start moves it later if you rested
 longer, and Done during the rest means you did not rest. Somebody without
 a watch says so once and is not asked again.
 
+OVER MONTHS. The Workouts detail shows each exercise as the last dozen
+sessions in bars — the record lit once, the latest in the ring colour —
+with the last session's sets and the count. Each opens to the exercise's
+own sheet: a bar per session (up to the last 24), the best set and best
+day with their dates, then every session newest first with its sets, its
+minutes and what the watch said about it; any row opens the workout it
+came from. The workout log is headed by month and narrows by session. A
+finish that was a test or a mistake can be removed from its detail; the
+day stops counting it, and any other workout that day keeps counting.
+
 THE WATCH. A guided set's span is its work alone; a set from before the
 guide owns the minutes since the one before it. The phone is handed the
 timed workouts of the last two days with those windows, reads Health
