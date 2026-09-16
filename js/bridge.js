@@ -255,10 +255,17 @@ function call(name, payload) {
  * different Supabase project never needs a signed release on three phones.
  */
 export function setSyncConfig({
-  groupCode, memberId, supabaseUrl, supabaseKey, habits, quietUntil = 0,
+  groupCode, memberId, supabaseUrl, supabaseKey, habits, quietUntil = 0, workouts = [],
 }) {
   return call("setSyncConfig", {
     groupCode, memberId, supabaseUrl, supabaseKey,
+    // The timed workouts of the last few days, with each exercise's windows, so the shell can
+    // read the watch's heart rate and calories for exactly those minutes and write them back as
+    // vitals. See vitals.js windowsToRead for why several days rather than the last one.
+    workouts: (workouts || []).map((w) => ({
+      sessionId: w.sessionId, day: w.day, start: w.start, end: w.end,
+      exercises: (w.exercises || []).map((x) => ({ id: x.id, spans: x.spans })),
+    })),
     // When reminders resume, or 0. A verdict rather than a fact: the shell cannot see exemptions
     // and must never have to — it just does not ring before this instant.
     quietUntil,

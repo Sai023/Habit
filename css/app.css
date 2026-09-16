@@ -2266,3 +2266,57 @@ button.card-open:active { transform: scale(0.99); }
    where the eye expects it. */
 .chips-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .chips-cal .chip-day { padding: 8px 0; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ---------- the workout log ---------- */
+
+/* One workout per row, newest first: a name, a line of facts, the record if one fell, and what
+   the watch said if one was worn. A button, because each opens. */
+.wl-list { display: flex; flex-direction: column; gap: 8px; }
+.wl-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 12px 14px; background: var(--surface-hi); border: 0; border-radius: var(--r); cursor: pointer;
+}
+.wl-row:active { transform: scale(0.995); }
+.wl-row-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.wl-row-name { font-size: var(--fs-body); font-weight: 700; }
+.wl-row-sub { font-size: var(--fs-small); color: var(--dim); font-variant-numeric: tabular-nums; }
+.wl-row-pb { font-size: var(--fs-small); color: var(--amber); font-weight: 600; }
+.wl-row-vitals { font-size: var(--fs-small); color: var(--teal); font-variant-numeric: tabular-nums; }
+.wl-row-go { color: var(--dim); font-weight: 700; flex: none; }
+
+/* Open: the exercises, each with its sets beside last time's. */
+.wl-back { align-self: flex-start; }
+.wl-exs { display: flex; flex-direction: column; gap: 10px; }
+.wl-ex { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--surface-hi); border-radius: var(--r-sm); }
+.wl-ex-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.wl-ex-name { font-weight: 700; }
+.wl-ex-cost { font-size: var(--fs-small); color: var(--teal); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wl-sets { display: flex; flex-wrap: wrap; gap: 6px; font-variant-numeric: tabular-nums; }
+.wl-set {
+  padding: 3px 9px; border-radius: 999px; background: var(--surface);
+  font-size: var(--fs-small); font-weight: 700;
+}
+.wl-set.is-pb { background: var(--amber-dim, rgba(255, 190, 80, 0.18)); color: var(--amber); }
+.wl-set.is-skip { color: var(--dim); font-weight: 500; }
+.wl-ex-prev { font-size: var(--fs-micro); color: var(--dim); }
+.wl-rounds { margin: 0; font-weight: 600; }
+.wl-pbline { margin: 0; font-size: var(--fs-small); color: var(--amber); }
+
+/* What the watch said: a row of tiles, the same shape the level sheet uses for its numbers. */
+.wl-vitals { display: flex; flex-direction: column; gap: 8px; }
+.wl-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; }
+.wl-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 6px; border-radius: var(--r-sm); background: var(--surface-hi);
+}
+.wl-tile b { font-size: var(--fs-head); color: var(--teal); font-variant-numeric: tabular-nums; }
+.wl-tile span { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+
+/* The ranking across workouts: what costs the most, per minute. */
+.wl-burn { display: flex; flex-direction: column; gap: 8px; }
+.wl-burn-list { display: flex; flex-direction: column; gap: 6px; }
+.wl-burn-row { display: flex; align-items: baseline; gap: 10px; font-size: var(--fs-small); }
+.wl-burn-n { width: 1.4em; color: var(--dim); font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-burn-name { flex: 1; font-weight: 600; }
+.wl-burn-rate { color: var(--teal); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wo-history { align-self: flex-start; }

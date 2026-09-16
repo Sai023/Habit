@@ -41,6 +41,19 @@ import * as fmt from "./format.js";
 import { loadDraft, saveDraft, clearDraft, draftProgress } from "./workoutdraft.js";
 
 /** " reps", "s", " taps" — the unit as it follows a number. */
+/**
+ * The window a workout ran in: from the sheet's first open (or, if that was hours before the
+ * first set, five minutes before it — a sheet glanced at in the morning does not start an
+ * evening workout) to now.
+ */
+function sessionClock(openedAt, exercisesOut) {
+  const banked = exercisesOut.flatMap((x) => (x.at || []).filter((t) => Number.isFinite(t)));
+  const first = banked.length ? Math.min(...banked) : null;
+  const STALE_MS = 3 * 60 * 60 * 1000;
+  const startedAt = first !== null && first - openedAt > STALE_MS ? first - 5 * 60 * 1000 : openedAt;
+  return { startedAt, endedAt: Date.now() };
+}
+
 function unitSuffix(ex) {
   const u = unitOf(ex);
   return u === "s" ? "s" : " " + u;
@@ -69,7 +82,7 @@ function buzz(pattern) {
  * one today suggests, and starts whichever is tapped. What gets logged is that session on the
  * day it was actually done.
  */
-export function openWorkoutSheet(host, { state, program, me, today, onDone, onChooseProgram }) {
+export function openWorkoutSheet(host, { state, program, me, today, onDone, onChooseProgram, onHistory = null }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
   hub(sheet, { state, program, me, today, onChooseProgram });
 }
@@ -169,7 +182,7 @@ function trainingBlock(ins) {
 }
 
 function hub(sheet, ctx) {
-  const { state, program, me, today, onChooseProgram } = ctx;
+  const { state, program, me, today, onChooseProgram, onHistory } = ctx;
   const plan = planFor(program, today);
   const suggested = plan && plan.session ? plan.session.id : null;
   const sessions = sessionsOf(program);
@@ -240,6 +253,10 @@ function hub(sheet, ctx) {
           ),
 
       trainingBlock(workoutInsights(state, me, program, today)),
+      // The log the block above adds up, one workout at a time. Only once there is one.
+      onHistory && ((state.workouts && state.workouts.get(me)) || []).length
+        ? el("button.link.sec-note.wo-history", { onclick: () => { sheet.close(); onHistory(); } }, "Every workout \u2192")
+        : null,
 
       el("h2.sec-title", "All sessions"),
       el("div.wo-sessions", sessions.map(({ session, days }) => el("button.wo-session"
@@ -288,6 +305,10 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   // draft[exerciseId] = [n, n, ...]  — banked sets. undefined slots are not yet done.
   const saved = loadDraft(program.id, session.id, today);
   const draft = (saved && saved.draft) || {};
+  // When each set was banked, beside it: draftAt[exerciseId] = [ms, ms, ...]. And when the
+  // session was first opened today, which is the earliest the workout can have begun.
+  const draftAt = (saved && saved.at) || {};
+  const startedAt = (saved && Number.isFinite(saved.startedAt)) ? saved.startedAt : Date.now();
   // Which set is active: the first unbanked one, in order.
   let active = firstOpen();
   // The number in the active set's stepper. Starts on the prefill.
@@ -320,8 +341,11 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   }
 
   function persist() {
-    saveDraft({ programId: program.id, sessionId: session.id, day: today, draft });
+    saveDraft({ programId: program.id, sessionId: session.id, day: today, draft, at: draftAt, startedAt });
   }
+  // Written once, on open, so a sheet opened and closed still dates the workout from the first
+  // look rather than from the first set — warm-up counts, and so does reading the how-to.
+  if (!saved) persist();
 
   function focus(ex, set) {
     just = null;
@@ -337,6 +361,8 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     const ex = exercises[active.ex];
     const list = draft[ex.id] || (draft[ex.id] = []);
     list[active.set] = value;
+    const when = draftAt[ex.id] || (draftAt[ex.id] = []);
+    when[active.set] = Date.now();
     persist();
     const pb = beatsBest(pbs, ex.id, value);
     just = { ex: active.ex, set: active.set, pb };
@@ -445,12 +471,14 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
       const exercisesOut = exercises.map((ex) => ({
         id: ex.id,
         sets: (draft[ex.id] || []).slice(0, ex.sets).map((n) => (Number.isFinite(n) ? n : null)),
+        at: (draft[ex.id] || []).slice(0, ex.sets).map((n, i) => (Number.isFinite(n) ? ((draftAt[ex.id] || [])[i] ?? null) : null)),
       }));
+      const clockOut = sessionClock(startedAt, exercisesOut);
       if (onFinished) {
         // A finisher hands its sets back to the rope session, which writes one event for the day.
-        await onFinished(exercisesOut);
+        await onFinished(exercisesOut, clockOut);
       } else {
-        await finishWorkout({ programId: program.id, sessionId: session.id, day: today, exercises: exercisesOut });
+        await finishWorkout({ programId: program.id, sessionId: session.id, day: today, exercises: exercisesOut, ...clockOut });
       }
       clearDraft(session.id);
       stopAllClocks();
@@ -624,7 +652,7 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
 // ---------------------------------------------------------------------------
 
 /** How a class felt, in the person's words. */
-const EFFORT = { easy: "easy", right: "just right", hard: "hard" };
+export const EFFORT = { easy: "easy", right: "just right", hard: "hard" };
 
 /** A YouTube thumbnail, sized by class. Loads from YouTube's image host; alt is the title. */
 function thumb(v, cls) {
@@ -688,7 +716,10 @@ function videoSession(sheet, { state, program, session, me, today, back = null }
     if (busy) return;
     busy = true; error = ""; paint();
     try {
-      await finishWorkout({ programId: program.id, sessionId: session.id, day: today, exercises: [], minutes, effort });
+      // A class has no sets to stamp; its window is the minutes done, ending now.
+      const endedAt = Date.now();
+      await finishWorkout({ programId: program.id, sessionId: session.id, day: today, exercises: [], minutes, effort,
+        startedAt: endedAt - minutes * 60 * 1000, endedAt });
       buzz([40, 30, 40]);
       sheet.close();
     } catch (err) {
@@ -759,6 +790,10 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
   let restLen = (saved && saved.rest) || rx.rest[0];
   let target = rx.rounds[0];
   let completed = (saved && saved.rounds) || 0;
+  // When the rope was first started today, and when each round ended. The finisher's sets carry
+  // their own clock; the day's event gets the earliest start and the latest end of the two.
+  let ropeStartedAt = (saved && Number.isFinite(saved.startedAt)) ? saved.startedAt : null;
+  const roundsAt = (saved && Array.isArray(saved.roundsAt)) ? saved.roundsAt.slice() : [];
 
   let phase = "idle";      // idle | work | rest | done
   let until = 0;           // when the current phase ends
@@ -766,10 +801,11 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
   let busy = false;
 
   function persist() {
-    saveDraft({ programId: program.id, sessionId: session.id, day: today, rounds: completed, work, rest: restLen });
+    saveDraft({ programId: program.id, sessionId: session.id, day: today, rounds: completed, work, rest: restLen, startedAt: ropeStartedAt, roundsAt });
   }
 
   function start() {
+    if (ropeStartedAt === null) { ropeStartedAt = Date.now(); persist(); }
     phase = "work";
     until = Date.now() + work * 1000;
     tick();
@@ -786,6 +822,7 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
     }
     if (phase === "work") {
       completed += 1;
+      roundsAt[completed - 1] = Date.now();
       persist();
       buzz([80, 40, 80]);
       if (completed >= target) { phase = "done"; stop(); paint(); return; }
@@ -813,10 +850,11 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
     const fin = { ...session.finisher, id: session.id + ":finisher", kind: "sets", restSeconds: 45 };
     setsSession(sheet, {
       state, program, session: fin, me, today, finisherOf: "Rope", historyId: session.id,
-      onFinished: async (exercises) => {
+      onFinished: async (exercises, clockOut) => {
         await finishWorkout({
           programId: program.id, sessionId: session.id, day: today,
           exercises, rounds: completed, work, rest: restLen,
+          startedAt: ropeStartedAt ?? clockOut.startedAt, endedAt: clockOut.endedAt,
         });
         // The rope's own draft; the finisher's is cleared by the sets screen that owns it.
         clearDraft(session.id);
@@ -839,6 +877,7 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
       await finishWorkout({
         programId: program.id, sessionId: session.id, day: today,
         exercises: [], rounds: completed, work, rest: restLen,
+        startedAt: ropeStartedAt ?? Date.now(), endedAt: Date.now(),
       });
       clearDraft(session.id); stop(); sheet.close();
     } catch (err) {

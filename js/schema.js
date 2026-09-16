@@ -27,6 +27,7 @@ export const T = {
   LOG_CLEAR:    "habit_log_clear",    // withdraw what one member TYPED for one habit-day
   PROGRAM:      "habit_program",      // which workout program one member follows (last wins)
   WORKOUT:      "habit_workout",      // one finished session: the sets done, per exercise
+  VITALS:       "habit_vitals",       // what the watch said during one session (heart, calories)
   EXEMPT:       "habit_exempt",       // travel mode / planned rest — a range of days
   BINDING:      "habit_source",       // which source feeds one habit FOR ONE MEMBER
   GOAL:         "habit_goal",         // one member's own target, and whether they track it
@@ -423,6 +424,12 @@ export const ev = {
    */
   workout: (memberId, programId, sessionId, day, fields = {}) =>
     ({ type: T.WORKOUT, payload: p({ memberId, programId, sessionId, day, ...fields }) }),
+  // What a watch said while one session ran, read out of Health Connect by the phone afterwards
+  // and laid over the workout by sessionId + day. `fields`: kcal, hrAvg, hrMax, hrMin, samples,
+  // exercises: [{ id, kcal, hrAvg, hrMax }], source. Latest wins: the phone re-reads a workout
+  // for two days as the watch's data trickles in, and each read replaces the last.
+  vitals: (memberId, sessionId, day, fields = {}) =>
+    ({ type: T.VITALS, payload: p({ memberId, sessionId, day, ...fields }) }),
 };
 
 /** Is this a habit event this build understands? Used by replay() to skip the rest. */

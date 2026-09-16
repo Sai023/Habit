@@ -483,3 +483,159 @@ export function workoutInsights(state, memberId, program, today) {
     days: all.map((w) => w.day),
   };
 }
+
+// ---------------------------------------------------------------------------
+// The log: every workout, one by one
+// ---------------------------------------------------------------------------
+
+/**
+ * Every exercise a program can produce, by id, with its name and unit — the finisher's included,
+ * and the rope and each class as a row of their own. The log needs names for ids the program
+ * still defines; an id the program has since dropped is shown by its id, never hidden.
+ */
+function exerciseIndex(program) {
+  const byId = new Map();
+  if (!program) return byId;
+  for (const session of Object.values(program.sessions)) {
+    if (session.kind === "video") { byId.set(session.id, { name: session.name, unit: "min", perSide: false }); continue; }
+    if (session.kind === "intervals") byId.set(session.id, { name: session.name, unit: "rounds", perSide: false });
+    for (const ex of [...(session.exercises || []), ...((session.finisher && session.finisher.exercises) || [])]) {
+      if (!byId.has(ex.id)) byId.set(ex.id, { name: ex.name, unit: unitOf(ex), perSide: !!ex.perSide });
+    }
+  }
+  return byId;
+}
+
+/**
+ * How long each exercise took, from the clock the sets carry.
+ *
+ * Each banked set owns the time since the set before it — the rest that led into it included,
+ * because that is when the heart rate from the previous set is still being paid for. The first
+ * set owns the time since the session began. A workout from a build that kept no clock has no
+ * spans, and the history says so rather than guessing.
+ *
+ * Returns [{ id, ms, spans: [[from, to], ...] }] in the order the exercises were first done; and
+ * for a rope day, the rope's own stretch as `id: sessionId` from the start to the first finisher
+ * set (or the end, with no finisher).
+ */
+export function spansOf(workout) {
+  if (!workout || !Number.isFinite(workout.startedAt)) return [];
+  const sets = [];
+  for (const ex of workout.exercises || []) {
+    (ex.at || []).forEach((t, i) => {
+      if (Number.isFinite(t) && Number.isFinite(ex.sets[i])) sets.push({ id: ex.id, at: t });
+    });
+  }
+  sets.sort((a, b) => a.at - b.at);
+
+  const out = new Map();
+  const add = (id, from, to) => {
+    if (!(to > from)) return;
+    const e = out.get(id) || { id, ms: 0, spans: [] };
+    e.ms += to - from;
+    e.spans.push([from, to]);
+    out.set(id, e);
+  };
+
+  let cursor = workout.startedAt;
+  if (Number.isFinite(workout.rounds) && workout.rounds > 0) {
+    // The rope ran from the start until the finisher began.
+    const ropeEnd = sets.length ? sets[0].at : (workout.endedAt || cursor);
+    add(workout.sessionId, cursor, ropeEnd);
+    cursor = ropeEnd;
+  }
+  for (const s of sets) { add(s.id, cursor, s.at); cursor = s.at; }
+  if (!sets.length && !(Number.isFinite(workout.rounds) && workout.rounds > 0) && Number.isFinite(workout.endedAt)) {
+    // A class: one span, the whole window.
+    add(workout.sessionId, cursor, workout.endedAt);
+  }
+  return [...out.values()];
+}
+
+/**
+ * Every workout this member has done, newest first, each one readable on its own.
+ *
+ * Per session: what it was, when, how long it ran, every exercise with its sets beside last
+ * time's and the record marked, and the vitals the phone laid over it if a watch was worn (see
+ * T.WORKOUT_VITALS). Across programs, because a person who switched keeps their history.
+ */
+export function workoutLog(state, memberId, today = null) {
+  const all = ((state.workouts && state.workouts.get(memberId)) || []).slice()
+    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : (b.ts || 0) - (a.ts || 0)));
+  const indexes = new Map();
+
+  return all.map((w) => {
+    const program = PROGRAMS[w.programId] || null;
+    if (program && !indexes.has(program.id)) indexes.set(program.id, exerciseIndex(program));
+    const names = program ? indexes.get(program.id) : new Map();
+    const session = program && program.sessions[w.sessionId] ? program.sessions[w.sessionId] : null;
+    const previous = lastSession(state, memberId, w.sessionId, w.day);
+    const bests = program ? bestsBefore(state, memberId, program, w.day) : new Map();
+
+    const exercises = (w.exercises || []).map((e) => {
+      const meta = names.get(e.id) || { name: e.id, unit: "reps", perSide: false };
+      const sets = e.sets.map((n) => (Number.isFinite(n) ? n : null));
+      const prev = previous && previous.exercises.find((x) => x.id === e.id);
+      const before = bests.get(e.id);
+      const done = sets.filter(Number.isFinite);
+      return {
+        id: e.id, name: meta.name, unit: meta.unit, perSide: meta.perSide,
+        sets,
+        previous: prev ? prev.sets.map((n) => (Number.isFinite(n) ? n : null)) : null,
+        total: done.reduce((a, b) => a + b, 0),
+        best: done.length ? Math.max(...done) : null,
+        // Which sets beat the record as it stood BEFORE this day — a record set today beats
+        // nothing but yesterday's, and that is the honest reading of "PB". The first time an
+        // exercise is ever done beats nothing, the same as the session screen says (beatsBest).
+        pb: sets.map((n) => Number.isFinite(n) && before !== undefined && n > before),
+      };
+    });
+    const reps = exercises.filter((e) => e.unit !== "s").reduce((n, e) => n + e.total, 0);
+    const seconds = exercises.filter((e) => e.unit === "s").reduce((n, e) => n + e.total, 0);
+    const setsDone = exercises.reduce((n, e) => n + e.sets.filter(Number.isFinite).length, 0);
+    const minutes = Number.isFinite(w.startedAt) && Number.isFinite(w.endedAt) && w.endedAt > w.startedAt
+      ? Math.round((w.endedAt - w.startedAt) / 60000)
+      : (Number.isFinite(w.minutes) ? w.minutes : null);
+
+    return {
+      day: w.day,
+      programId: w.programId,
+      programName: program ? program.name : (w.programId || "Workout"),
+      sessionId: w.sessionId,
+      sessionName: session ? session.name : w.sessionId,
+      kind: session ? session.kind : (Number.isFinite(w.rounds) ? "intervals" : Number.isFinite(w.minutes) ? "video" : "sets"),
+      startedAt: w.startedAt ?? null,
+      endedAt: w.endedAt ?? null,
+      minutes,
+      timed: Number.isFinite(w.startedAt) && Number.isFinite(w.endedAt),
+      effort: w.effort || null,
+      rounds: Number.isFinite(w.rounds) ? w.rounds : null,
+      work: w.work ?? null,
+      rest: w.rest ?? null,
+      classMinutes: Number.isFinite(w.minutes) ? w.minutes : null,
+      exercises,
+      sets: setsDone,
+      reps,
+      seconds,
+      pbs: exercises.filter((e) => e.pb.some(Boolean)).map((e) => e.name),
+      spans: spansOf(w),
+      vitals: w.vitals || null,
+      isToday: today ? w.day === today : false,
+    };
+  });
+}
+
+/** The best single set per exercise from every session BEFORE a day. */
+function bestsBefore(state, memberId, program, day) {
+  const out = new Map();
+  for (const w of (state.workouts && state.workouts.get(memberId)) || []) {
+    if (w.programId !== program.id || w.day >= day) continue;
+    for (const e of w.exercises || []) {
+      for (const n of e.sets) {
+        if (!Number.isFinite(n)) continue;
+        if (!out.has(e.id) || n > out.get(e.id)) out.set(e.id, n);
+      }
+    }
+  }
+  return out;
+}

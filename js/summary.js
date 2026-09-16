@@ -22,7 +22,8 @@ import { leaderboard, dayScore, CATEGORY_LABEL, CATEGORY_ICON } from "./score.js
 import { seasonTally, categoryBreakdown, seasonProgress } from "./season.js";
 import { noticesFor, levelNotice } from "./notices.js";
 import { AT_MOST, PERIOD, AUTOMATIC_SOURCES } from "./schema.js";
-import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
+import { programFor, workoutInsights, workoutLog, MIN_INSIGHT_SESSIONS } from "./workout.js";
+import { vitalsInsights } from "./vitals.js";
 import { pendingGoal } from "./edits.js";
 import { lifetime, titleBand, LEVEL_MAX } from "./levels.js";
 import { factsAbout } from "./facts.js";
@@ -317,8 +318,33 @@ function trainingSummary(state, me, today) {
   const unit = (u) => (u === "s" ? "s" : " " + u);
   const when = (day) => fmt.dayLabel(day).split(",")[0];
   const pbs = [...ins.pbs.values()].sort((a, b) => (a.set.day < b.set.day ? 1 : -1));
+  // The log and what the watch said over it, worded here so the card cannot say it differently.
+  const log = workoutLog(state, me, today);
+  const last = log[0] || null;
+  const burn = vitalsInsights(log);
   return {
     program: program.name,
+    // The most recent workout as one line — "Push + Core · Tue 15 Sept · 25 min · 210 kcal · ♥ 128".
+    lastLine: last
+      ? [last.sessionName, when(last.day),
+          last.minutes ? last.minutes + " min" : null,
+          last.vitals && last.vitals.kcal ? Math.round(last.vitals.kcal) + " kcal" : null,
+          last.vitals && last.vitals.hrAvg ? "♥ " + Math.round(last.vitals.hrAvg) + " avg" : null,
+        ].filter(Boolean).join(" · ")
+      : null,
+    // What the watch has said across workouts, once three have been worn through. Null until.
+    burn: burn
+      ? {
+          sessions: burn.sessions,
+          kcal: burn.totalKcal,
+          minutes: burn.totalMinutes,
+          hrAvg: burn.hrAvg,
+          line: burn.line,
+          top: burn.exercises.slice(0, 3).map((x) => ({
+            name: x.name, rate: x.kcalPerMin.toFixed(1) + " kcal/min", hr: x.hrAvg ? Math.round(x.hrAvg) : null,
+          })),
+        }
+      : null,
     sessions: ins.sessions,
     recent: ins.recent,
     streakWeeks: ins.streakWeeks,

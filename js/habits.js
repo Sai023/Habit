@@ -430,6 +430,7 @@ export function replay(events) {
   const logs = new Map();     // "habit|member|day" -> [{ source, value, ts, externalId }]
   const programs = new Map(); // member -> programId
   const workouts = new Map(); // member -> [{ programId, sessionId, day, exercises, rounds, ... }]
+  const vitals = new Map();   // "member|session|day" -> { kcal, hrAvg, ... } while its workout has not replayed yet
   const exemptions = [];
   const bindings = new Map();  // "member|habit" -> source
   const goals = new Map();     // "member|habit" -> { target, active }
@@ -592,6 +593,11 @@ export function replay(events) {
             ? p.exercises.map((x) => ({
                 id: String(x.id),
                 sets: Array.isArray(x.sets) ? x.sets.map((n) => Number(n)) : [],
+                // When each set was banked, in epoch ms, one per set — or an empty list from a
+                // build that did not keep the clock. What lets a watch's heart rate and calories
+                // be laid over the workout afterwards: each set owns the time since the one
+                // before it. See workout.js spansOf.
+                at: Array.isArray(x.at) ? x.at.map((t) => (Number.isFinite(Number(t)) ? Number(t) : null)) : [],
               }))
             : [],
           rounds: Number.isFinite(p.rounds) ? p.rounds : null,
@@ -600,12 +606,48 @@ export function replay(events) {
           // A class followed along with: how long, and how it felt. See PILATES_WEEKLY.
           minutes: Number.isFinite(p.minutes) ? p.minutes : null,
           effort: typeof p.effort === "string" && p.effort ? p.effort : null,
+          // The session's window, epoch ms. Null from a build that did not keep it; the
+          // history then says the day and not the hour.
+          startedAt: Number.isFinite(Number(p.startedAt)) ? Number(p.startedAt) : null,
+          endedAt: Number.isFinite(Number(p.endedAt)) ? Number(p.endedAt) : null,
           ts: authoredAt(e),
         };
         // Latest wins for the same session on the same day — a second Finish is a correction.
+        // Vitals that arrived first — the phone read the watch before the sync brought the
+        // workout across — are picked up here; a second Finish keeps them.
         const i = list.findIndex((w) => w.day === entry.day && w.sessionId === entry.sessionId);
+        entry.vitals = vitals.get(p.memberId + "|" + entry.sessionId + "|" + entry.day)
+          || (i >= 0 ? list[i].vitals : null) || null;
         if (i >= 0) list[i] = entry; else list.push(entry);
         workouts.set(p.memberId, list);
+        break;
+      }
+
+      case T.VITALS: {
+        if (!p.memberId || !p.sessionId || !p.day) break;
+        // What the watch said, numbers only, each optional. Latest wins per session-day: the
+        // phone re-reads for two days as Health Connect fills in, and every read replaces the
+        // one before — so a record that arrives out of order cannot roll a fuller one back,
+        // because sortEvents already put them in written order.
+        const num = (x) => (Number.isFinite(Number(x)) && Number(x) >= 0 ? Number(x) : null);
+        const v = {
+          kcal: num(p.kcal),
+          hrAvg: num(p.hrAvg),
+          hrMax: num(p.hrMax),
+          hrMin: num(p.hrMin),
+          samples: num(p.samples) || 0,
+          exercises: Array.isArray(p.exercises)
+            ? p.exercises.filter((x) => x && x.id).map((x) => ({
+                id: String(x.id), kcal: num(x.kcal), hrAvg: num(x.hrAvg), hrMax: num(x.hrMax),
+              }))
+            : [],
+          source: typeof p.source === "string" ? p.source : null,
+          at: authoredAt(e),
+        };
+        vitals.set(p.memberId + "|" + p.sessionId + "|" + p.day, v);
+        const list = workouts.get(p.memberId) || [];
+        const w = list.find((x) => x.day === p.day && x.sessionId === String(p.sessionId));
+        if (w) w.vitals = v;
         break;
       }
 

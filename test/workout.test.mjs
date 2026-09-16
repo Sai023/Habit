@@ -12,7 +12,7 @@ import { PROGRAMS, PROGRAM_LIST } from "../js/programs.js";
 import {
   programFor, planFor, progressionWeek, intervalsFor, lastSession, prefill, prescription,
   isComplete, progress, unitOf, exerciseHistory, sessionsOf, restDaysOf,
-  personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS,
+  personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS, spansOf, workoutLog,
 } from "../js/workout.js";
 import { ev, T, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
@@ -228,6 +228,89 @@ test("a workout is a real event type", () => {
   const spec = ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [] });
   assert.equal(spec.type, T.WORKOUT);
   assert.equal(spec.payload.sessionId, "push-core");
+});
+
+// ---------------------------------------------------------------------------
+// The clock the sets carry, and the log built from it
+// ---------------------------------------------------------------------------
+
+const T0 = at(0);                       // the sheet opened
+const m = (n) => T0 + n * 60_000;       // minutes after
+
+test("each banked set owns the time since the set before it, from the session's start", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), {
+      startedAt: T0, endedAt: m(12),
+      exercises: [
+        { id: "pushup", sets: [10, 10, 9], at: [m(2), m(4), m(6)] },
+        { id: "plank", sets: [40, 35], at: [m(9), m(12)] },
+      ],
+    }), m(12)),
+  ]);
+  const spans = spansOf(s.workouts.get(ME)[0]);
+  assert.deepEqual(spans.map((x) => [x.id, x.ms / 60_000]), [["pushup", 6], ["plank", 6]]);
+  assert.deepEqual(spans[0].spans, [[T0, m(2)], [m(2), m(4)], [m(4), m(6)]]);
+});
+
+test("a workout from a build that kept no clock has no spans, and says so", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [8, 8, 8] }] }), at(0)),
+  ]);
+  assert.deepEqual(spansOf(s.workouts.get(ME)[0]), []);
+  const [entry] = workoutLog(s, ME, day(0));
+  assert.equal(entry.timed, false);
+  assert.equal(entry.minutes, null, "no clock, no minutes");
+  assert.deepEqual(entry.exercises[0].sets, [8, 8, 8]);
+});
+
+test("the log reads newest first, names everything, and marks the sets that beat the record", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), {
+      startedAt: T0, endedAt: m(20),
+      exercises: [{ id: "pushup", sets: [8, 8, 8], at: [m(3), m(6), m(9)] }],
+    }), m(20)),
+    E(ev.workout(ME, "match-fit", "push-core", day(7), {
+      startedAt: at(7), endedAt: at(7) + 25 * 60_000,
+      exercises: [{ id: "pushup", sets: [10, 8, 7], at: [at(7) + 3 * 60_000, at(7) + 6 * 60_000, at(7) + 9 * 60_000] }],
+    }), at(7) + 25 * 60_000),
+  ]);
+  const log = workoutLog(s, ME, day(7));
+  assert.deepEqual(log.map((w) => w.day), [day(7), day(0)], "newest first");
+  const [latest, first] = log;
+  assert.equal(latest.programName, "Match Fit");
+  assert.equal(latest.sessionName, "Push + Core");
+  assert.equal(latest.minutes, 25, "from the clock");
+  assert.equal(latest.timed, true);
+  assert.equal(latest.exercises[0].name, "Push-up");
+  assert.deepEqual(latest.exercises[0].previous, [8, 8, 8], "last time's sets, for the comparison");
+  assert.deepEqual(latest.exercises[0].pb, [true, false, false], "only the 10 beat the 8 that stood before");
+  assert.deepEqual(latest.pbs, ["Push-up"]);
+  assert.equal(latest.reps, 25);
+  assert.equal(latest.isToday, true);
+  assert.deepEqual(first.exercises[0].pb, [false, false, false], "the first time beats nothing, as the session screen says");
+  assert.equal(first.exercises[0].previous, null, "nothing before the first time");
+});
+
+test("a class in the log is its minutes and how it felt; a rope day is its rounds", () => {
+  const s = state([
+    E(ev.program(ME, "pilates-weekly"), at(0)),
+    E(ev.workout(ME, "pilates-weekly", Object.keys(PROGRAMS["pilates-weekly"].sessions)[0], day(0), {
+      exercises: [], minutes: 20, effort: "hard", startedAt: m(0), endedAt: m(20),
+    }), m(20)),
+    E(ev.workout(ME, "rope-protocol", "rope", day(1), {
+      exercises: [], rounds: 8, work: 30, rest: 30, startedAt: at(1), endedAt: at(1) + 10 * 60_000,
+    }), at(1) + 10 * 60_000),
+  ]);
+  const [rope, cls] = workoutLog(s, ME, day(1));
+  assert.equal(cls.kind, "video");
+  assert.equal(cls.classMinutes, 20);
+  assert.equal(cls.effort, "hard");
+  assert.equal(rope.rounds, 8);
+  assert.equal(rope.minutes, 10);
+  assert.equal(spansOf(s.workouts.get(ME).find((w) => w.rounds === 8))[0].id, "rope", "the rope's own stretch");
 });
 
 // ---------------------------------------------------------------------------

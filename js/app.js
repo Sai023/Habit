@@ -11,7 +11,9 @@
 import { renderApp } from "./ui/dashboard.js";
 import { demoState } from "./ui/demo.js";
 import { dayKey, latestGoal, travelPeriod, addDays, groupDayHabit } from "./habits.js";
-import { HABIT_DEFAULTS, PERIOD } from "./schema.js";
+import { workoutLog } from "./workout.js";
+import { windowsToRead } from "./vitals.js";
+import { HABIT_DEFAULTS, PERIOD, MAX_BACKFILL_DAYS } from "./schema.js";
 import { installBridge, caps, isNative, setSyncConfig, openSettings, onAppResume } from "./bridge.js";
 import { showProblem, showNote } from "./ui/problem.js";
 import { watchForUpdates } from "./update.js";
@@ -228,7 +230,14 @@ const onWorkout = guard("workout", async () => {
     state: ctx.state, program, me: ctx.me, today: ctx.today,
     onDone: () => refresh(),
     onChooseProgram,
+    onHistory,
   });
+});
+
+/** Every workout, one by one — the log the hub's training block adds up. */
+const onHistory = guard("history", async () => {
+  const { openWorkoutHistory } = await import("./ui/workouthistory.js");
+  openWorkoutHistory(document.body, { state: ctx.state, me: ctx.me, today: ctx.today, onDone: () => {} });
 });
 
 /** Pick which program to follow. Two to choose from, and the choice is one event. */
@@ -767,12 +776,14 @@ function tellShell(state, memberId, code) {
     ...reminderFor(state, memberId, h),
   }));
   const quiet = quietUntil(state, memberId, ctx.today);
-  const signature = code + "|" + memberId + "|" + quiet + "|" + JSON.stringify(habits);
+  // The timed workouts the phone should read the watch for — see vitals.js.
+  const workouts = windowsToRead(workoutLog(state, memberId, ctx.today), ctx.today, addDays, MAX_BACKFILL_DAYS);
+  const signature = code + "|" + memberId + "|" + quiet + "|" + JSON.stringify(habits) + "|" + JSON.stringify(workouts);
   if (signature === lastShellConfig) return;
   lastShellConfig = signature;
   setSyncConfig({
     groupCode: code, memberId, supabaseUrl: SUPABASE_URL, supabaseKey: SUPABASE_ANON_KEY, habits,
-    quietUntil: quiet,
+    quietUntil: quiet, workouts,
   });
 }
 
