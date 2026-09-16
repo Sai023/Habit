@@ -239,7 +239,6 @@ const onHistory = guard("history", async (openAt = null) => {
   const { openWorkoutHistory } = await import("./ui/workouthistory.js");
   openWorkoutHistory(document.body, {
     state: ctx.state, me: ctx.me, today: ctx.today, openAt,
-    onRemove: isDemo ? null : onRemoveWorkout,
     onDone: () => {},
   });
 });
@@ -252,15 +251,6 @@ const onExercise = guard("exercise", async (exerciseId) => {
     onOpenWorkout: (day, sessionId) => onHistory({ day, sessionId }),
     onDone: () => {},
   });
-});
-
-/** Take a workout back. Confirmed by the sheet that offers it. */
-const onRemoveWorkout = guard("remove", async (day, sessionId) => {
-  if (demoBlocked()) return false;
-  const { removeWorkout } = await import("./store.js");
-  const done = await removeWorkout(day, sessionId);
-  if (done) await refresh();
-  return done;
 });
 
 /** Pick which program to follow. Two to choose from, and the choice is one event. */

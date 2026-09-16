@@ -5,6 +5,15 @@
 // list of workouts newest first, and any one of them opened to its sets, beside last time's, with
 // the record marked where it was beaten and the clock beside it where a clock was kept.
 //
+// ---- The shape of it ----
+//
+// A calendar's spine: every row starts with the date as a small stacked badge — day over month —
+// so a scroll through a year reads as a calendar and not as a list of similar sentences. Month
+// eyebrows break the run; chips narrow it to one session. A row is a name, one line of facts in
+// the same order every time (when · how long · how much), the record if one fell, and what the
+// watch said in the ring colour. Nothing is ever removed: a finish that banked nothing is kept
+// and shown for what it was, quietly.
+//
 // ---- What the watch adds ----
 //
 // A workout that ran while a watch was worn carries vitals: what the heart did, what it cost,
@@ -18,11 +27,26 @@ import { workoutLog, MIN_INSIGHT_SESSIONS } from "../workout.js";
 import { vitalsInsights } from "../vitals.js";
 import * as fmt from "./format.js";
 import { EFFORT } from "./workoutsheet.js";
-import { confirmSheet } from "./confirmsheet.js";
 
 /** "18:32" — a clock time in the reader's own zone, since the workout was theirs. */
 function clockOf(ms) {
   return new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/** "September 2026" — the month a day falls in, for the eyebrows. */
+function monthLabel(day) {
+  const [y, m] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+/** The date as a stacked badge: "16" over "SEP". The spine of every list here. */
+export function dateBadge(day, today = null) {
+  const [y, m, d] = day.split("-").map(Number);
+  const mon = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, { month: "short", timeZone: "UTC" });
+  return el("span.dbadge" + (day === today ? ".is-today" : ""),
+    el("b", String(d)),
+    el("span", mon.toUpperCase()),
+  );
 }
 
 function unitSuffix(unit) {
@@ -30,18 +54,19 @@ function unitSuffix(unit) {
 }
 
 /** "10 · 8 · 7", the record marked, a skipped set shown as a dash. */
-function setsLine(e) {
-  return el("span.wl-sets", e.sets.map((n, i) => el("span.wl-set" + (e.pb[i] ? ".is-pb" : "") + (n === null ? ".is-skip" : ""),
-    n === null ? "–" : String(n) + (i === e.sets.length - 1 ? unitSuffix(e.unit) : ""))));
+export function setsLine(sets, pb, unit) {
+  return el("span.wl-sets", sets.map((n, i) => el("span.wl-set" + (pb && pb[i] ? ".is-pb" : "") + (n === null ? ".is-skip" : ""),
+    n === null ? "–" : String(n) + (i === sets.length - 1 ? unitSuffix(unit) : ""))));
 }
 
-/** "September 2026" — the month a day falls in, for the headers. */
-function monthLabel(day) {
-  const [y, m] = day.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
+/** "+3" in the ring colour, "−2" in the warning colour, nothing for the same or a first time. */
+function delta(now, before, unit) {
+  if (before === null || before === undefined || now === before) return null;
+  const d = now - before;
+  return el("span.wl-delta" + (d > 0 ? ".is-up" : ".is-down"), (d > 0 ? "+" : "−") + Math.abs(d) + unitSuffix(unit));
 }
 
-export function openWorkoutHistory(host, { state, me, today, openAt = null, onRemove = null, onDone }) {
+export function openWorkoutHistory(host, { state, me, today, openAt = null, onDone }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
   const log = workoutLog(state, me, today);
   const burn = vitalsInsights(log);
@@ -51,7 +76,6 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onRe
   // Which session the list is narrowed to, or null for all. Over months the list is long, and
   // "every Push + Core" is the question a person scrolling it is usually asking.
   let only = null;
-  let busy = false;
 
   /** The sessions in the log, each once, most done first — the chips that narrow the list. */
   function sessionChips() {
@@ -66,7 +90,34 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onRe
     );
   }
 
-  /** The list, under month headers, so a year of workouts still has landmarks in it. */
+  /** One workout, closed: the date, the name, one line of facts, the record, the watch. */
+  function row(w, i) {
+    const when = w.timed ? clockOf(w.startedAt) : null;
+    const long = w.timed ? w.minutes + " min" : (w.classMinutes ? w.classMinutes + " min" : null);
+    const much = w.empty ? null
+      : w.kind === "intervals" ? (w.rounds ?? 0) + " rounds" + (w.sets ? " + " + w.sets + " sets" : "")
+      : w.kind === "video" ? (w.effort ? EFFORT[w.effort] : "done")
+      : w.sets + " sets" + (w.reps ? " · " + w.reps + " reps" : "");
+    return el("button.wl-row" + (w.empty ? ".is-empty" : ""), { onclick: () => { open = i; paint(); } },
+      dateBadge(w.day, today),
+      el("span.wl-row-main",
+        el("span.wl-row-name", w.sessionName),
+        el("span.wl-row-sub", w.empty
+          ? "nothing banked"
+          : [when, long, much].filter(Boolean).join(" · ")),
+        w.pbs.length ? el("span.wl-row-pb", "\u{1F3C6} " + w.pbs.join(", ")) : null,
+        w.vitals && (w.vitals.kcal || w.vitals.hrAvg)
+          ? el("span.wl-row-vitals",
+              [w.vitals.kcal ? Math.round(w.vitals.kcal) + " kcal" : null,
+                w.vitals.hrAvg ? "♥ " + Math.round(w.vitals.hrAvg) : null,
+                w.vitals.hrMax ? Math.round(w.vitals.hrMax) + " peak" : null].filter(Boolean).join(" · "))
+          : null,
+      ),
+      el("span.wl-row-go", "›"),
+    );
+  }
+
+  /** The list, under month eyebrows, so a year of workouts still has landmarks in it. */
   function list() {
     const shown = log.map((w, i) => [w, i]).filter(([w]) => only === null || w.sessionId === only);
     const out = [];
@@ -79,54 +130,12 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onRe
         const minutes = inMonth.reduce((n, [x]) => n + (x.minutes || 0), 0);
         out.push(el("div.wl-month",
           el("span", monthLabel(w.day)),
-          el("span.wl-month-n", inMonth.length + (inMonth.length === 1 ? " workout" : " workouts") + (minutes ? " \u00b7 " + minutes + " min" : "")),
+          el("span.wl-month-n", inMonth.length + (inMonth.length === 1 ? " workout" : " workouts") + (minutes ? " · " + minutes + " min" : "")),
         ));
       }
       out.push(row(w, i));
     }
     return el("div.wl-list", out);
-  }
-
-  /** Take this one back, after asking. */
-  async function remove(w) {
-    if (!onRemove || busy) return;
-    const ok = await confirmSheet(document.body, {
-      title: "Remove this workout?",
-      body: w.sessionName + " on " + fmt.dayLabel(w.day) + " comes off the history and stops counting for the day. "
-        + "The record it set, if any, goes with it.",
-      confirmLabel: "Remove", cancelLabel: "Keep it",
-    });
-    if (!ok) return;
-    busy = true; paint();
-    const done = await onRemove(w.day, w.sessionId);
-    busy = false;
-    if (done) sheet.close(); else paint();
-  }
-
-  /** One workout, closed: what, when, how much, and what the watch said. */
-  function row(w, i) {
-    const when = w.timed ? clockOf(w.startedAt) + " · " + w.minutes + " min" : (w.classMinutes ? w.classMinutes + " min" : null);
-    const what = w.kind === "intervals"
-      ? (w.rounds ?? 0) + " rounds" + (w.sets ? " + " + w.sets + " sets" : "")
-      : w.kind === "video"
-        ? (w.effort ? EFFORT[w.effort] : "done")
-        : w.sets + " sets";
-    return el("button.wl-row", { onclick: () => { open = i; paint(); } },
-      el("span.wl-row-main",
-        el("span.wl-row-name", w.sessionName),
-        el("span.wl-row-sub",
-          [fmt.dayLabel(w.day), when, what].filter(Boolean).join(" · "),
-        ),
-        w.pbs.length ? el("span.wl-row-pb", "\u{1F3C6} " + w.pbs.join(", ")) : null,
-        w.vitals && (w.vitals.kcal || w.vitals.hrAvg)
-          ? el("span.wl-row-vitals",
-              [w.vitals.kcal ? Math.round(w.vitals.kcal) + " kcal" : null,
-                w.vitals.hrAvg ? "♥ " + Math.round(w.vitals.hrAvg) + " avg" : null,
-                w.vitals.hrMax ? Math.round(w.vitals.hrMax) + " max" : null].filter(Boolean).join(" · "))
-          : null,
-      ),
-      el("span.wl-row-go", "›"),
-    );
   }
 
   /** The vitals the phone laid over this workout, if a watch was worn. */
@@ -136,36 +145,45 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onRe
     const tiles = [];
     if (v.kcal) tiles.push([Math.round(v.kcal), "kcal"]);
     if (v.hrAvg) tiles.push([Math.round(v.hrAvg), "avg bpm"]);
-    if (v.hrMax) tiles.push([Math.round(v.hrMax), "max bpm"]);
+    if (v.hrMax) tiles.push([Math.round(v.hrMax), "peak bpm"]);
     if (v.hrRest) tiles.push([Math.round(v.hrRest), "rest bpm"]);
-    if (Number.isFinite(v.recovery)) tiles.push(["\u2212" + Math.round(v.recovery), "in a minute"]);
+    if (Number.isFinite(v.recovery)) tiles.push(["−" + Math.round(v.recovery), "in a minute"]);
     if (v.kcal && w.minutes) tiles.push([(v.kcal / w.minutes).toFixed(1), "kcal / min"]);
     return el("div.wl-vitals",
       el("div.wl-tiles", tiles.map(([n, k]) => el("div.wl-tile", el("b", String(n)), el("span", k)))),
-      el("p.note-inline", "From your watch, through Health Connect, laid over the minutes this workout ran."
+      el("p.note-inline", "From your watch, laid over the minutes this workout ran."
         + (v.samples ? " " + v.samples + " heart-rate readings." : "")
-        + (Number.isFinite(v.recovery) ? " \u201CIn a minute\u201D is how far your heart fell in the minute after a set." : "")),
+        + (Number.isFinite(v.recovery) ? " “In a minute” is how far your heart fell in the minute after a set." : "")),
     );
   }
 
-  /** One exercise inside an open workout: the sets, last time, the record, its cost. */
+  /** One exercise inside an open workout: the sets, the change on last time, its cost. */
   function exerciseRow(e, w) {
-    const prev = e.previous && e.previous.some(Number.isFinite)
-      ? "last time " + e.previous.map((n) => (n === null ? "–" : n)).join(" · ")
-      : "first time";
+    const prevTotal = e.previous && e.previous.some(Number.isFinite)
+      ? e.previous.filter(Number.isFinite).reduce((a, b) => a + b, 0)
+      : null;
     const span = (w.spans || []).find((s) => s.id === e.id);
     const ev = w.vitals && w.vitals.exercises ? w.vitals.exercises.find((x) => x.id === e.id) : null;
     const cost = ev && ev.kcal && span
-      ? Math.round(ev.kcal) + " kcal" + (span.ms >= 60_000 ? " · " + (ev.kcal / (span.ms / 60_000)).toFixed(1) + "/min" : "")
-        + (ev.hrAvg ? " · ♥ " + Math.round(ev.hrAvg) : "")
+      ? [Math.round(ev.kcal) + " kcal",
+          span.ms >= 60_000 ? (ev.kcal / (span.ms / 60_000)).toFixed(1) + "/min" : null,
+          ev.hrAvg ? "♥ " + Math.round(ev.hrAvg) : null].filter(Boolean).join(" · ")
       : span && span.ms >= 30_000 ? Math.round(span.ms / 60_000) + " min" : null;
-    return el("div.wl-ex",
+    const done = e.sets.some(Number.isFinite);
+    return el("div.wl-ex" + (done ? "" : ".is-skipped"),
       el("div.wl-ex-head",
-        el("span.wl-ex-name", e.name + (e.perSide ? " (per side)" : "")),
+        el("span.wl-ex-name", e.name + (e.perSide ? " · per side" : "")),
+        done
+          ? el("span.wl-ex-total", e.total + (e.unit === "reps" ? " reps" : unitSuffix(e.unit)), delta(e.total, prevTotal, e.unit))
+          : el("span.wl-ex-total.is-dim", "skipped"),
+      ),
+      setsLine(e.sets, e.pb, e.unit),
+      el("div.wl-ex-foot",
+        el("span", prevTotal !== null
+          ? "last time " + e.previous.map((n) => (n === null ? "–" : n)).join(" · ")
+          : "first time"),
         cost ? el("span.wl-ex-cost", cost) : null,
       ),
-      setsLine(e),
-      el("span.wl-ex-prev", prev),
     );
   }
 
@@ -176,25 +194,27 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onRe
       : w.classMinutes ? w.classMinutes + " min" : "no clock kept";
     return el("div.wl-detail",
       el("button.link.wl-back", { onclick: () => { open = null; paint(); } }, "← All workouts"),
-      el("div.sheet-head", el("span.sheet-title", w.sessionName)),
-      el("p.sheet-now", fmt.dayLabel(w.day) + " · " + w.programName + " · " + when
-        + (w.effort ? " · " + EFFORT[w.effort] : "")),
+      el("div.wl-detail-head",
+        dateBadge(w.day, today),
+        el("div.wl-detail-title",
+          el("span.sheet-title", w.sessionName),
+          el("span.wl-detail-sub", [w.programName, when, w.effort ? EFFORT[w.effort] : null].filter(Boolean).join(" · ")),
+        ),
+      ),
       w.kind === "intervals"
         ? el("p.wl-rounds", (w.rounds ?? 0) + " rounds"
             + (w.work ? " · " + w.work + "s on / " + w.rest + "s off" : ""))
+        : null,
+      w.empty
+        ? el("p.note-inline", "Nothing was banked in this one — Finish was pressed on empty sets. It is kept, because it happened; it sets no record and moves no trend.")
         : null,
       vitalsBlock(w),
       w.exercises.length ? el("div.wl-exs", w.exercises.map((e) => exerciseRow(e, w))) : null,
       w.pbs.length
         ? el("p.wl-pbline", "\u{1F3C6} Personal best on " + w.pbs.join(", ") + ".")
         : null,
-      !w.timed
+      !w.timed && !w.empty
         ? el("p.note-inline", "Logged before the app kept a clock, so there are no minutes and nothing for a watch to line up with.")
-        : null,
-      // The way out for a finish that was a test or a mistake. A link, and a confirm behind it:
-      // the sets are the person's own record and a fat thumb must not be able to erase a month.
-      onRemove
-        ? el("button.link.sec-note.wl-remove", { onclick: () => remove(w), disabled: busy }, busy ? "Removing\u2026" : "Remove this workout")
         : null,
     );
   }
@@ -216,13 +236,14 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onRe
 
   function paint() {
     if (open !== null && log[open]) { sheet.paint(el("div.form.wl", detail(log[open]))); return; }
+    const timed = log.filter((w) => w.timed);
     sheet.paint(
       el("div.form.wl",
         el("div.sheet-head", el("span.sheet-title", "Workouts")),
         log.length
           ? el("p.sheet-now", log.length + (log.length === 1 ? " workout" : " workouts")
               + " since " + fmt.dayLabel(log[log.length - 1].day)
-              + (log.filter((w) => w.timed).length ? " · " + log.filter((w) => w.timed).reduce((n, w) => n + (w.minutes || 0), 0) + " min on the clock" : "")
+              + (timed.length ? " · " + timed.reduce((n, w) => n + (w.minutes || 0), 0) + " min on the clock" : "")
               + ".")
           : el("p.sheet-now", "No workouts logged yet. Finish one from the hub and it lands here."),
         burnBlock(),

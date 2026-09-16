@@ -590,13 +590,6 @@ export function replay(events) {
         if (daysBetween(p.day, authoredDay) > MAX_BACKFILL_DAYS) break;
 
         const list = workouts.get(p.memberId) || [];
-        // Taken back. A finish that was a test, or a tap by mistake, is removed by writing the
-        // same session-day with `removed` — the log stays append-only and every device agrees.
-        // The habit's own entry for it is withdrawn by a clearLog beside it (see removeWorkout).
-        if (p.removed) {
-          workouts.set(p.memberId, list.filter((w) => !(w.day === p.day && w.sessionId === String(p.sessionId))));
-          break;
-        }
         const entry = {
           programId: p.programId || null,
           sessionId: String(p.sessionId),

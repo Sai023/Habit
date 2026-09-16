@@ -244,7 +244,10 @@ export function exerciseHistory(state, memberId, program) {
     for (const e of w.exercises || []) {
       const entry = byId.get(e.id);
       if (!entry) continue;
-      const sets = e.sets.filter((n) => Number.isFinite(n));
+      // A set banked at zero was skipped — Done pressed on an empty stepper to move on — and a
+      // session with nothing but those never happened for this exercise. Neither is a data
+      // point: a "0 · 0 · 0" from a quick test of the app must not read as a collapse in form.
+      const sets = e.sets.filter((n) => Number.isFinite(n) && n > 0);
       if (!sets.length) continue;
       entry.sessions.push({ day: w.day, sets, total: sets.reduce((a, b) => a + b, 0), best: Math.max(...sets) });
     }
@@ -583,14 +586,15 @@ export function workoutLog(state, memberId, today = null) {
 
     const exercises = (w.exercises || []).map((e) => {
       const meta = names.get(e.id) || { name: e.id, unit: "reps", perSide: false };
-      const sets = e.sets.map((n) => (Number.isFinite(n) ? n : null));
+      // A set of zero is a set skipped, and reads as one — a dash, not a number.
+      const sets = e.sets.map((n) => (Number.isFinite(n) && n > 0 ? n : null));
       const prev = previous && previous.exercises.find((x) => x.id === e.id);
       const before = bests.get(e.id);
       const done = sets.filter(Number.isFinite);
       return {
         id: e.id, name: meta.name, unit: meta.unit, perSide: meta.perSide,
         sets,
-        previous: prev ? prev.sets.map((n) => (Number.isFinite(n) ? n : null)) : null,
+        previous: prev ? prev.sets.map((n) => (Number.isFinite(n) && n > 0 ? n : null)) : null,
         total: done.reduce((a, b) => a + b, 0),
         best: done.length ? Math.max(...done) : null,
         // Which sets beat the record as it stood BEFORE this day — a record set today beats
@@ -599,6 +603,10 @@ export function workoutLog(state, memberId, today = null) {
         pb: sets.map((n) => Number.isFinite(n) && before !== undefined && n > before),
       };
     });
+    // Nothing banked at all: a finish pressed on an empty session. Kept, and shown for what it
+    // was, rather than removed — the log is append-only and it did happen.
+    const empty = !exercises.some((e) => e.sets.some(Number.isFinite))
+      && !(Number.isFinite(w.rounds) && w.rounds > 0) && !Number.isFinite(w.minutes);
     const reps = exercises.filter((e) => e.unit !== "s").reduce((n, e) => n + e.total, 0);
     const seconds = exercises.filter((e) => e.unit === "s").reduce((n, e) => n + e.total, 0);
     const setsDone = exercises.reduce((n, e) => n + e.sets.filter(Number.isFinite).length, 0);
@@ -627,6 +635,7 @@ export function workoutLog(state, memberId, today = null) {
       reps,
       seconds,
       pbs: exercises.filter((e) => e.pb.some(Boolean)).map((e) => e.name),
+      empty,
       spans: spansOf(w),
       vitals: w.vitals || null,
       isToday: today ? w.day === today : false,
@@ -641,7 +650,7 @@ function bestsBefore(state, memberId, program, day) {
     if (w.programId !== program.id || w.day >= day) continue;
     for (const e of w.exercises || []) {
       for (const n of e.sets) {
-        if (!Number.isFinite(n)) continue;
+        if (!Number.isFinite(n) || n <= 0) continue;
         if (!out.has(e.id) || n > out.get(e.id)) out.set(e.id, n);
       }
     }
@@ -663,6 +672,7 @@ export function exerciseLog(state, memberId, exerciseId, today = null) {
   let bestTotal = null;
   for (const w of workoutLog(state, memberId, today)) {
     const e = w.exercises.find((x) => x.id === exerciseId);
+    // Skipped throughout is not a session of it; the sets above already read zero as skipped.
     if (!e || !e.sets.some(Number.isFinite)) continue;
     const ev = w.vitals && w.vitals.exercises ? w.vitals.exercises.find((x) => x.id === exerciseId) : null;
     const span = (w.spans || []).find((x) => x.id === exerciseId);

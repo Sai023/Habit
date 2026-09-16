@@ -1776,27 +1776,40 @@ button.card-open:active { transform: scale(0.99); }
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   margin-bottom: 10px; font-size: var(--fs-small); color: var(--dim);
 }
-.hd-exlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.hd-exlist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+/* One exercise, as a small card: name and trend on the first line, the shape of the last dozen
+   sessions under it, and one line of facts in the same order every time. The row opens. */
 .hd-exrow {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline;
-  padding: 9px 12px; background: var(--panel); border-radius: var(--r-sm);
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 11px 13px; background: var(--panel); border-radius: var(--r-sm);
 }
-.hd-exrow-head { display: flex; align-items: baseline; gap: 8px; grid-column: 1 / -1; }
-.hd-exrow-name { font-size: var(--fs-small); font-weight: 700; }
-.hd-exrow-trend { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; }
+button.hd-exrow { width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; color: inherit; }
+button.hd-exrow:active { transform: scale(0.995); }
+.hd-exrow-head { display: flex; align-items: baseline; gap: 8px; }
+.hd-exrow-name { font-size: var(--fs-body); font-weight: 700; }
+.hd-exrow-trend { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .hd-exrow-trend.up { color: var(--teal); }
 .hd-exrow-trend.down { color: var(--danger); }
 .hd-exrow-trend.same { color: var(--dim); }
-/* The sets as chips, oldest to newest, the newest lit. A row of "10 · 10 · 9" is the progression
-   made visible; a single number would hide that the third set is where it slips. */
-.hd-exrow-sets { display: flex; flex-wrap: wrap; gap: 5px; }
-.hd-exchip {
-  font-size: var(--fs-micro); font-variant-numeric: tabular-nums; white-space: nowrap;
-  padding: 2px 7px; border-radius: 999px; background: var(--bg); color: var(--dim);
+.hd-exrow-go { margin-left: auto; color: var(--dim); font-weight: 700; }
+
+/* A dozen sessions as bars: the shape of a month at a glance, the record lit once in amber, the
+   latest in the ring colour, a hairline for the floor. Nothing to read; that is the point. */
+.hd-spark {
+  display: flex; align-items: flex-end; gap: 3px; height: 28px;
+  border-bottom: 1px solid var(--line); padding-bottom: 1px;
 }
-.hd-exchip.is-last { color: var(--text); box-shadow: inset 0 0 0 1px var(--teal-dim); }
+.hd-spark i { flex: 1; max-width: 16px; border-radius: 2px 2px 0 0; background: var(--teal-dim); opacity: 0.75; }
+.hd-spark i.is-last { background: var(--teal); opacity: 1; }
+.hd-spark i.is-best { background: var(--amber); opacity: 1; }
+
+.hd-exrow-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: var(--fs-small); }
+.hd-exrow-last { display: flex; align-items: baseline; gap: 4px; min-width: 0; font-variant-numeric: tabular-nums; }
+.hd-exrow-day { color: var(--dim); }
+.hd-exrow-sets { font-weight: 700; letter-spacing: 0.02em; }
+.hd-exrow-sum { color: var(--dim); }
+.hd-exrow-n { color: var(--dim); font-size: var(--fs-micro); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hd-exrow-none { font-size: var(--fs-micro); color: var(--dim); font-style: italic; }
-.hd-exrow-total { font-size: var(--fs-micro); color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ---- the program hub ---- */
 
@@ -2381,4 +2394,39 @@ button.hd-exrow:active { transform: scale(0.995); }
 .wl-month span:first-child { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); }
 .wl-month-n { font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
 .wl-filter { margin-bottom: 2px; }
-.wl-remove { color: var(--danger); align-self: flex-start; }
+
+/* ---------- the date as a badge, the delta as a colour ---------- */
+
+/* "16" over "SEP": the spine of every workout list. Fixed width so the names line up under
+   each other; today's badge in the ring colour. */
+.dbadge {
+  flex: none; width: 40px; display: flex; flex-direction: column; align-items: center; gap: 0;
+  padding: 5px 0 4px; border-radius: var(--r-sm); background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+.dbadge b { font-size: var(--fs-head); font-weight: 800; line-height: 1; }
+.dbadge span { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: var(--dim); }
+.dbadge.is-today { background: var(--teal-dim); }
+.dbadge.is-today span { color: var(--teal-soft); }
+.wl-row .dbadge, .ex-row .dbadge { align-self: center; }
+.wl-row.is-empty .wl-row-sub { font-style: italic; }
+.wl-row.is-empty .wl-row-name { color: var(--dim); }
+
+/* The change on last time, beside a total. */
+.wl-delta { margin-left: 6px; font-size: var(--fs-micro); font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-delta.is-up { color: var(--teal); }
+.wl-delta.is-down { color: var(--danger); }
+.wl-ex-total { font-size: var(--fs-small); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wl-ex-total.is-dim { color: var(--dim); font-weight: 500; font-style: italic; }
+.wl-ex.is-skipped .wl-ex-name { color: var(--dim); }
+.wl-ex-foot { display: flex; justify-content: space-between; gap: 10px; font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* The open workout's head: the badge beside the title. */
+.wl-detail-head { display: flex; align-items: center; gap: 12px; }
+.wl-detail-title { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.wl-detail-sub { font-size: var(--fs-small); color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* The exercise sheet's rows carry a head line: the session it was in, the total and its change. */
+.ex-row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ex-row-total { font-size: var(--fs-small); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wl-tile small { font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }

@@ -314,31 +314,34 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
           : r.unit === "min" ? last.total + " min" + (last.effort === "hard" ? " \u2191" : last.effort === "easy" ? " \u2193" : "")
           : last.sets.join(" \u00b7 ");
         const tag = onExercise && last ? "button.hd-exrow" : "div.hd-exrow";
+        const totalOf = (n) => (r.unit === "rounds" ? n + " rounds" : r.unit === "min" ? n + " min" : n + (r.unit === "s" ? "s" : " " + r.unit));
         return el(tag, onExercise && last ? { onclick: () => { sheet.close(); onExercise(r.id); } } : {},
           el("div.hd-exrow-head",
             el("span.hd-exrow-name", r.name),
             r.trend
               ? el("span.hd-exrow-trend." + r.trend,
-                  r.trend === "up" ? "\u2191 up" : r.trend === "down" ? "\u2193 down" : "= same")
+                  r.trend === "up" ? "\u2191 up" : r.trend === "down" ? "\u2193 down" : "\u2014 held")
               : null,
             onExercise && last ? el("span.hd-exrow-go", "\u203A") : null,
           ),
           recent.length > 1
             ? el("div.hd-spark", recent.map((s, i) => el("i" + (i === bestAt ? ".is-best" : "") + (s === last ? ".is-last" : ""), {
                 style: "height:" + Math.max(8, Math.round((s.total / top) * 100)) + "%",
+                title: fmt.dayLabel(s.day) + " \u00b7 " + totalOf(s.total),
               })))
             : null,
+          // One line, the same order every time: when, the sets, the total. Then how many.
           last
-            ? el("span.hd-exchip.is-last", { title: fmt.dayLabel(last.day) }, lastChip)
+            ? el("div.hd-exrow-foot",
+                el("span.hd-exrow-last",
+                  el("span.hd-exrow-day", fmt.dayLabel(last.day).split(",")[0]),
+                  " ",
+                  el("span.hd-exrow-sets", lastChip),
+                  el("span.hd-exrow-sum", " \u00b7 " + totalOf(last.total)),
+                ),
+                el("span.hd-exrow-n", r.sessions.length + "\u00d7"),
+              )
             : el("span.hd-exrow-none", "not yet"),
-          last
-            ? el("span.hd-exrow-total",
-                fmt.dayLabel(last.day).split(",")[0] + " \u00b7 "
-                + (r.unit === "rounds" ? last.total + " rounds"
-                  : r.unit === "min" ? last.total + " min"
-                  : last.total + (r.unit === "s" ? "s" : " " + r.unit))
-                + (r.sessions.length > 1 ? " \u00b7 " + r.sessions.length + " sessions" : ""))
-            : null,
         );
       })),
       onChooseProgram

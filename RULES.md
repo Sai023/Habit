@@ -130,7 +130,7 @@ on the wrong one.
 | Rest heart rate is what lies between the sets; recovery is the drop a minute after one, never negative, never from a sample far from the mark | `habit/VitalsSync.kt` — `summarise`, `RECOVERY_MS` | `.../VitalsSyncTest.kt` |
 | The log names everything and marks a record only against what stood BEFORE that day; a first time beats nothing | `js/workout.js` — `workoutLog`, `bestsBefore` | `test/workout.test.mjs` |
 | An exercise's own log spans every session and program it was in; the chart draws session totals, not best sets | `js/workout.js` — `exerciseLog`; `js/ui/exercisesheet.js` | `test/workout.test.mjs` |
-| A workout is taken back by writing its session-day with `removed`; the day's typed entry is withdrawn and any other workout that day re-logged | `js/habits.js` — `T.WORKOUT` replay; `js/store.js` — `removeWorkout` | `test/workout.test.mjs` |
+| A workout done is a workout kept: there is no removal, the log is append-only, and a finish that was a test is shown for what it was | `js/habits.js` — `T.WORKOUT` replay; `js/workout.js` — `exerciseHistory` (zero sets are skipped sets) | `test/workout.test.mjs` |
 | Vitals lie on the workout with the same session and day, whichever arrived first; the latest read wins | `js/habits.js` — `T.VITALS` replay | `test/vitals.test.mjs` |
 | The phone reads the watch for the timed workouts of the last two days and pushes only when the figures changed | `habit/VitalsSync.kt` — `pass`, `signature` | `.../VitalsSyncTest.kt` |
 | A calorie record straddling two sets is split by overlap; heart rate is averaged over each exercise's own minutes | `habit/VitalsSync.kt` — `summarise` | `.../VitalsSyncTest.kt` |

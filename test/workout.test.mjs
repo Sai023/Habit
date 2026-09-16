@@ -353,14 +353,34 @@ test("a class in the log is its minutes and how it felt; a rope day is its round
   assert.equal(spansOf(s.workouts.get(ME).find((w) => w.rounds === 8))[0].id, "rope", "the rope's own stretch");
 });
 
-test("a workout taken back is gone from the log, and the day stops counting it", () => {
+test("a set of zero is a set skipped, and a session of nothing is not a data point", () => {
+  // A quick test of the app: Done pressed on empty steppers. It happened, so it stays; it must
+  // not read as a collapse in form, set a record of zero, or draw a bar of nothing.
   const s = state([
     E(ev.program(ME, "match-fit"), at(0)),
-    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [8, 8, 8] }] }), at(0)),
-    E(ev.workout(ME, "match-fit", "push-core", day(0), { removed: true }), at(0) + 1000),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [10, 10, 9] }, { id: "plank", sets: [40, 40, 35] }] }), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(2), { exercises: [{ id: "pushup", sets: [11, 0, 0] }, { id: "plank", sets: [0, 0, 0] }] }), at(2)),
+    E(ev.workout(ME, "match-fit", "push-core", day(4), { exercises: [{ id: "pushup", sets: [0, 0, 0] }, { id: "plank", sets: [0, 0, 0] }] }), at(4)),
   ]);
-  assert.equal((s.workouts.get(ME) || []).length, 0);
-  assert.deepEqual(workoutLog(s, ME, day(0)), []);
+  const hist = exerciseHistory(state([]), ME, FIT);
+  assert.ok(hist.every((r) => r.sessions.length === 0), "the empty fixture has nothing");
+  const rows = exerciseHistory(s, ME, FIT);
+  const pushup = rows.find((r) => r.id === "pushup");
+  const plank = rows.find((r) => r.id === "plank");
+  assert.deepEqual(pushup.sessions.map((x) => x.sets), [[10, 10, 9], [11]], "the zeros are gone; the eleven counts");
+  assert.equal(plank.sessions.length, 1, "a plank day of nothing is not a plank day");
+  assert.equal(plank.trend, null, "and there is no trend from one session");
+
+  const log = workoutLog(s, ME, day(5));
+  assert.deepEqual(log[0].exercises[0].sets, [null, null, null], "skipped sets read as skipped");
+  assert.equal(log[0].empty, true, "and the whole finish is marked as having banked nothing");
+  assert.equal(log[1].empty, false);
+  assert.deepEqual(log[1].exercises[0].pb, [true, false, false], "the eleven beat the ten; the zeros beat nothing");
+  assert.deepEqual(log[1].exercises[0].sets, [11, null, null]);
+
+  const ex = exerciseLog(s, ME, "plank", day(5));
+  assert.equal(ex.rows.length, 1, "only the day the plank was held");
+  assert.deepEqual(ex.series.map((x) => x.total), [115]);
 });
 
 test("an exercise's own log lists every session it was in, newest first, with the record", () => {

@@ -675,9 +675,10 @@ with the last session's sets and the count. Each opens to the exercise's
 own sheet: a bar per session (up to the last 24), the best set and best
 day with their dates, then every session newest first with its sets, its
 minutes and what the watch said about it; any row opens the workout it
-came from. The workout log is headed by month and narrows by session. A
-finish that was a test or a mistake can be removed from its detail; the
-day stops counting it, and any other workout that day keeps counting.
+came from. The workout log is headed by month and narrows by session.
+Nothing is ever removed: a finish that banked no sets is kept and shown
+for what it was — sets that were skipped read as skipped, and a session
+with nothing in it draws no bar and moves no trend.
 
 THE WATCH. A guided set's span is its work alone; a set from before the
 guide owns the minutes since the one before it. The phone is handed the
