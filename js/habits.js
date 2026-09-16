@@ -283,6 +283,11 @@ function normalizeHabit(p, createdDay) {
   // Which of the four shares this counts towards. A plain string, kept as given: score.js decides
   // what an unrecognised one means, so replay does not need a table of them.
   h.category = typeof p.category === "string" && p.category ? p.category : (h.category ?? null);
+  // The unit of measurement, defaulting to the metric. Explicit so a genuine unit change (glasses
+  // to millilitres, counted to metered) is recorded on the definition and dated in `history`,
+  // rather than a number silently coming to mean something new. See unitOn and the read-model's
+  // per-day unit, which refuses to average or correlate across a change of scale.
+  h.unit = (typeof p.unit === "string" && p.unit) ? p.unit : h.metric;
   h.remindAt = Number.isFinite(Number(p.remindAt)) && Number(p.remindAt) >= 0
     ? Math.min(1439, Math.round(Number(p.remindAt)))
     : (p.remindAt === null ? null : (h.remindAt ?? null));
@@ -459,6 +464,7 @@ export function replay(events) {
     }
   }
   const canon = (id) => (id == null ? id : _root(id));
+  const excluded = { members: new Set(), habits: new Set() }; // marked out of analysis, not deleted
   const aliases = new Map(); // duplicate id -> the id it now reads as
   for (const e of events || []) {
     if (e && e.type === T.MEMBER_MERGE && e.payload) {
@@ -532,6 +538,14 @@ export function replay(events) {
         }
         break;
 
+      case T.EXCLUDE: {
+        // An analysis-only marker; latest write wins per target. memberId is already canonical
+        // (the alias rewrite ran above), so excluding a person covers all their folded ids.
+        if (p.habitId) { if (p.excluded === false) excluded.habits.delete(p.habitId); else excluded.habits.add(p.habitId); }
+        if (p.memberId) { if (p.excluded === false) excluded.members.delete(p.memberId); else excluded.members.add(p.memberId); }
+        break;
+      }
+
       case T.HABIT_DEF: {
         if (!p.habitId) break;
         // A live habit's previous form, or — when this is bringing back a deleted one — the form it
@@ -557,6 +571,18 @@ export function replay(events) {
           targets.push({ from: addDays(dayKey(authoredAt(e), tz, startHour), 1), target: next.target });
         }
         next.targets = targets;
+        // The same effective-dating for what the habit IS, not just its number: name and unit, in
+        // the order they changed. The first entry counts from the birthday; a later change counts
+        // from the next day, so the old meaning held through the day it changed. This is what lets
+        // a unit switch be modelled instead of silently drifting — see unitOn / nameOn.
+        const history = (prev && prev.history) ? prev.history.slice() : [];
+        const lastH = history[history.length - 1];
+        if (!lastH) {
+          history.push({ from: createdDay, name: next.name, unit: next.unit });
+        } else if (lastH.name !== next.name || lastH.unit !== next.unit) {
+          history.push({ from: addDays(dayKey(authoredAt(e), tz, startHour), 1), name: next.name, unit: next.unit });
+        }
+        next.history = history;
         habits.set(p.habitId, next);
         retired.delete(p.habitId); // live again, so it leaves the retired list
         break;
@@ -833,7 +859,7 @@ export function replay(events) {
     }
   }
 
-  return { meta, habits, retired, members, logs, exemptions, bindings, goals, programs, workouts, aliases };
+  return { meta, habits, retired, members, logs, exemptions, bindings, goals, programs, workouts, aliases, excluded };
 }
 
 // ============================================================================
@@ -1033,6 +1059,24 @@ function baseTargetOn(habit, day) {
 
 export function targetOn(habit, day) {
   return taperedTarget(habit, day, baseTargetOn(habit, day));
+}
+
+/** The unit in force on a given day, from the habit's dated history. Falls back to its metric. */
+export function unitOn(habit, day) {
+  const h = habit && habit.history;
+  if (!h || !h.length) return (habit && (habit.unit || habit.metric)) || null;
+  let unit = h[0].unit;
+  for (const entry of h) { if (entry.from <= day) unit = entry.unit; else break; }
+  return unit;
+}
+
+/** The name in force on a given day, from the habit's dated history. Falls back to its name. */
+export function nameOn(habit, day) {
+  const h = habit && habit.history;
+  if (!h || !h.length) return (habit && (habit.name || habit.habitId)) || null;
+  let name = h[0].name;
+  for (const entry of h) { if (entry.from <= day) name = entry.name; else break; }
+  return name;
 }
 
 /**
@@ -1316,6 +1360,15 @@ export function canonicalMember(state, memberId) {
 export function aliasesOf(state, memberId) {
   if (!state || !state.aliases) return [];
   return [...state.aliases.entries()].filter(([, into]) => into === memberId).map(([from]) => from);
+}
+
+/** Is this member or habit marked out of analysis? (The board and history ignore this flag.) */
+export function isExcluded(state, { memberId = null, habitId = null } = {}) {
+  const ex = state && state.excluded;
+  if (!ex) return false;
+  if (memberId && ex.members.has(canonicalMember(state, memberId))) return true;
+  if (habitId && ex.habits.has(habitId)) return true;
+  return false;
 }
 
 export function isTracking(state, habit, memberId, day = null) {

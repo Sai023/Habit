@@ -22,6 +22,7 @@ export const T = {
   META:         "habit_meta",         // group name + group-wide settings (last write wins)
   MEMBER:       "habit_member",       // someone joined, or renamed themselves
   MEMBER_MERGE: "habit_member_merge",  // two member ids are the same person — fold one into the other
+  EXCLUDE:      "habit_exclude",        // mark a member or habit in/out of ANALYSIS (never deleted)
   HABIT_DEF:    "habit_def",          // a habit's definition (last write wins per habitId)
   HABIT_DELETE: "habit_def_delete",   // retire a habit; its logs stay for history
   LOG:          "habit_log",          // ONE observation for one member, habit and day
@@ -331,6 +332,11 @@ export const ev = {
   // future — is read as `into` on replay, so a person split across ids becomes one history.
   mergeMember: (from, into) =>
     ({ type: T.MEMBER_MERGE, payload: p({ from, into }) }),
+  // Flag data in or out of analysis without deleting it — test rooms, a streak-gaming member, a
+  // fixture. `excluded:false` puts it back. Latest write wins per target. Analytics honours it;
+  // the board and history do not, so a person is still tracked, just not mined.
+  exclude: (target = {}, excluded = true) =>
+    ({ type: T.EXCLUDE, payload: p({ memberId: target.memberId || null, habitId: target.habitId || null, excluded, reason: target.reason || null }) }),
   habit:     (habitId, fields) => ({ type: T.HABIT_DEF, payload: p({ habitId, ...fields }) }),
   deleteHabit: (habitId) => ({ type: T.HABIT_DELETE, payload: p({ habitId }) }),
 
@@ -483,6 +489,7 @@ export function validate(type, payload) {
     case T.HABIT_DELETE: return _isStr(p.habitId);
     case T.MEMBER:       return _isStr(p.memberId);
     case T.MEMBER_MERGE: return _isStr(p.from) && _isStr(p.into);
+    case T.EXCLUDE:      return _isStr(p.memberId) || _isStr(p.habitId);
     case T.GOAL:         return _isStr(p.memberId) && _isStr(p.habitId);
     case T.BINDING:      return _isStr(p.memberId) && _isStr(p.habitId);
     case T.PROGRAM:      return _isStr(p.memberId);

@@ -131,6 +131,17 @@ export async function mergeMember(fromId, intoId) {
   return true;
 }
 
+/**
+ * Mark a member or habit in or out of ANALYSIS — test data, a streak-gamer, a fixture — without
+ * deleting anything. `{ memberId }` or `{ habitId }`; `excluded:false` puts it back. The board and
+ * history are unaffected; only the read-model and its insights honour it. See isExcluded.
+ */
+export async function setExcluded(target, excluded = true) {
+  if (!target || (!target.memberId && !target.habitId)) return false;
+  await commit(ev.exclude(target, excluded));
+  return true;
+}
+
 export async function removeMember(memberId) {
   const { memberId: me } = await identity();
   if (!memberId || memberId === me) return false;

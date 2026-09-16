@@ -84,6 +84,9 @@ export function habitFields({ isNew, name, type, target, taper, days, tz, daySta
     name,
     icon: type.icon,
     metric: type.metric,
+    // Carried through as given so a unit distinct from the metric can be set and dated on the
+    // definition (see unitOn); undefined leaves it defaulting to the metric.
+    ...(type.unit ? { unit: type.unit } : {}),
     aggregate: type.aggregate,
     direction: type.direction,
     period: type.period,

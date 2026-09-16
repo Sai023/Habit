@@ -138,8 +138,19 @@ expose it; `store.mergeMember(from, into)` writes it; the Habits sheet offers it
 same-name duplicates. Still to do: never reuse a habit across a unit change — model that as an
 explicit change event (below).
 
-**Second wave — change events.** Extend the effective-dated pattern the goal `targets` already use
-to unit changes, renames, and exclusions, so "what was true on day D" is always reconstructable.
+**Change events — shipped.** A habit definition now carries an effective-dated **`history`** of
+its name and unit (the same pattern the goal `targets` already use): the first entry from the
+birthday, each later change from the next day, so the old meaning holds through the day it changed.
+`unitOn(habit, day)` / `nameOn(habit, day)` read it. The read-model records each fact's unit as the
+one **in force that day**, and every per-habit reduction stays inside the current unit — it will
+never average eight glasses with two thousand millilitres, or correlate across a rescaling. Unit
+now defaults to the metric but can be set explicitly on a def (plumbed through `habitFields`), so a
+future puffs→meter-style switch is dated, not silent. **Exclusion** is a `habit_exclude` event
+(`{ memberId | habitId, excluded }`, latest wins) — an analysis-only flag for test data, a
+fixture, or a streak-gamer: `isExcluded` reads it, the read-model drops excluded habits and
+members (and it follows a merge), while the board and history still count them. `store.setExcluded`
+writes it. Still thin: the editor has no unit control and there is no "exclude from insights"
+button yet — both are small follow-ups on top of the events, which are the part that had to exist.
 
 **Second wave — a materialised read-model.** When the log grows, persist the daily-fact table
 (nightly rebuild or a Postgres view) so insight queries are O(rows) and never re-walk replay.

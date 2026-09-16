@@ -36,7 +36,7 @@
 // and their own (future) period-fact model. Behavioural pattern-finding is a daily question.
 
 import {
-  valueOn, methodOn, rawDayStatus, targetOn, isTracking,
+  valueOn, methodOn, unitOn, rawDayStatus, targetOn, isTracking, isExcluded, canonicalMember,
   addDays, daysBetween, isoDayOfWeek, isoWeekKey,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
@@ -68,7 +68,10 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 export function dailyFacts(state, { me, to, from = null, habitIds = null } = {}) {
   if (!state || !me || !to) return [];
 
-  const all = [...state.habits.values()].filter((h) => h.period === PERIOD.DAY && isTracking(state, h, me));
+  // A member marked out of analysis has no facts to mine (they are still tracked on the board).
+  if (isExcluded(state, { memberId: me })) return [];
+  const all = [...state.habits.values()].filter((h) =>
+    h.period === PERIOD.DAY && isTracking(state, h, me) && !isExcluded(state, { habitId: h.habitId }));
   const habits = habitIds ? all.filter((h) => habitIds.includes(h.habitId)) : all;
   if (!habits.length) return [];
 
@@ -94,7 +97,7 @@ export function dailyFacts(state, { me, to, from = null, habitIds = null } = {})
         habitId: habit.habitId,
         habitName: habit.name || habit.habitId,
         metric: habit.metric,
-        unit: habit.metric,            // coarse today; a real unit field is a planned enrichment
+        unit: unitOn(habit, day),      // the unit in force THAT day, from the dated history
         direction: habit.direction,
         memberId: me,
         value: reported ? value : null,
@@ -117,9 +120,19 @@ export function dailyFacts(state, { me, to, from = null, habitIds = null } = {})
   return facts;
 }
 
-/** The facts for one habit, in day order. Small helper the reducers share. */
+/**
+ * The facts for one habit, in day order — restricted to its CURRENT unit.
+ *
+ * Every per-habit reduction goes through here, and none of them may cross a unit change: averaging
+ * eight glasses with two thousand millilitres, or correlating against a rescaled series, is
+ * nonsense. When a habit has more than one unit in the window we keep only the latest unit's days,
+ * so a pattern is always within one scale. Single-unit habits (the normal case) are unaffected.
+ */
 function forHabit(facts, habitId) {
-  return facts.filter((f) => f.habitId === habitId).sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+  const rows = facts.filter((f) => f.habitId === habitId).sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+  if (rows.length < 2) return rows;
+  const latestUnit = rows[rows.length - 1].unit;
+  return rows.some((f) => f.unit !== latestUnit) ? rows.filter((f) => f.unit === latestUnit) : rows;
 }
 
 /**
