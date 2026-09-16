@@ -395,6 +395,15 @@ test("an exercise's own log lists every session it was in, newest first, with th
   assert.equal(log.rows[0].sessionName, "Metabolic Circuit", "the circuit's push-ups count as push-ups");
   assert.deepEqual(log.best, { value: 10, day: day(2) }, "best single set");
   assert.deepEqual(log.bestTotal, { value: 27, day: day(4) }, "best day, which is not the day of the best set");
+  // A later day that only MATCHES the record does not take it.
+  const tied = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [8, 8, 8] }] }), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(3), { exercises: [{ id: "pushup", sets: [8, 8, 8] }] }), at(3)),
+  ]);
+  const t = exerciseLog(tied, ME, "pushup", day(5));
+  assert.equal(t.best.day, day(0), "the record stands from the day it was set");
+  assert.equal(t.bestTotal.day, day(0));
   assert.deepEqual(log.series.map((x) => x.total), [24, 25, 27], "oldest first for the chart");
   assert.deepEqual(log.rows[1].pb, [true, false, false], "the ten beat the eight that stood");
   assert.equal(exerciseLog(s, ME, "burpee", day(5)).rows.length, 0);

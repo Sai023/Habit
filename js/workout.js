@@ -693,8 +693,13 @@ export function exerciseLog(state, memberId, exerciseId, today = null) {
       hrAvg: ev && Number.isFinite(ev.hrAvg) ? Math.round(ev.hrAvg) : null,
       hrMax: ev && Number.isFinite(ev.hrMax) ? Math.round(ev.hrMax) : null,
     });
-    if (e.best !== null && (!best || e.best > best.value)) best = { value: e.best, day: w.day };
-    if (!bestTotal || e.total > bestTotal.value) bestTotal = { value: e.total, day: w.day };
+  }
+  // The record stands from the day it was first set: matching it later is not beating it, the
+  // same rule the session screen uses (beatsBest). So the walk for it runs oldest-first and
+  // only a strictly greater day moves it.
+  for (const r of rows.slice().reverse()) {
+    if (r.best !== null && (!best || r.best > best.value)) best = { value: r.best, day: r.day };
+    if (!bestTotal || r.total > bestTotal.value) bestTotal = { value: r.total, day: r.day };
   }
   // Oldest-first for the chart; the rows above are newest-first for the list.
   const series = rows.slice().reverse().map((r) => ({ day: r.day, total: r.total, best: r.best }));

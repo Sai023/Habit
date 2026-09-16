@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import {
-  replay, walk, streak, dayKey, addDays, daysBetween, isoDayOfWeek, rawDayStatus, valueOn, targetOn, publicValue, HIT, MISS, NO_DATA, EXEMPT,
+  replay, walk, streak, dayKey, addDays, daysBetween, isoDayOfWeek, rawDayStatus, rawPeriodStatus, periodKey, valueOn, targetOn, publicValue, HIT, MISS, NO_DATA, EXEMPT,
   groupDayHabit, windowOn,
 } from "../js/habits.js";
 import { leaderboard } from "../js/score.js";
@@ -583,6 +583,26 @@ test("a night carries when it ran, and the window shown is the reading's own", (
     E(ev.log("h1", "m1", day(0), 475, SOURCE.HEALTH_CONNECT), at(day(0), 8)),
   ]);
   assert.equal(windowOn(untimed, untimed.habits.get("h1"), "m1", day(0)), null, "a reading with no window has none");
+});
+
+test("a weekly habit with nothing reported is a miss, even from a watch", () => {
+  // The scorer always charged for a paced habit's pace; the status said NO_DATA, so the history
+  // excused a week the board had already scored. One answer now.
+  const s = replay([
+    E(ev.member("m1", "Alice"), at(D0, 6)),
+    E(ev.habit("h1", { tz: TZ, dayStartHour: 4, name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST,
+      target: 3, period: PERIOD.WEEK, aggregate: AGGREGATE.SUM, source: SOURCE.HEALTH_CONNECT, scored: true }), at(D0, 6)),
+    E(ev.bind("m1", "h1", SOURCE.HEALTH_CONNECT), at(D0, 6)),
+  ]);
+  const h = s.habits.get("h1");
+  assert.equal(rawPeriodStatus(s, h, "m1", periodKey(day(0), PERIOD.WEEK)), MISS, "an empty week is a miss");
+  // A DAILY sensor habit keeps its excuse: a silent day of steps cannot be typed from memory.
+  const daily = replay([
+    E(ev.member("m1", "Alice"), at(D0, 6)),
+    E(ev.habit("h1", { tz: TZ, dayStartHour: 4, ...autoHabit, scored: true }), at(D0, 6)),
+    E(ev.bind("m1", "h1", SOURCE.HEALTH_CONNECT), at(D0, 6)),
+  ]);
+  assert.equal(rawDayStatus(daily, daily.habits.get("h1"), "m1", day(0)), NO_DATA);
 });
 
 if (failures.length) {

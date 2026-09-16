@@ -1799,9 +1799,12 @@ button.hd-exrow:active { transform: scale(0.995); }
   display: flex; align-items: flex-end; gap: 3px; height: 28px;
   border-bottom: 1px solid var(--line); padding-bottom: 1px;
 }
-.hd-spark i { flex: 1; max-width: 16px; border-radius: 2px 2px 0 0; background: var(--teal-dim); opacity: 0.75; }
-.hd-spark i.is-last { background: var(--teal); opacity: 1; }
-.hd-spark i.is-best { background: var(--amber); opacity: 1; }
+/* One hue, two strengths: the ring colour at a fifth for what was, solid for what is. The record
+   is not a different colour — it is a hairline of gold along the top of its bar. Restraint is
+   the whole look; a block of yellow beside a block of green was a chart, not a sentence. */
+.hd-spark i { flex: 1; max-width: 16px; border-radius: 2px 2px 0 0; background: rgba(62, 224, 196, 0.22); }
+.hd-spark i.is-last { background: var(--teal); }
+.hd-spark i.is-best { box-shadow: inset 0 2px 0 0 var(--amber); }
 
 .hd-exrow-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: var(--fs-small); }
 .hd-exrow-last { display: flex; align-items: baseline; gap: 4px; min-width: 0; font-variant-numeric: tabular-nums; }
@@ -2309,7 +2312,7 @@ button.hd-exrow:active { transform: scale(0.995); }
   padding: 3px 9px; border-radius: 999px; background: var(--surface);
   font-size: var(--fs-small); font-weight: 700;
 }
-.wl-set.is-pb { background: var(--amber-dim, rgba(255, 190, 80, 0.18)); color: var(--amber); }
+.wl-set.is-pb { background: transparent; color: var(--amber); box-shadow: inset 0 0 0 1px rgba(240, 180, 41, 0.55); }
 .wl-set.is-skip { color: var(--dim); font-weight: 500; }
 .wl-ex-prev { font-size: var(--fs-micro); color: var(--dim); }
 .wl-rounds { margin: 0; font-weight: 600; }
@@ -2374,10 +2377,17 @@ button.hd-exrow:active { transform: scale(0.995); }
 
 /* The exercise's own sheet: bars for every session, then the sessions. */
 .ex-chart { display: flex; flex-direction: column; gap: 6px; }
-.ex-bars { display: flex; align-items: flex-end; gap: 4px; height: 96px; padding: 0 2px; }
-.ex-bar { flex: 1; min-width: 4px; border-radius: 3px 3px 0 0; background: var(--teal-dim); }
-.ex-bar.is-today { background: var(--teal); }
-.ex-bar.is-best { background: var(--amber); }
+.ex-bars {
+  display: flex; align-items: flex-end; justify-content: flex-start; gap: 5px; height: 96px; padding: 0 2px;
+  border-bottom: 1px solid var(--line);
+}
+/* Capped in width so two sessions are two slim bars, not two slabs; a soft fade for depth. */
+.ex-bar {
+  flex: 1; min-width: 6px; max-width: 22px; border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, rgba(62, 224, 196, 0.42), rgba(62, 224, 196, 0.10));
+}
+.ex-bar.is-today { background: linear-gradient(180deg, var(--teal), rgba(62, 224, 196, 0.40)); }
+.ex-bar.is-best { box-shadow: inset 0 3px 0 0 var(--amber); }
 .ex-chart-foot { display: flex; justify-content: space-between; font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
 .ex-list { display: flex; flex-direction: column; gap: 8px; }
 .ex-row {
@@ -2406,8 +2416,9 @@ button.hd-exrow:active { transform: scale(0.995); }
 }
 .dbadge b { font-size: var(--fs-head); font-weight: 800; line-height: 1; }
 .dbadge span { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: var(--dim); }
-.dbadge.is-today { background: var(--teal-dim); }
-.dbadge.is-today span { color: var(--teal-soft); }
+.dbadge.is-today { background: rgba(62, 224, 196, 0.14); box-shadow: inset 0 0 0 1px rgba(62, 224, 196, 0.35); }
+.dbadge.is-today b { color: var(--teal-soft); }
+.dbadge.is-today span { color: var(--teal); }
 .wl-row .dbadge, .ex-row .dbadge { align-self: center; }
 .wl-row.is-empty .wl-row-sub { font-style: italic; }
 .wl-row.is-empty .wl-row-name { color: var(--dim); }

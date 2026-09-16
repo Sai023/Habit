@@ -305,10 +305,11 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         const last = r.sessions[r.sessions.length - 1];
         const recent = r.sessions.slice(-SPARK);
         const top = Math.max(1, ...recent.map((s) => s.total));
-        // The record's bar, lit once: the most recent session that holds the best total. Lighting
+        // The record's bar, lit once: the FIRST session that reached the best total, because a
+        // record stands from the day it was set and matching it later is not beating it. Lighting
         // every equal one made a plateau read as twelve records.
         const bestTotal = r.sessions.length ? Math.max(...r.sessions.map((s) => s.total)) : 0;
-        const bestAt = recent.map((s) => s.total).lastIndexOf(bestTotal);
+        const bestAt = recent.map((s) => s.total).indexOf(bestTotal);
         const lastChip = !last ? null
           : r.unit === "rounds" ? last.sets[0] + " \u00d7 " + last.work + "s"
           : r.unit === "min" ? last.total + " min" + (last.effort === "hard" ? " \u2191" : last.effort === "easy" ? " \u2193" : "")

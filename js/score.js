@@ -223,6 +223,9 @@ export function habitScore(state, habit, memberId, day, today = null, memo = nul
   // not, because you can always log a workout yourself — the shape of a session is "I went", which
   // is a thing a person knows and can type in. Excusing it would mean a broken watch quietly
   // exempted somebody from the one habit they could most easily have reported.
+  // rawPeriodStatus never returns NO_DATA for a paced habit any more (an empty week is a miss,
+  // whoever was to report it); the check stays because the property is worth being unable to
+  // break by accident.
   const paced = habit.period !== PERIOD.DAY;
   if (status === NO_DATA && !paced) return out;
 

@@ -91,7 +91,7 @@ export function openExerciseSheet(host, { state, me, today, exerciseId, onOpenWo
       el("div.form.ex",
         el("div.sheet-head", el("span.sheet-title", log.name + (log.rows.length && log.rows[0].perSide ? " · per side" : ""))),
         log.rows.length
-          ? el("p.sheet-now", "Since " + fmt.dayLabel(log.rows[log.rows.length - 1].day) + ". Bars are session totals; the record is lit.")
+          ? el("p.sheet-now", "Since " + fmt.dayLabel(log.rows[log.rows.length - 1].day) + " \u00b7 bars are session totals \u00b7 gold marks the record.")
           : el("p.sheet-now", "Not done yet."),
         tiles(),
         chart(),

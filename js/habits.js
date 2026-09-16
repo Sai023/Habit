@@ -1357,6 +1357,13 @@ export function rawPeriodStatus(state, habit, memberId, key) {
     //
     // The cost of the other reading was worse than it looked: a habit you can score full marks on
     // by never opening the app is not a habit. This is also why the daily reminder exists.
+    //
+    // And a WEEKLY or monthly habit is never excused by a silent sensor. The scorer has always
+    // charged for its pace either way ("you can always log a workout yourself" — habitScore), but
+    // this returned NO_DATA for it, so the history said "1 week with nothing from the sensor,
+    // that does not count against you" about a week the board had already scored as a miss. One
+    // answer: a paced period with nothing in it is a miss, whoever was supposed to report it.
+    if (habit.period !== PERIOD.DAY) return MISS;
     return AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId)) ? NO_DATA : MISS;
   }
   const target = targetFor(state, habit, memberId, periodEnd(key, habit.period), opensOn);
