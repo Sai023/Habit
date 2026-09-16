@@ -480,6 +480,16 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     );
   }
 
+  /** The stepper's number, and the by-hand button that repeats it, without a repaint. */
+  function showValue(ex) {
+    const n = document.querySelector(".wo-active .wo-value-n");
+    if (n) n.textContent = String(value);
+    if (ex.seconds) {
+      const byHand = document.querySelector(".wo-active .wo-done.tap-quiet");
+      if (byHand) byHand.textContent = "Enter " + value + "s by hand";
+    }
+  }
+
   function activeControl(ex) {
     const unit = unitOf(ex);
     const step = ex.seconds ? 5 : 1;
@@ -504,10 +514,13 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
       ex.seconds
         ? el("button.tap.wo-done.wo-start", { onclick: () => startHold(ex) }, "\u25B6 Start hold" + setLabel)
         : null,
+      // The number is moved IN PLACE. A tap on plus or minus changes exactly two strings — the
+      // value and, for a timed set, the button that repeats it — and rebuilding the sheet for
+      // that was what sent the reader to the top of it on every tap.
       el("div.wo-stepper",
-        el("button.step", { onclick: () => { value = Math.max(0, value - step); paint(); }, "aria-label": "Less" }, "−"),
-        el("div.wo-value", String(value), el("span.wo-unit", " " + unit + (ex.perSide ? "/side" : ""))),
-        el("button.step", { onclick: () => { value += step; paint(); }, "aria-label": "More" }, "+"),
+        el("button.step", { onclick: () => { value = Math.max(0, value - step); showValue(ex); }, "aria-label": "Less" }, "−"),
+        el("div.wo-value", el("span.wo-value-n", String(value)), el("span.wo-unit", " " + unit + (ex.perSide ? "/side" : ""))),
+        el("button.step", { onclick: () => { value += step; showValue(ex); }, "aria-label": "More" }, "+"),
       ),
       el("button.tap" + (ex.seconds ? ".tap-quiet" : "") + ".wo-done", { onclick: bank },
         (ex.seconds ? "Enter " + value + "s by hand" : "Done") + (ex.seconds ? "" : setLabel)),

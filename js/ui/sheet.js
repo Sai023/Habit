@@ -115,7 +115,18 @@ export function openSheet(host = document.body, { onClose } = {}) {
   }
 
   function paint(...children) {
+    // The panel is REPLACED on every paint, and a new panel starts at the top. Every control that
+    // repaints — the reps stepper mid-workout, a chip on the week sheet — therefore threw the
+    // reader back to the top of a sheet they had scrolled down, which on a twelve-exercise
+    // workout meant scrolling back to the active set after every tap. The old panel's offset
+    // is carried across; a sheet that got shorter simply clamps.
+    const before = layer.querySelector(".sheet");
+    const scrolled = before ? before.scrollTop : 0;
     render(layer, el("div.sheet", el("div.sheet-grip"), ...children));
+    if (scrolled > 0) {
+      const after = layer.querySelector(".sheet");
+      if (after) after.scrollTop = scrolled;
+    }
     // Whether this sheet has anything to scroll decides who owns a vertical drag — see the
     // touch-action rules in app.css. Measured after render rather than guessed, because the same
     // sheet is short with three habits and long with six.
