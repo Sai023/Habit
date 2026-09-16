@@ -110,6 +110,7 @@ on the wrong one.
 | A record stands from the day it was first set; matching it later does not move it | `js/workout.js` — `exerciseLog`; `js/ui/habitdetail.js` (the lit bar) | `test/workout.test.mjs` |
 | A session cut short is listed and has no trend and no minus; a stopped day is not a weaker one | `js/workout.js` — `exerciseHistory` (`full`, `trend`) | `test/workout.test.mjs` |
 | A workout carries the sets it held (`setsOf`) and is `short` when fewer were banked; a row says "1 of 15 sets", never a reps total across exercises | `js/workout.js` — `workoutLog` (`setsOf`, `short`), `exerciseLog` (`series[].short`) | `test/workout.test.mjs` |
+| Analytics never reads raw events; the daily-fact read-model projects replay-correct rows and patterns reduce over it | `js/dailyfacts.js` — `dailyFacts`, `byWeekday`, `correlate`, `topCorrelations`, `consistency` | `test/dailyfacts.test.mjs` |
 | The log is one component (`historyList`) under the landing's Historic workouts button and whole in the hub's sheet; a workout opens standalone over the landing, an exercise stacks over the workout, back goes one step | `js/ui/workouthistory.js`, `js/ui/habitdetail.js` — `programSection`, `js/app.js` — `onOpenWorkout` | walked in the browser |
 | Ranked on points; crowns break a tie | `js/season.js` — `seasonTally` | `test/season.test.mjs` |
 | Every closed day in a season counts for XP; only WHOLE weeks can be won | `js/season.js` — `weeksIn`, `seasonTally` | `test/season-lifecycle.test.mjs`, `test/season-cycle.test.mjs` |
