@@ -33,6 +33,7 @@ import { lifetime, titleBand, thresholdFor } from "./levels.js";
 import { neverMissed } from "./history.js";
 import { seasonTally } from "./season.js";
 import { programFor, workoutInsights, MIN_INSIGHT_SESSIONS } from "./workout.js";
+import { dailyFacts, topCorrelations, byWeekday } from "./dailyfacts.js";
 import * as fmt from "./ui/format.js";
 
 /** Metres per step, a fair average adult stride. Only ever used for a sentence. */
@@ -187,8 +188,14 @@ export function factsAbout(state, memberId, today) {
         + (unbroken.length > 1 ? ", and " + (unbroken.length - 1) + " more habit" + (unbroken.length > 2 ? "s" : "") + " unbroken." : "."),
     });
   }
-  const noticed = correlation(state, memberId, habits, today);
+  // ---- behavioural patterns, off the daily-fact read-model (js/dailyfacts.js) ----
+  // Built once; both pattern facts reduce over the same table. Each is floored inside the
+  // read-model, so a claim only appears once there are enough days to stand behind it.
+  const patternFacts = dailyFacts(state, { me: memberId, to: today });
+  const noticed = correlation(patternFacts, state);
   if (noticed) out.push(noticed);
+  const dayWatch = weekdayWatch(patternFacts, state);
+  if (dayWatch) out.push(dayWatch);
 
   const members = [...state.members.keys()];
   if (members.length > 1) {
@@ -264,31 +271,60 @@ function dailyTotals(state, memberId, habits, from, to) {
   return out;
 }
 
-/** The dashboard's "worth noticing", said to the person. Same engine call, same floors. */
-function correlation(state, memberId, habits, today) {
-  const daily = habits.filter((h) => h.period === PERIOD.DAY);
-  const gate = daily.find((h) => PAUSE_METRICS.has(h.metric));
-  if (!gate) return null;
-  const from = addDays(today, -(COMPARE_WINDOW_DAYS - 1));
-  let best = null;
-  for (const subject of daily) {
-    if (subject.habitId === gate.habitId) continue;
-    const r = compareDays(state, gate.habitId, subject.habitId, memberId, from, today);
-    if (!r) continue;
-    const weight = r.met.days + r.missed.days;
-    if (!best || weight > best.weight) best = { subject, r, weight };
-  }
-  if (!best || best.r.delta === 0) return null;
-  const { subject, r } = best;
+/**
+ * The strongest behavioural link the record can stand behind, said to the person.
+ *
+ * Off the read-model's topCorrelations — so it is no longer only "screen time vs everything", it
+ * is the best pair of ANY two daily habits: "on the days you kept the vape under, you walked more".
+ * Ranked by scale-free effect, floored at MIN_PER_SIDE each side inside the read-model, and signed
+ * so the sentence always reads as an improvement on the days the gate held.
+ */
+function correlation(facts, state) {
+  const top = topCorrelations(facts, { limit: 1 });
+  if (!top.length) return null;
+  const r = top[0];
+  const gate = state.habits.get(r.gateHabitId);
+  const subject = state.habits.get(r.subjectHabitId);
+  if (!gate || !subject) return null;
+  const held = gate.direction === AT_MOST
+    ? "kept " + (gate.name || "it").toLowerCase() + " under"
+    : "hit your " + (gate.name || "goal").toLowerCase();
   const better = r.delta > 0;
-  const gap = fmt.value(subject.metric, Math.abs(r.met.average - r.missed.average));
+  const gap = fmt.value(subject.metric, Math.abs(r.met.avg - r.missed.avg));
+  const dir = subject.direction === AT_MOST ? (better ? "fewer" : "more") : (better ? "more" : "fewer");
   return {
     icon: "🔍",
     title: "Worth noticing",
-    text: "On the " + r.met.days + " days you kept " + (gate.name || "screen time") + " under, you averaged "
-      + fmt.value(subject.metric, r.met.average) + " " + (subject.name || "").toLowerCase()
-      + (better
-        ? " — " + gap + " " + (subject.direction === AT_MOST ? "fewer" : "more") + " than the " + r.missed.days + " days you didn't."
-        : " — the " + r.missed.days + " days you didn't were better by " + gap + "."),
+    text: "On the " + r.met.days + " days you " + held + ", you averaged "
+      + fmt.value(subject.metric, r.met.avg) + " " + (subject.name || "").toLowerCase()
+      + " — " + gap + " " + dir + " than the " + r.missed.days + " days you didn't.",
+  };
+}
+
+/**
+ * The weekday a habit slips on, when the gap is wide enough to be worth a glance rather than noise.
+ *
+ * Per-habit met-rate by weekday (byWeekday), distinct from the XP-by-weekday "strongest day" above:
+ * this one says "you miss THIS habit on Fridays", which is the actionable half. Only named when the
+ * strongest and weakest weekdays differ by at least a third of the time and both clear the sample
+ * floor inside the read-model.
+ */
+function weekdayWatch(facts, state) {
+  let best = null;
+  for (const id of new Set(facts.map((f) => f.habitId))) {
+    const wk = byWeekday(facts, id);
+    if (!wk.strongest || !wk.weakest || wk.strongest.weekday === wk.weakest.weekday) continue;
+    const gap = wk.strongest.metRate - wk.weakest.metRate;
+    if (gap < 0.34) continue; // under a third of the time apart is noise, not a pattern
+    if (!best || gap > best.gap) best = { id, wk, gap };
+  }
+  if (!best) return null;
+  const habit = state.habits.get(best.id);
+  return {
+    icon: "📆",
+    title: "A day to watch",
+    text: (habit && habit.name ? habit.name : "One habit") + " slips on " + best.wk.weakest.weekday
+      + "s — " + Math.round(best.wk.weakest.metRate * 100) + "% there, against "
+      + Math.round(best.wk.strongest.metRate * 100) + "% on " + best.wk.strongest.weekday + "s.",
   };
 }

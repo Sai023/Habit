@@ -87,6 +87,8 @@ of **daily facts** — one row per `(habit, member, day)` — built **once** fro
 
 Tested in `test/dailyfacts.test.mjs`.
 
+**Surfaced in the app.** `facts.js` (`factsAbout`, read by the native Insights tab and the web level sheet) now draws two facts from this model: **Worth noticing** (the strongest behavioural link, from `topCorrelations` — any pair of habits, not just screen-time) and **A day to watch** (the weekday a habit slips on, from `byWeekday`). Both are floored, so they appear only once the record can stand behind them. Tested in `test/facts-patterns.test.mjs`.
+
 ### How to use it
 
 ```js
