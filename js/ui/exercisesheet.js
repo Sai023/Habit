@@ -65,7 +65,9 @@ export function openExerciseSheet(host, { state, me, today, exerciseId, onOpenWo
   /** One session of it: the date, the session it was in, the sets, the total and its change. */
   function row(r, i) {
     const before = log.rows[i + 1] ? log.rows[i + 1].total : null;
-    const d = before === null ? null : r.total - before;
+    // A session cut short gets no minus: a stopped day is not a weaker one.
+    const short = r.sets.some((n) => n === null);
+    const d = before === null || short ? null : r.total - before;
     const facts = [
       r.minutes ? r.minutes + " min" : null,
       r.kcalPerMin ? r.kcalPerMin.toFixed(1) + " kcal/min" : (r.kcal ? r.kcal + " kcal" : null),
@@ -77,7 +79,8 @@ export function openExerciseSheet(host, { state, me, today, exerciseId, onOpenWo
         el("span.ex-row-head",
           el("span.ex-row-when", r.sessionName),
           el("span.ex-row-total", total(r.total),
-            d ? el("span.wl-delta" + (d > 0 ? ".is-up" : ".is-down"), (d > 0 ? "+" : "−") + Math.abs(d)) : null),
+            short ? el("span.wl-delta.is-short", "cut short")
+              : d ? el("span.wl-delta" + (d > 0 ? ".is-up" : ".is-down"), (d > 0 ? "+" : "−") + Math.abs(d)) : null),
         ),
         setsLine(r.sets, r.pb, unit),
         facts ? el("span.ex-row-facts", facts) : null,

@@ -107,7 +107,7 @@ const TONE = {
   [EXEMPT]: "is-rest",
 };
 
-export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram, onExercise = null }) {
+export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram, onExercise = null, onHistory = null }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
 
   const reduce = habit.direction === AT_MOST;
@@ -297,11 +297,16 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
               plan && plan.session ? "Open \u2192" : "Pick a session \u2192")
           : null,
       ),
+      // The log, one workout at a time, from here as well as from the hub: this is the screen
+      // about the program, and "what did I do on Tuesday" is asked here first.
+      onHistory && rows.some((r) => r.sessions.length)
+        ? el("button.link.sec-note.hd-history", { onclick: () => { sheet.close(); onHistory(); } }, "Every workout \u2192")
+        : null,
       // One row per exercise: the shape of the last dozen sessions as bars, the last one's sets
       // as a chip, the trend. A row opens the exercise's own sheet — every session, the record,
       // the watch — and a tap there opens the workout it came from. Five chips of "10 · 10 · 10"
       // used to sit here; over months they said less and less and led nowhere.
-      el("div.hd-exlist", rows.map((r) => {
+      el("div.hd-exlist", rows.filter((r) => r.sessions.length).map((r) => {
         const last = r.sessions[r.sessions.length - 1];
         const recent = r.sessions.slice(-SPARK);
         const top = Math.max(1, ...recent.map((s) => s.total));
@@ -331,20 +336,32 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
                 title: fmt.dayLabel(s.day) + " \u00b7 " + totalOf(s.total),
               })))
             : null,
-          // One line, the same order every time: when, the sets, the total. Then how many.
-          last
-            ? el("div.hd-exrow-foot",
-                el("span.hd-exrow-last",
-                  el("span.hd-exrow-day", fmt.dayLabel(last.day).split(",")[0]),
-                  " ",
-                  el("span.hd-exrow-sets", lastChip),
-                  el("span.hd-exrow-sum", " \u00b7 " + totalOf(last.total)),
-                ),
-                el("span.hd-exrow-n", r.sessions.length + "\u00d7"),
-              )
-            : el("span.hd-exrow-none", "not yet"),
+          // One line, the same order every time: when, the sets, then the total — but only when
+          // there is more than one set to total, and "cut short" when the day was. "Wed 11 · 11
+          // reps" said one thing twice, and said nothing about why.
+          el("div.hd-exrow-foot",
+            el("span.hd-exrow-last",
+              el("span.hd-exrow-day", fmt.dayLabel(last.day).split(",")[0]),
+              " ",
+              el("span.hd-exrow-sets", lastChip),
+              last.full === false
+                ? el("span.hd-exrow-sum", " \u00b7 cut short")
+                : last.sets.length > 1 && r.unit !== "rounds" && r.unit !== "min"
+                  ? el("span.hd-exrow-sum", " \u00b7 " + totalOf(last.total))
+                  : null,
+            ),
+            el("span.hd-exrow-n", r.sessions.length + "\u00d7"),
+          ),
         );
       })),
+      // What the program still holds, folded: twelve rows of "not yet" were most of the screen
+      // and none of the information. A person who wants the list can open it.
+      rows.some((r) => !r.sessions.length)
+        ? el("details.hd-notyet",
+            el("summary", "Not done yet \u00b7 " + rows.filter((r) => !r.sessions.length).length),
+            el("p", rows.filter((r) => !r.sessions.length).map((r) => r.name).join(" \u00b7 ")),
+          )
+        : null,
       onChooseProgram
         ? el("button.link", { onclick: () => { sheet.close(); onChooseProgram(); } }, "Change program")
         : null,

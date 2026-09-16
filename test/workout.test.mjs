@@ -521,6 +521,20 @@ test("trend is on the total, so adding a set is progress even if it is a short o
   ]);
   const pushup = exerciseHistory(s, ME, FIT).find((r) => r.id === "pushup");
   assert.equal(pushup.trend, "up", "24 -> 30; a best-set comparison would have said 'same'");
+  assert.equal(pushup.sessions[0].full, false, "two of three is a session cut short");
+  assert.equal(pushup.sessions[1].full, true);
+});
+
+test("a session cut short has no trend — one set is not a collapse in form", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "superman", sets: [10, 10, 10] }] }), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(3), { exercises: [{ id: "superman", sets: [11, 0, 0] }] }), at(3)),
+  ]);
+  const superman = exerciseHistory(s, ME, FIT).find((r) => r.id === "superman");
+  assert.equal(superman.sessions.length, 2, "it is still a session of it");
+  assert.equal(superman.sessions[1].full, false);
+  assert.equal(superman.trend, null, "and it is not read as going down");
 });
 
 test("a rope day is one row, in rounds", () => {

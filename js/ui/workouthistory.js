@@ -164,17 +164,24 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onDo
       : null;
     const span = (w.spans || []).find((s) => s.id === e.id);
     const ev = w.vitals && w.vitals.exercises ? w.vitals.exercises.find((x) => x.id === e.id) : null;
-    const cost = ev && ev.kcal && span
-      ? [Math.round(ev.kcal) + " kcal",
-          span.ms >= 60_000 ? (ev.kcal / (span.ms / 60_000)).toFixed(1) + "/min" : null,
-          ev.hrAvg ? "♥ " + Math.round(ev.hrAvg) : null].filter(Boolean).join(" · ")
-      : span && span.ms >= 30_000 ? Math.round(span.ms / 60_000) + " min" : null;
+    // What the watch said about this exercise, whichever halves it has: calories and the rate
+    // where there were calories, the heart where there were beats, the minutes always.
+    const cost = [
+      ev && ev.kcal ? Math.round(ev.kcal) + " kcal" : null,
+      ev && ev.kcal && span && span.ms >= 60_000 ? (ev.kcal / (span.ms / 60_000)).toFixed(1) + "/min" : null,
+      ev && ev.hrAvg ? "♥ " + Math.round(ev.hrAvg) : null,
+      span && span.ms >= 30_000 ? Math.round(span.ms / 60_000) + " min" : null,
+    ].filter(Boolean).join(" · ") || null;
     const done = e.sets.some(Number.isFinite);
+    // Fewer sets than there were to do: the day was cut short here, and a minus against last
+    // time would be reading a stopped session as a weaker one.
+    const short = done && e.sets.some((n) => n === null);
     return el("div.wl-ex" + (done ? "" : ".is-skipped"),
       el("div.wl-ex-head",
         el("span.wl-ex-name", e.name + (e.perSide ? " · per side" : "")),
         done
-          ? el("span.wl-ex-total", e.total + (e.unit === "reps" ? " reps" : unitSuffix(e.unit)), delta(e.total, prevTotal, e.unit))
+          ? el("span.wl-ex-total", e.total + (e.unit === "reps" ? " reps" : unitSuffix(e.unit)),
+              short ? el("span.wl-delta.is-short", "cut short") : delta(e.total, prevTotal, e.unit))
           : el("span.wl-ex-total.is-dim", "skipped"),
       ),
       setsLine(e.sets, e.pb, e.unit),
@@ -182,7 +189,9 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onDo
         el("span", prevTotal !== null
           ? "last time " + e.previous.map((n) => (n === null ? "–" : n)).join(" · ")
           : "first time"),
-        cost ? el("span.wl-ex-cost", cost) : null,
+        // Nothing the watch said about an exercise that was skipped: the minute it "took" was
+        // three taps of Done on an empty stepper.
+        done && cost ? el("span.wl-ex-cost", cost) : null,
       ),
     );
   }

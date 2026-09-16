@@ -2363,18 +2363,6 @@ button.hd-exrow:active { transform: scale(0.995); }
 
 /* ---------- an exercise over months ---------- */
 
-/* The row opens now. It keeps the panel's look and gains only a chevron and a press. */
-button.hd-exrow { width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; color: inherit; }
-button.hd-exrow:active { transform: scale(0.995); }
-.hd-exrow-go { margin-left: auto; color: var(--dim); font-weight: 700; }
-
-/* A dozen sessions as bars in a row: the shape of a month at a glance, the record lit, the
-   last one in the ring colour. Nothing to read; that is the point. */
-.hd-spark { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 3px; height: 26px; }
-.hd-spark i { flex: 1; max-width: 14px; border-radius: 2px 2px 0 0; background: var(--teal-dim); opacity: 0.7; }
-.hd-spark i.is-last { background: var(--teal); opacity: 1; }
-.hd-spark i.is-best { background: var(--amber); opacity: 1; }
-
 /* The exercise's own sheet: bars for every session, then the sessions. */
 .ex-chart { display: flex; flex-direction: column; gap: 6px; }
 .ex-bars {
@@ -2427,6 +2415,7 @@ button.hd-exrow:active { transform: scale(0.995); }
 .wl-delta { margin-left: 6px; font-size: var(--fs-micro); font-weight: 700; font-variant-numeric: tabular-nums; }
 .wl-delta.is-up { color: var(--teal); }
 .wl-delta.is-down { color: var(--danger); }
+.wl-delta.is-short { color: var(--dim); font-weight: 500; }
 .wl-ex-total { font-size: var(--fs-small); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wl-ex-total.is-dim { color: var(--dim); font-weight: 500; font-style: italic; }
 .wl-ex.is-skipped .wl-ex-name { color: var(--dim); }
@@ -2441,3 +2430,9 @@ button.hd-exrow:active { transform: scale(0.995); }
 .ex-row-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .ex-row-total { font-size: var(--fs-small); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wl-tile small { font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* What the program still holds, folded under the rows that have something in them. */
+.hd-notyet { border-radius: var(--r-sm); background: var(--panel); padding: 0 12px; }
+.hd-notyet summary { padding: 10px 0; font-size: var(--fs-small); color: var(--dim); cursor: pointer; }
+.hd-notyet p { margin: 0 0 12px; font-size: var(--fs-small); color: var(--dim); line-height: 1.5; }
+.hd-history { align-self: flex-start; }

@@ -417,7 +417,7 @@ const onHabitDetail = guard("habit detail", async (habitId) => {
     onLog, onEdit: onEditHabit,
     // The Workouts habit's detail carries the program: today's session and per-exercise history.
     onWorkout: isDemo ? null : onWorkout, onChooseProgram: isDemo ? null : onChooseProgram,
-    onExercise,
+    onExercise, onHistory,
     onDone: () => refresh(),
   });
 });

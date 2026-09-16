@@ -105,6 +105,7 @@ on the wrong one.
 | Silence is only silence once the period has closed; an empty weekly habit is behind pace, not unreported | `js/score.js` — `leaderboard` (per-habit bookkeeping) | `test/habits.test.mjs` |
 | A weekly or monthly period with nothing reported is a MISS whoever was to report it; only a daily sensor day is excused | `js/habits.js` — `rawPeriodStatus` | `test/habits.test.mjs` |
 | A record stands from the day it was first set; matching it later does not move it | `js/workout.js` — `exerciseLog`; `js/ui/habitdetail.js` (the lit bar) | `test/workout.test.mjs` |
+| A session cut short is listed and has no trend and no minus; a stopped day is not a weaker one | `js/workout.js` — `exerciseHistory` (`full`, `trend`) | `test/workout.test.mjs` |
 | Ranked on points; crowns break a tie | `js/season.js` — `seasonTally` | `test/season.test.mjs` |
 | Every closed day in a season counts for XP; only WHOLE weeks can be won | `js/season.js` — `weeksIn`, `seasonTally` | `test/season-lifecycle.test.mjs`, `test/season-cycle.test.mjs` |
 | A chosen length always delivers that many WHOLE weeks | `js/season.js` — `endFor` | `test/season-lifecycle.test.mjs` |

@@ -200,9 +200,16 @@ export function exerciseHistory(state, memberId, program) {
     .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 
   // Every exercise the program defines, once, in the order it first appears. The circuit reuses
-  // Monday's movements; those are the same exercise and share a history.
+  // Monday's movements; those are the same exercise and share a history. The prescribed sets
+  // travel with it, so a session that banked fewer can be marked as cut short.
   const order = [];
   const byId = new Map();
+  const prescribed = new Map();
+  for (const session of Object.values(program.sessions)) {
+    for (const ex of [...(session.exercises || []), ...((session.finisher && session.finisher.exercises) || [])]) {
+      prescribed.set(ex.id, Math.max(prescribed.get(ex.id) || 0, ex.sets || 0));
+    }
+  }
   for (const session of Object.values(program.sessions)) {
     // A class is its own row: one number, the minutes, and how it felt beside it.
     if (session.kind === "video") {
@@ -249,15 +256,24 @@ export function exerciseHistory(state, memberId, program) {
       // point: a "0 · 0 · 0" from a quick test of the app must not read as a collapse in form.
       const sets = e.sets.filter((n) => Number.isFinite(n) && n > 0);
       if (!sets.length) continue;
-      entry.sessions.push({ day: w.day, sets, total: sets.reduce((a, b) => a + b, 0), best: Math.max(...sets) });
+      entry.sessions.push({
+        day: w.day, sets, total: sets.reduce((a, b) => a + b, 0), best: Math.max(...sets),
+        // Fewer sets than the plan asked for: a session cut short, which is a fact about the day
+        // and not about the form. It is listed, and it does not move the trend.
+        full: sets.length >= (prescribed.get(e.id) || 1),
+      });
     }
   }
 
   return order.map((id) => {
     const entry = byId.get(id);
+    // The trend compares the latest session's total with the one before — unless the latest was
+    // cut short, in which case there is no verdict: a day stopped after one set is not a collapse
+    // in push-ups, and reading it as one was the first thing a person noticed. A short EARLIER
+    // session still counts as the baseline, so adding a set is progress.
     const n = entry.sessions.length;
     let trend = null;
-    if (n >= 2) {
+    if (n >= 2 && entry.sessions[n - 1].full !== false) {
       const a = entry.sessions[n - 2].total, b = entry.sessions[n - 1].total;
       trend = b > a ? "up" : b < a ? "down" : "same";
     }
