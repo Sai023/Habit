@@ -123,6 +123,13 @@ on the wrong one.
 | Rope intervals step up by the week of the program, counted from its start day | `js/workout.js` — `intervalsFor`, `progressionWeek` | `test/workout.test.mjs` |
 | A class keeps minutes and how it felt, is one history row, and has no personal best | `js/workout.js` — `exerciseHistory`, `personalBests`, `workoutInsights` (`classes`) | `test/workout.test.mjs` |
 | A video never loads inside the bridged WebView; the shell plays it in a bridge-less player of its own | `js/ui/workoutsheet.js` — `player`; `habit/VideoPlayer.kt` | `.../VideoPlayerTest.kt` |
+| A finished workout carries a clock: the open, every set, the Done; each set owns the minutes since the one before | `js/ui/workoutsheet.js` — `sessionClock`; `js/workout.js` — `spansOf` | `test/workout.test.mjs` |
+| The log names everything and marks a record only against what stood BEFORE that day; a first time beats nothing | `js/workout.js` — `workoutLog`, `bestsBefore` | `test/workout.test.mjs` |
+| Vitals lie on the workout with the same session and day, whichever arrived first; the latest read wins | `js/habits.js` — `T.VITALS` replay | `test/vitals.test.mjs` |
+| The phone reads the watch for the timed workouts of the last two days and pushes only when the figures changed | `habit/VitalsSync.kt` — `pass`, `signature` | `.../VitalsSyncTest.kt` |
+| A calorie record straddling two sets is split by overlap; heart rate is averaged over each exercise's own minutes | `habit/VitalsSync.kt` — `summarise` | `.../VitalsSyncTest.kt` |
+| Nothing is claimed without a watch, and no ranking from fewer than three workouts with one | `js/vitals.js` — `vitalsInsights`, `MIN_VITALS_SESSIONS` | `test/vitals.test.mjs` |
+| Heart rate is an optional permission; a sync is whole without it | `habit/HealthConnectSource.kt` — `REQUESTED` vs `PERMISSIONS` | — (verified by hand) |
 
 ## Levels
 

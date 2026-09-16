@@ -648,6 +648,26 @@ suggests, it never locks a door.
 
 A workout more than 2 days late is refused, like a log.
 
+THE CLOCK. Every workout finished in the app carries one: when the sheet
+was opened, when each set was banked, when Done was pressed. "Every
+workout →" on the hub lists them newest first, and any one opens to its
+sets beside last time's, the record marked where it fell, the minutes it
+ran. A workout logged before the clock existed has no minutes and says so.
+
+THE WATCH. Each stamped set owns the minutes since the one before it. The
+phone is handed the timed workouts of the last two days with those
+windows, reads Health Connect for exactly those minutes — heart-rate
+samples and active calories — and writes the answer back as vitals:
+total, average and peak for the session, and each exercise's share by
+overlap. It re-reads for two days, because a watch's data reaches Health
+Connect late, and pushes only when the figures changed; the latest read
+wins. Heart rate is an optional permission asked for on the settings
+card; calories come with the core grant. Nothing is claimed without a
+watch: a workout with no samples is simply a workout, and the ranking —
+which exercise costs the most per minute, with the heart rate beside it —
+speaks only once THREE workouts have been worn through.
+
+     workout.js — spansOf, workoutLog · vitals.js · habit/VitalsSync.kt
               programs.js, workout.js, workoutsheet.js, store.js, summary.js
 
 
