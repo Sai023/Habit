@@ -22,7 +22,7 @@ export function openHabitsSheet(
   host,
   {
     state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite, onTravel,
-    onRemoveMember, onRestoreHabit, embedded = false, onClosed,
+    onRemoveMember, onRestoreHabit, onMergeMember, embedded = false, onClosed,
   },
 ) {
   const sheet = openSheet(host, { onClose: () => { if (onClosed) onClosed(); } });
@@ -79,6 +79,9 @@ export function openHabitsSheet(
     onRemoveMember && members.length > 1
       ? el("div.sec",
           el("h2.sec-title", "Who's in"),
+          // Same name on more than one id is one person split across a rejoin or a reinstall.
+          // Offer to fold them into one so their history stops being split — see mergeMember.
+          onMergeMember ? dupGroups(members).map((g) => mergeRow(g, handOffTo, onMergeMember, sheet)) : null,
           el("div.board", members.map((m) => memberRow(m, me, onRemoveMember, sheet))),
         )
       : null,
@@ -178,6 +181,42 @@ function retiredRow(id, r, state, handOffTo, onRestoreHabit) {
         + (by && by.name ? " · deleted by " + by.name : "")),
     ),
     el("button.link.row-restore", { onclick: () => handOffTo(() => onRestoreHabit(id, def)) }, "Restore"),
+  );
+}
+
+/** People sharing a name across more than one id — the same person, split. */
+function dupGroups(members) {
+  const byName = new Map();
+  for (const m of members) {
+    const key = (m.name || m.memberId).trim().toLowerCase();
+    if (!byName.has(key)) byName.set(key, []);
+    byName.get(key).push(m);
+  }
+  return [...byName.values()].filter((g) => g.length > 1);
+}
+
+/** The offer to merge a duplicate-name group into its most-logged id. */
+function mergeRow(group, handOffTo, onMergeMember, sheet) {
+  const primary = [...group].sort((a, b) => b.logged - a.logged)[0];
+  const others = group.filter((m) => m.memberId !== primary.memberId);
+  const name = primary.name || "them";
+  return el("div.merge-hint",
+    el("span.merge-hint-text", group.length + " rows named \u201c" + name + "\u201d \u2014 the same person on more than one id."),
+    el("button.link", {
+      onclick: async () => {
+        const { confirmSheet } = await import("./confirmsheet.js");
+        sheet.close();
+        const sure = await confirmSheet(document.body, {
+          title: "Merge into one " + name + "?",
+          body: "Their logs, streaks and board history combine under a single person. The extra "
+            + (others.length === 1 ? "id folds" : others.length + " ids fold") + " into the one that has logged the most. "
+            + "Nothing is deleted \u2014 it is one more event on the log \u2014 but it is not undone from inside the app.",
+          confirmLabel: "Merge",
+          cancelLabel: "Leave separate",
+        });
+        if (sure) for (const m of others) await onMergeMember(m.memberId, primary.memberId);
+      },
+    }, "Merge into one \u2192"),
   );
 }
 

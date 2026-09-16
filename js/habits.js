@@ -439,9 +439,47 @@ export function replay(events) {
   const goals = new Map();     // "member|habit" -> { target, active }
   let meta = {};
 
+  // ---- Identity: fold merged member ids onto one canonical id ----
+  //
+  // A merge is a FACT ("these two ids are the same person"), not an action with a moment, so it is
+  // order-independent — union-find over every merge event, applied to every member-keyed event
+  // whether it was written before or after the merge. Resolving here, at the one place the loop
+  // reads a payload, means logs, goals, streaks, the board and the read-model all unify at once
+  // and none of them needs to know identities were ever split. See canonicalMember / aliasesOf.
+  const _parent = new Map();
+  const _root = (id) => {
+    let r = id; const seen = new Set();
+    while (_parent.has(r) && !seen.has(r)) { seen.add(r); r = _parent.get(r); }
+    return r;
+  };
+  for (const e of events || []) {
+    if (e && e.type === T.MEMBER_MERGE && e.payload && e.payload.from && e.payload.into) {
+      const a = _root(e.payload.from), b = _root(e.payload.into);
+      if (a !== b) _parent.set(a, b); // fold `from` INTO `into`
+    }
+  }
+  const canon = (id) => (id == null ? id : _root(id));
+  const aliases = new Map(); // duplicate id -> the id it now reads as
+  for (const e of events || []) {
+    if (e && e.type === T.MEMBER_MERGE && e.payload) {
+      for (const id of [e.payload.from, e.payload.into]) {
+        const c = canon(id);
+        if (id && c !== id) aliases.set(id, c);
+      }
+    }
+  }
+
   for (const e of sortEvents(events)) {
-    const p = e.payload || {};
+    let p = e.payload || {};
     if (!isKnown(e.type, p)) continue;
+    if (e.type === T.MEMBER_MERGE) continue; // consumed by the pre-scan above
+
+    // Rewrite an aliased member id to its canonical one, once, for every case below.
+    let aliasedMember = false;
+    if (p.memberId != null) {
+      const c = canon(p.memberId);
+      if (c !== p.memberId) { p = { ...p, memberId: c }; aliasedMember = true; }
+    }
 
     switch (e.type) {
       case T.META: {
@@ -474,15 +512,20 @@ export function replay(events) {
         // Their logs are left where they are. Nothing reads a non-member's numbers: every board,
         // tally and summary is driven by the member list, so removing the row is enough and
         // rewriting history would be the more dangerous half of the same job.
-        if (p.removed) members.delete(p.memberId);
+        // A "removed" line from an ALIAS must not delete the canonical member it folds into —
+        // the duplicate may well have been removed before it was merged. Only a member removing
+        // their own (canonical) row takes it off the board.
+        if (p.removed) { if (!aliasedMember) members.delete(p.memberId); }
         else {
           // The day they joined, kept from the FIRST member line: a rename later must not move
-          // it. Lifetime XP counts from here — see levels.js.
+          // it. Lifetime XP counts from here — see levels.js. Across a merge, "first" spans both
+          // ids, so the earlier join day wins (events replay in time order, so prev holds it).
           const prev = members.get(p.memberId);
           const tz = (meta && meta.tz) || HABIT_DEFAULTS.tz;
           members.set(p.memberId, {
             memberId: p.memberId,
-            name: p.name || p.memberId,
+            // The kept id's own name stands; a folded-in duplicate does not rename the person.
+            name: (aliasedMember && prev) ? prev.name : (p.name || p.memberId),
             since: prev && prev.since ? prev.since : dayKey(authoredAt(e), tz, HABIT_DEFAULTS.dayStartHour),
           });
         }
@@ -782,7 +825,7 @@ export function replay(events) {
     }
   }
 
-  return { meta, habits, retired, members, logs, exemptions, bindings, goals, programs, workouts };
+  return { meta, habits, retired, members, logs, exemptions, bindings, goals, programs, workouts, aliases };
 }
 
 // ============================================================================
@@ -1246,6 +1289,17 @@ export function targetFor(state, habit, memberId, day, goalDay = day) {
  * without everyone signing up for all five. An untracked habit is EXEMPT for that person and
  * leaves their board score untouched, rather than dragging it to zero.
  */
+/** The id a member id now reads as, following any merges. The identity every reader should key on. */
+export function canonicalMember(state, memberId) {
+  return (state && state.aliases && state.aliases.get(memberId)) || memberId;
+}
+
+/** The duplicate ids that have been folded into this canonical member (empty if none). */
+export function aliasesOf(state, memberId) {
+  if (!state || !state.aliases) return [];
+  return [...state.aliases.entries()].filter(([, into]) => into === memberId).map(([from]) => from);
+}
+
 export function isTracking(state, habit, memberId, day = null) {
   // With no day, the question is "am I signed up for this", and the answer is whatever they last
   // said — the screens that ask are showing intent. Scoring passes a day, because there the

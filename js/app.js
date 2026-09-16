@@ -348,6 +348,13 @@ const onRemoveMember = guard("member", async (memberId) => {
   if (await removeMember(memberId)) await refresh();
 });
 
+/** Fold one member id into another — the same person on two ids. See mergeMember. */
+const onMergeMember = guard("merge member", async (fromId, intoId) => {
+  if (demoBlocked()) return;
+  const { mergeMember } = await import("./store.js");
+  if (await mergeMember(fromId, intoId)) await refresh();
+});
+
 /** Bring a deleted habit back, with its history. See restoreHabit / the retired list. */
 const onRestoreHabit = guard("restore habit", async (habitId, fields) => {
   if (demoBlocked()) return;
@@ -427,6 +434,7 @@ const onOpenHabits = guard("menu", async () => {
     onTravel,
     onRemoveMember,
     onRestoreHabit,
+    onMergeMember,
     onClosed: () => refresh(),
   });
 });

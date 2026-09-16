@@ -1160,6 +1160,9 @@ html, body { overscroll-behavior-y: contain; }
 .member-row { grid-template-columns: minmax(0, 1fr) auto; }
 .row-remove { align-self: center; margin: 0; font-size: var(--fs-small); }
 .row-restore { align-self: center; margin: 0; font-size: var(--fs-small); color: var(--teal); }
+.merge-hint { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; margin-bottom: 8px; background: var(--panel); border-radius: var(--r-sm); }
+.merge-hint-text { font-size: var(--fs-small); color: var(--dim); }
+.merge-hint .link { align-self: flex-start; }
 
 /* What was just agreed to, in dates rather than in weeks. A length is a number somebody has to
    convert before they know what they are signing up for; this is that conversion, done for them and

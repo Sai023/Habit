@@ -111,7 +111,7 @@ pattern after it is a cheap in-memory reduction.
 
 ## 4. The rest of the roadmap
 
-Done: read-model (§3); soft-delete + restore keeps history; re-add routes to restore.
+Done: read-model (§3); soft-delete + restore keeps history; re-add routes to restore; **identity merge** — see below.
 
 **Next wave — provenance (make every event self-describing).** Add `unit` and `entryMethod`
 (typed / sensor / corrected / backfilled) to log payloads, and formalise `v` into a validated
@@ -119,9 +119,15 @@ schema per event type at the write boundary (this is also the poison-event defen
 read-model's `unit`/`source` fields become exact rather than inferred, and analytics can weight by
 confidence (sensor > typed > backfilled).
 
-**Next wave — identity.** Member alias/merge events so `person → [ids]` is reconstructable — the
-single biggest unlock for per-person longitudinal analysis. Never reuse a habit across a unit
-change; model the change explicitly.
+**Identity — shipped.** A `habit_member_merge` event (`{ from, into }`) says two ids are the
+same person. Replay resolves it once, union-find, at the single point it reads a payload's
+`memberId` — so logs, streaks, the board and the read-model all unify at once and none of them
+needs to know identities were ever split. It is order-independent (a merge applies to events
+before and after it), the kept id's name and earliest join day stand, and a duplicate removed
+before merging does not delete the person. `canonicalMember(state, id)` / `aliasesOf(state, id)`
+expose it; `store.mergeMember(from, into)` writes it; the Habits sheet offers it for
+same-name duplicates. Still to do: never reuse a habit across a unit change — model that as an
+explicit change event (below).
 
 **Second wave — change events.** Extend the effective-dated pattern the goal `targets` already use
 to unit changes, renames, and exclusions, so "what was true on day D" is always reconstructable.

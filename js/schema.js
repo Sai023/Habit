@@ -21,6 +21,7 @@ export const SCHEMA_VERSION = 1;
 export const T = {
   META:         "habit_meta",         // group name + group-wide settings (last write wins)
   MEMBER:       "habit_member",       // someone joined, or renamed themselves
+  MEMBER_MERGE: "habit_member_merge",  // two member ids are the same person — fold one into the other
   HABIT_DEF:    "habit_def",          // a habit's definition (last write wins per habitId)
   HABIT_DELETE: "habit_def_delete",   // retire a habit; its logs stay for history
   LOG:          "habit_log",          // ONE observation for one member, habit and day
@@ -313,6 +314,10 @@ export const ev = {
   // one row too many, instead of a row nobody can identify.
   member:    (memberId, name, fields = {}) =>
     ({ type: T.MEMBER, payload: p({ memberId, name, ...fields }) }),
+  // `from` is the duplicate id, `into` the one to keep. Every event authored by `from` — past or
+  // future — is read as `into` on replay, so a person split across ids becomes one history.
+  mergeMember: (from, into) =>
+    ({ type: T.MEMBER_MERGE, payload: p({ from, into }) }),
   habit:     (habitId, fields) => ({ type: T.HABIT_DEF, payload: p({ habitId, ...fields }) }),
   deleteHabit: (habitId) => ({ type: T.HABIT_DELETE, payload: p({ habitId }) }),
 

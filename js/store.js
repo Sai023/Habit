@@ -118,6 +118,19 @@ export async function createGroup(name, myName, starters = []) {
  * lists, which reads to everybody else as a silent pipeline and to you as an app that has stopped
  * counting.
  */
+/**
+ * Fold one member id into another — they are the same person (a rejoin, a reinstall, a wrong code
+ * pasted once). Every event `from` ever authored reads as `into` from here on, so their split
+ * history becomes one. Append-only: nothing is rewritten, the merge is just another event.
+ */
+export async function mergeMember(fromId, intoId) {
+  if (!fromId || !intoId || fromId === intoId) return false;
+  const state = await getState();
+  if (!state.members.has(fromId) || !state.members.has(intoId)) return false;
+  await commit(ev.mergeMember(fromId, intoId));
+  return true;
+}
+
 export async function removeMember(memberId) {
   const { memberId: me } = await identity();
   if (!memberId || memberId === me) return false;
