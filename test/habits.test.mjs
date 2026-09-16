@@ -605,6 +605,60 @@ test("a weekly habit with nothing reported is a miss, even from a watch", () => 
   assert.equal(rawDayStatus(daily, daily.habits.get("h1"), "m1", day(0)), NO_DATA);
 });
 
+// ---------------------------------------------------------------------------
+// Soft delete: a deleted habit is retired, not dropped, and restores with its history
+// ---------------------------------------------------------------------------
+
+test("a deleted habit is retired, not dropped — its definition and its logs are kept", () => {
+  const s = replay([
+    E(ev.habit("puffs", { name: "Vape puffs", metric: METRIC.PUFFS, direction: AT_MOST, target: 8, tz: TZ }), at(D0)),
+    E(ev.log("puffs", "m1", D0, 5, SOURCE.MANUAL), at(D0, 20)),
+    E(ev.log("puffs", "m1", addDays(D0, 1), 6, SOURCE.MANUAL), at(addDays(D0, 1), 20)),
+    E(ev.deleteHabit("puffs"), at(addDays(D0, 2))),
+  ]);
+  assert.equal(s.habits.has("puffs"), false, "gone from the live list");
+  assert.equal(s.retired.has("puffs"), true, "kept in the retired list");
+  assert.equal(s.retired.get("puffs").def.name, "Vape puffs", "its definition is preserved");
+  // The logs never moved — still two of them keyed under the habit id.
+  const kept = [...s.logs.keys()].filter((k) => k.split("|")[0] === "puffs");
+  assert.equal(kept.length, 2, "both entries are still in the log");
+});
+
+test("restoring a deleted habit brings it back under its own id, with history and original birthday", () => {
+  const events = [
+    E(ev.habit("puffs", { name: "Vape puffs", metric: METRIC.PUFFS, direction: AT_MOST, target: 8, tz: TZ }), at(D0)),
+    E(ev.log("puffs", "m1", D0, 5, SOURCE.MANUAL), at(D0, 20)),
+    E(ev.deleteHabit("puffs"), at(addDays(D0, 3))),
+  ];
+  const before = replay(events);
+  const retiredDef = before.retired.get("puffs").def;
+  const bornOn = retiredDef.createdDay;
+
+  // Restore is a plain habit_def re-emitted under the same id — exactly what the Restore button does.
+  const s = replay([
+    ...events,
+    E(ev.habit("puffs", retiredDef), at(addDays(D0, 10))),
+  ]);
+  assert.equal(s.habits.has("puffs"), true, "back in the live list");
+  assert.equal(s.retired.has("puffs"), false, "and no longer retired");
+  assert.equal(s.habits.get("puffs").createdDay, bornOn,
+    "birthday is the original day, not the day it came back — taper and streak start are unchanged");
+  // The old entry is readable again against the live habit.
+  assert.equal(valueOn(s, s.habits.get("puffs"), "m1", D0), 5, "the entry logged before the delete is back");
+});
+
+test("re-adding under a fresh id is a NEW habit and does not resurrect the old history", () => {
+  // The bug this feature fixes: the add button mints a new id, so old logs stay bound to the old one.
+  const s = replay([
+    E(ev.habit("old", { name: "Vape puffs", metric: METRIC.PUFFS, direction: AT_MOST, target: 8, tz: TZ }), at(D0)),
+    E(ev.log("old", "m1", D0, 5, SOURCE.MANUAL), at(D0, 20)),
+    E(ev.deleteHabit("old"), at(addDays(D0, 2))),
+    E(ev.habit("new", { name: "Vape puffs", metric: METRIC.PUFFS, direction: AT_MOST, target: 8, tz: TZ }), at(addDays(D0, 3))),
+  ]);
+  assert.equal(valueOn(s, s.habits.get("new"), "m1", D0), null, "the new habit starts empty");
+  assert.equal(s.retired.has("old"), true, "the old one is still recoverable, with its entry");
+});
+
 if (failures.length) {
   for (const { name, err } of failures) {
     console.error("\n✗ " + name);

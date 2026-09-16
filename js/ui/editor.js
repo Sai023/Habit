@@ -473,8 +473,9 @@ export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
     // in the log, so bringing it back does not start anyone from zero.
     const sure = await confirmSheet(document.body, {
       title: "Delete " + (form.name || "this habit") + "?",
-      body: "It goes for the whole group. Past entries are kept, so the history still reads "
-        + "correctly — it just stops being tracked or scored from here on.",
+      body: "It goes for the whole group — everyone will see it disappear. Its past entries are "
+        + "kept, and anyone can bring it back with all of them from Habits → Retired, so this "
+        + "is reversible.",
       confirmLabel: "Delete it",
     });
     if (!sure) return;

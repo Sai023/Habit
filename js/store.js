@@ -357,6 +357,16 @@ export async function deleteHabit(habitId) {
 }
 
 /**
+ * Bring a retired habit back — under its OWN id, so every entry ever logged against it reattaches
+ * and its birthday (taper, streak) is unchanged. `fields` is the definition kept in state.retired.
+ * It is a plain habit_def event: the same thing an edit writes, which is exactly why the reducer
+ * treats a restore and an edit identically. See HABIT_DEF / HABIT_DELETE in habits.js.
+ */
+export async function restoreHabit(habitId, fields) {
+  return commit(ev.habit(habitId, fields));
+}
+
+/**
  * Set MY goals: which of the group's habits I'm doing, and my own number for each.
  *
  * Committed as one batch so a whole setup screen is a single sync, and so the group never sees a

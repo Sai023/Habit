@@ -22,7 +22,7 @@ export function openHabitsSheet(
   host,
   {
     state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite, onTravel,
-    onRemoveMember, embedded = false, onClosed,
+    onRemoveMember, onRestoreHabit, embedded = false, onClosed,
   },
 ) {
   const sheet = openSheet(host, { onClose: () => { if (onClosed) onClosed(); } });
@@ -54,6 +54,18 @@ export function openHabitsSheet(
       el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "My goals"),
       el("button.tap", { onclick: () => handOffTo(() => onEditHabit(null)) }, "＋ New habit"),
     ),
+
+    // Deleted habits, kept so they can come back with their entries. This is the other half of
+    // making a group-wide delete safe: it is not gone, it is here, and one tap restores it under
+    // its own id so nothing that was logged against it is lost. Only shown when there is something
+    // to restore, so it costs a tidy group nothing.
+    onRestoreHabit && state.retired && state.retired.size
+      ? el("div.sec",
+          el("h2.sec-title", "Retired"),
+          el("p.sheet-now", "Deleted habits. Their entries are kept — bring one back and its history comes with it."),
+          el("div.board", [...state.retired.entries()].map(([id, r]) => retiredRow(id, r, state, handOffTo, onRestoreHabit))),
+        )
+      : null,
 
     // Who is actually in the room.
     //
@@ -138,6 +150,34 @@ function habitRow(habit, state, me, today, handOffTo, onEditHabit) {
         habit.scored ? "" : " · not scored",
       ),
     ),
+  );
+}
+
+/** How many readings have ever been logged against this habit — the count that comes back with it. */
+function countHabitLogs(state, habitId) {
+  let n = 0;
+  for (const key of state.logs.keys()) {
+    // Keys are habitId|memberId|day — see logKey in habits.js.
+    if (key.split("|")[0] === habitId) n += 1;
+  }
+  return n;
+}
+
+/** One retired habit: what it was, how much history is waiting, and the way to bring it back. */
+function retiredRow(id, r, state, handOffTo, onRestoreHabit) {
+  const def = r.def || {};
+  const logs = countHabitLogs(state, id);
+  const by = r.by && state.members.get(r.by);
+  return el("article.row",
+    { style: "grid-template-columns: 26px minmax(0,1fr) auto" },
+    el("div.row-rank", def.icon || "◆"),
+    el("div.row-main",
+      el("div.row-name", def.name || "Habit"),
+      el("div.row-meta",
+        (logs ? logs + (logs === 1 ? " entry kept" : " entries kept") : "no entries yet")
+        + (by && by.name ? " · deleted by " + by.name : "")),
+    ),
+    el("button.link.row-restore", { onclick: () => handOffTo(() => onRestoreHabit(id, def)) }, "Restore"),
   );
 }
 

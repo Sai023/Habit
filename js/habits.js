@@ -426,6 +426,9 @@ function seasonRule(p) {
 
 export function replay(events) {
   const habits = new Map();
+  // A deleted habit is retired, not dropped: its last definition is kept here so it can be brought
+  // back — under its own id, so its logs reattach — by anyone. See HABIT_DELETE / HABIT_DEF below.
+  const retired = new Map();   // habitId -> { def, at, by }
   const members = new Map();
   const logs = new Map();     // "habit|member|day" -> [{ source, value, ts, externalId }]
   const programs = new Map(); // member -> programId
@@ -487,7 +490,11 @@ export function replay(events) {
 
       case T.HABIT_DEF: {
         if (!p.habitId) break;
-        const prev = habits.get(p.habitId);
+        // A live habit's previous form, or — when this is bringing back a deleted one — the form it
+        // had when it was retired. Restoring through the retired def is what preserves the habit's
+        // birthday (and so its taper and streak start) instead of resetting it to the day it came
+        // back. An ordinary edit and a restore are therefore the same event, handled identically.
+        const prev = habits.get(p.habitId) || (retired.get(p.habitId) && retired.get(p.habitId).def);
         // A habit's birthday is set once, by its first definition. Later edits must not move it,
         // or every taper step and every streak start would shift with a rename.
         const tz = p.tz || (prev && prev.tz) || HABIT_DEFAULTS.tz;
@@ -507,12 +514,19 @@ export function replay(events) {
         }
         next.targets = targets;
         habits.set(p.habitId, next);
+        retired.delete(p.habitId); // live again, so it leaves the retired list
         break;
       }
 
-      case T.HABIT_DELETE:
+      case T.HABIT_DELETE: {
+        // Retire, do not drop. The definition is kept so the group can bring it back, and the logs
+        // never move. A delete syncs to everyone the instant one member taps it, so the whole point
+        // of keeping it recoverable is that this cannot be a one-tap way to lose everyone's history.
+        const gone = habits.get(p.habitId);
+        if (gone) retired.set(p.habitId, { def: gone, at: authoredAt(e), by: e.author || null });
         habits.delete(p.habitId);
         break;
+      }
 
       case T.LOG: {
         if (!p.habitId || !p.memberId || !p.day) break;
@@ -768,7 +782,7 @@ export function replay(events) {
     }
   }
 
-  return { meta, habits, members, logs, exemptions, bindings, goals, programs, workouts };
+  return { meta, habits, retired, members, logs, exemptions, bindings, goals, programs, workouts };
 }
 
 // ============================================================================

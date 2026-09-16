@@ -348,6 +348,14 @@ const onRemoveMember = guard("member", async (memberId) => {
   if (await removeMember(memberId)) await refresh();
 });
 
+/** Bring a deleted habit back, with its history. See restoreHabit / the retired list. */
+const onRestoreHabit = guard("restore habit", async (habitId, fields) => {
+  if (demoBlocked()) return;
+  const { restoreHabit } = await import("./store.js");
+  await restoreHabit(habitId, fields);
+  await refresh();
+});
+
 /** Type a number in — the only way half these habits ever get a value. */
 async function onLog(habit) {
   if (demoBlocked()) return;
@@ -418,6 +426,7 @@ const onOpenHabits = guard("menu", async () => {
     onInvite,
     onTravel,
     onRemoveMember,
+    onRestoreHabit,
     onClosed: () => refresh(),
   });
 });

@@ -519,6 +519,15 @@ the reason. A week is exempt only when every day in it is.
 The log is append-only. Nothing is ever deleted; every phone replays the
 same events to the same state.
 
+  Deleting a habit RETIRES it rather than dropping it. A delete syncs to
+  the whole group the instant one person taps it, so it is made safe by
+  being reversible: the definition is kept, the entries never move, and
+  anyone can bring it back from Habits -> Retired. It returns under its own
+  id, so its history reattaches and its birthday -- and with it every taper
+  step and streak -- is exactly where it was. Re-adding from scratch instead
+  makes a NEW habit with a new id, which is why a delete-then-re-add used to
+  look like the history had vanished.
+
   A log more than 2 days late is refused. Last week's crown is not
   winnable on Tuesday.
 

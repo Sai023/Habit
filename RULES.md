@@ -43,6 +43,8 @@ ever observes. Paths below are relative to each repo's root.
 | A habit is not judged before the day it was created | `js/score.js` — `habitScore` | `test/retroactive.test.mjs` |
 | A retired metric becomes the one that replaced it | `js/schema.js` — `LEGACY_METRIC` | `test/legacy.test.mjs` |
 | A retired preset name is renamed only where nobody typed over it | `js/schema.js` — `LEGACY_NAME` | `test/legacy.test.mjs` |
+| Deleting a habit retires it (kept in `state.retired`), it does not drop it; the logs never move | `js/habits.js` — `HABIT_DELETE` reducer | `test/habits.test.mjs` |
+| Restoring re-emits `habit_def` under the same id, so entries reattach and the birthday (taper/streak start) is unchanged | `js/habits.js` — `HABIT_DEF` (prev falls back to the retired def), `js/store.js` — `restoreHabit`, `js/ui/habitsheet.js` — Retired section | `test/habits.test.mjs` |
 
 ## Yours versus the group's
 

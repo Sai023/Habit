@@ -1159,6 +1159,7 @@ html, body { overscroll-behavior-y: contain; }
 /* Who's in. A board row shape, so the list of people reads the same as the list of habits. */
 .member-row { grid-template-columns: minmax(0, 1fr) auto; }
 .row-remove { align-self: center; margin: 0; font-size: var(--fs-small); }
+.row-restore { align-self: center; margin: 0; font-size: var(--fs-small); color: var(--teal); }
 
 /* What was just agreed to, in dates rather than in weeks. A length is a number somebody has to
    convert before they know what they are signing up for; this is that conversion, done for them and
