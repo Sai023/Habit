@@ -66,13 +66,13 @@ function delta(now, before, unit) {
   return el("span.wl-delta" + (d > 0 ? ".is-up" : ".is-down"), (d > 0 ? "+" : "−") + Math.abs(d) + unitSuffix(unit));
 }
 
-export function openWorkoutHistory(host, { state, me, today, openAt = null, onDone }) {
-  const sheet = openSheet(host, { onClose: () => onDone && onDone() });
-  const log = workoutLog(state, me, today);
-  const burn = vitalsInsights(log);
-  // Opened at one workout — from an exercise's sheet — or at the list.
-  let open = openAt ? log.findIndex((w) => w.day === openAt.day && w.sessionId === openAt.sessionId) : -1;
-  if (open < 0) open = null;
+/**
+ * The log as a list: chips to narrow it, month eyebrows, one row per workout. A component that
+ * repaints itself, so the Workouts screen can drop it in under a button and the sheet can show
+ * it whole, and neither has a second copy of what a row is. `onOpen(day, sessionId)` is the tap.
+ */
+export function historyList({ log, today, onOpen }) {
+  const root = el("div.wl-hist");
   // Which session the list is narrowed to, or null for all. Over months the list is long, and
   // "every Push + Core" is the question a person scrolling it is usually asking.
   let only = null;
@@ -91,14 +91,15 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onDo
   }
 
   /** One workout, closed: the date, the name, one line of facts, the record, the watch. */
-  function row(w, i) {
+  function row(w) {
     const when = w.timed ? clockOf(w.startedAt) : null;
     const long = w.timed ? w.minutes + " min" : (w.classMinutes ? w.classMinutes + " min" : null);
     const much = w.empty ? null
       : w.kind === "intervals" ? (w.rounds ?? 0) + " rounds" + (w.sets ? " + " + w.sets + " sets" : "")
       : w.kind === "video" ? (w.effort ? EFFORT[w.effort] : "done")
-      : w.sets + " sets" + (w.reps ? " · " + w.reps + " reps" : "");
-    return el("button.wl-row" + (w.empty ? ".is-empty" : ""), { onclick: () => { open = i; paint(); } },
+      : w.short ? w.sets + " of " + w.setsOf + " sets"
+      : w.sets + (w.sets === 1 ? " set" : " sets");
+    return el("button.wl-row" + (w.empty ? ".is-empty" : ""), { onclick: () => onOpen(w.day, w.sessionId) },
       dateBadge(w.day, today),
       el("span.wl-row-main",
         el("span.wl-row-name", w.sessionName),
@@ -117,26 +118,53 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onDo
     );
   }
 
-  /** The list, under month eyebrows, so a year of workouts still has landmarks in it. */
-  function list() {
-    const shown = log.map((w, i) => [w, i]).filter(([w]) => only === null || w.sessionId === only);
+  /** The rows, under month eyebrows, so a year of workouts still has landmarks in it. */
+  function rows() {
+    const shown = log.filter((w) => only === null || w.sessionId === only);
     const out = [];
     let month = null;
-    for (const [w, i] of shown) {
+    for (const w of shown) {
       const m = w.day.slice(0, 7);
       if (m !== month) {
         month = m;
-        const inMonth = shown.filter(([x]) => x.day.slice(0, 7) === m);
-        const minutes = inMonth.reduce((n, [x]) => n + (x.minutes || 0), 0);
+        const inMonth = shown.filter((x) => x.day.slice(0, 7) === m);
+        const minutes = inMonth.reduce((n, x) => n + (x.minutes || 0), 0);
         out.push(el("div.wl-month",
           el("span", monthLabel(w.day)),
           el("span.wl-month-n", inMonth.length + (inMonth.length === 1 ? " workout" : " workouts") + (minutes ? " · " + minutes + " min" : "")),
         ));
       }
-      out.push(row(w, i));
+      out.push(row(w));
     }
     return el("div.wl-list", out);
   }
+
+  function paint() {
+    root.replaceChildren();
+    const chips = sessionChips();
+    if (chips) root.append(chips);
+    root.append(rows());
+  }
+  paint();
+  return root;
+}
+
+/**
+ * The sheet: the whole log, or one workout of it.
+ *
+ * Opened at a workout with `standalone`, it is that workout's own sheet: back closes it, so the
+ * screen underneath (the Workouts landing with its list dropped down, or an exercise's sheet) is
+ * where the person lands. Each exercise in the open workout opens its breakdown via `onExercise`.
+ */
+export function openWorkoutHistory(host, { state, me, today, openAt = null, standalone = false, onExercise = null, onDone }) {
+  const sheet = openSheet(host, { onClose: () => onDone && onDone() });
+  const log = workoutLog(state, me, today);
+  const burn = vitalsInsights(log);
+  let open = openAt ? log.findIndex((w) => w.day === openAt.day && w.sessionId === openAt.sessionId) : -1;
+  if (open < 0) open = null;
+  // The list, made once: back from a workout lands on it narrowed as it was left.
+  let list = null;
+
 
   /** The vitals the phone laid over this workout, if a watch was worn. */
   function vitalsBlock(w) {
@@ -176,13 +204,20 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onDo
     // Fewer sets than there were to do: the day was cut short here, and a minus against last
     // time would be reading a stopped session as a weaker one.
     const short = done && e.sets.some((n) => n === null);
-    return el("div.wl-ex" + (done ? "" : ".is-skipped"),
+    // The card opens the exercise's own breakdown: every time it was done, the record, the
+    // watch. The third step of the walk: the day, then the workout, then the exercise.
+    const opens = !!onExercise && done;
+    return el((opens ? "button" : "div") + ".wl-ex" + (done ? "" : ".is-skipped") + (opens ? ".opens" : ""),
+      // Stacked over this sheet, not swapped for it: closing the exercise lands back on the
+      // workout it came from, and back from the workout lands on the screen that opened it.
+      opens ? { onclick: () => onExercise(e.id) } : {},
       el("div.wl-ex-head",
         el("span.wl-ex-name", e.name + (e.perSide ? " · per side" : "")),
         done
           ? el("span.wl-ex-total", e.total + (e.unit === "reps" ? " reps" : unitSuffix(e.unit)),
               short ? el("span.wl-delta.is-short", "cut short") : delta(e.total, prevTotal, e.unit))
           : el("span.wl-ex-total.is-dim", "skipped"),
+        opens ? el("span.wl-ex-go", "›") : null,
       ),
       setsLine(e.sets, e.pb, e.unit),
       el("div.wl-ex-foot",
@@ -201,13 +236,16 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onDo
     const when = w.timed
       ? clockOf(w.startedAt) + " → " + clockOf(w.endedAt) + " · " + w.minutes + " min"
       : w.classMinutes ? w.classMinutes + " min" : "no clock kept";
+    const sub = [w.programName, when, w.effort ? EFFORT[w.effort] : null, w.short ? "cut short" : null].filter(Boolean).join(" · ");
     return el("div.wl-detail",
-      el("button.link.wl-back", { onclick: () => { open = null; paint(); } }, "← All workouts"),
+      standalone
+        ? el("button.link.wl-back", { onclick: () => sheet.close() }, "\u2190 Back")
+        : el("button.link.wl-back", { onclick: () => { open = null; paint(); } }, "← All workouts"),
       el("div.wl-detail-head",
         dateBadge(w.day, today),
         el("div.wl-detail-title",
           el("span.sheet-title", w.sessionName),
-          el("span.wl-detail-sub", [w.programName, when, w.effort ? EFFORT[w.effort] : null].filter(Boolean).join(" · ")),
+          el("span.wl-detail-sub", sub),
         ),
       ),
       w.kind === "intervals"
@@ -256,8 +294,11 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, onDo
               + ".")
           : el("p.sheet-now", "No workouts logged yet. Finish one from the hub and it lands here."),
         burnBlock(),
-        sessionChips(),
-        list(),
+        (list || (list = historyList({ log, today, onOpen: (day, sessionId) => {
+          open = log.findIndex((w) => w.day === day && w.sessionId === sessionId);
+          if (open < 0) open = null;
+          paint();
+        } }))),
         log.length && log.length < MIN_INSIGHT_SESSIONS
           ? el("p.note-inline", "Trends and records need a few more sessions to say anything worth saying.")
           : null,

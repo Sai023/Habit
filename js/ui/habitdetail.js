@@ -27,7 +27,8 @@ import {
 } from "../history.js";
 import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { sourceFor, isTracking, HIT, MISS, NO_DATA, EXEMPT, windowOn } from "../habits.js";
-import { programFor, planFor, exerciseHistory, sessionsOf } from "../workout.js";
+import { programFor, planFor, sessionsOf, workoutLog } from "../workout.js";
+import { historyList } from "./workouthistory.js";
 import { draftsInProgress } from "./workoutdraft.js";
 import { AT_MOST, METRIC, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
 import * as fmt from "./format.js";
@@ -107,7 +108,7 @@ const TONE = {
   [EXEMPT]: "is-rest",
 };
 
-export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram, onExercise = null, onHistory = null }) {
+export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram, onOpenWorkout = null }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
 
   const reduce = habit.direction === AT_MOST;
@@ -140,6 +141,12 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   // Which period the reader is looking at. The open one to begin with, because that is the one
   // they just tapped a card about.
   let picked = entries.length - 1;
+  // Whether the log is dropped down on the Workouts landing. Closed on open: the screen is the
+  // habit first, and the list is one tap away.
+  let showHistory = false;
+  // The list itself, kept across repaints while it is open, so a tap on a week bar above does
+  // not reset the chip it was narrowed to. Dropped when it is folded away.
+  let histList = null;
 
   const unit = (v) => (v == null ? "—" : fmt.value(habit.metric, v));
   // What one period is called, in the sentences below. Derived from the habit and constant for the
@@ -274,11 +281,10 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         : null;
     }
     const plan = planFor(program, today);
-    const rows = exerciseHistory(state, me, program);
-    // How many sessions the sparkline draws. A dozen is a month of a twice-a-week session.
-    const SPARK = 12;
     // A session swiped away half-done is still here, and this is where somebody looks for it.
     const open = draftsInProgress(program, sessionsOf(program).map((x) => x.session), today);
+    const log = workoutLog(state, me, today);
+    const first = log.length ? log[log.length - 1].day : null;
 
     return el("div.hd-program",
       el("h2.sec-title", program.name),
@@ -290,78 +296,38 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
       el("div.hd-program-today",
         el("span", plan && plan.session ? "Today: " + plan.session.name : "Today: " + ((plan && plan.rest) || "rest")),
         // Always a way in. The schedule is a suggestion, and a rest day is the day this link
-        // used to vanish — leaving the Workouts card's small button as the only door, on the one
+        // used to vanish, leaving the Workouts card's small button as the only door, on the one
         // screen that is ABOUT the program.
         onWorkout
           ? el("button.link", { onclick: () => { sheet.close(); onWorkout(); } },
               plan && plan.session ? "Open \u2192" : "Pick a session \u2192")
           : null,
       ),
-      // The log, one workout at a time, from here as well as from the hub: this is the screen
-      // about the program, and "what did I do on Tuesday" is asked here first.
-      onHistory && rows.some((r) => r.sessions.length)
-        ? el("button.link.sec-note.hd-history", { onclick: () => { sheet.close(); onHistory(); } }, "Every workout \u2192")
-        : null,
-      // One row per exercise: the shape of the last dozen sessions as bars, the last one's sets
-      // as a chip, the trend. A row opens the exercise's own sheet — every session, the record,
-      // the watch — and a tap there opens the workout it came from. Five chips of "10 · 10 · 10"
-      // used to sit here; over months they said less and less and led nowhere.
-      el("div.hd-exlist", rows.filter((r) => r.sessions.length).map((r) => {
-        const last = r.sessions[r.sessions.length - 1];
-        const recent = r.sessions.slice(-SPARK);
-        const top = Math.max(1, ...recent.map((s) => s.total));
-        // The record's bar, lit once: the FIRST session that reached the best total, because a
-        // record stands from the day it was set and matching it later is not beating it. Lighting
-        // every equal one made a plateau read as twelve records.
-        const bestTotal = r.sessions.length ? Math.max(...r.sessions.map((s) => s.total)) : 0;
-        const bestAt = recent.map((s) => s.total).indexOf(bestTotal);
-        const lastChip = !last ? null
-          : r.unit === "rounds" ? last.sets[0] + " \u00d7 " + last.work + "s"
-          : r.unit === "min" ? last.total + " min" + (last.effort === "hard" ? " \u2191" : last.effort === "easy" ? " \u2193" : "")
-          : last.sets.join(" \u00b7 ");
-        const tag = onExercise && last ? "button.hd-exrow" : "div.hd-exrow";
-        const totalOf = (n) => (r.unit === "rounds" ? n + " rounds" : r.unit === "min" ? n + " min" : n + (r.unit === "s" ? "s" : " " + r.unit));
-        return el(tag, onExercise && last ? { onclick: () => { sheet.close(); onExercise(r.id); } } : {},
-          el("div.hd-exrow-head",
-            el("span.hd-exrow-name", r.name),
-            r.trend
-              ? el("span.hd-exrow-trend." + r.trend,
-                  r.trend === "up" ? "\u2191 up" : r.trend === "down" ? "\u2193 down" : "\u2014 held")
-              : null,
-            onExercise && last ? el("span.hd-exrow-go", "\u203A") : null,
-          ),
-          recent.length > 1
-            ? el("div.hd-spark", recent.map((s, i) => el("i" + (i === bestAt ? ".is-best" : "") + (s === last ? ".is-last" : ""), {
-                style: "height:" + Math.max(8, Math.round((s.total / top) * 100)) + "%",
-                title: fmt.dayLabel(s.day) + " \u00b7 " + totalOf(s.total),
-              })))
-            : null,
-          // One line, the same order every time: when, the sets, then the total — but only when
-          // there is more than one set to total, and "cut short" when the day was. "Wed 11 · 11
-          // reps" said one thing twice, and said nothing about why.
-          el("div.hd-exrow-foot",
-            el("span.hd-exrow-last",
-              el("span.hd-exrow-day", fmt.dayLabel(last.day).split(",")[0]),
-              " ",
-              el("span.hd-exrow-sets", lastChip),
-              last.full === false
-                ? el("span.hd-exrow-sum", " \u00b7 cut short")
-                : last.sets.length > 1 && r.unit !== "rounds" && r.unit !== "min"
-                  ? el("span.hd-exrow-sum", " \u00b7 " + totalOf(last.total))
-                  : null,
+
+      // ---- The walk: the log, dropped down here; a workout; an exercise ----
+      //
+      // This is the landing. The log lives under one button rather than on the screen, so the
+      // screen stays what it was (the habit, the week, the program) and grows a list only when
+      // asked. A row opens the workout as its own sheet; back returns here with the list still
+      // open. An exercise inside it opens its breakdown over months. Three steps, each deeper.
+      log.length
+        ? el("div.hd-histwrap",
+            el("button.hd-histbtn" + (showHistory ? ".is-open" : ""), {
+              onclick: () => { showHistory = !showHistory; if (!showHistory) histList = null; paint(); },
+              "aria-expanded": showHistory ? "true" : "false",
+            },
+              el("span.hd-histbtn-main",
+                el("span.hd-histbtn-k", "Historic workouts"),
+                el("span.hd-histbtn-n", log.length + (log.length === 1 ? " workout" : " workouts")
+                  + (first ? " since " + fmt.dayLabel(first).split(",").slice(1).join("").trim() : "")),
+              ),
+              el("span.hd-histbtn-go", "\u203A"),
             ),
-            el("span.hd-exrow-n", r.sessions.length + "\u00d7"),
-          ),
-        );
-      })),
-      // What the program still holds, folded: twelve rows of "not yet" were most of the screen
-      // and none of the information. A person who wants the list can open it.
-      rows.some((r) => !r.sessions.length)
-        ? el("details.hd-notyet",
-            el("summary", "Not done yet \u00b7 " + rows.filter((r) => !r.sessions.length).length),
-            el("p", rows.filter((r) => !r.sessions.length).map((r) => r.name).join(" \u00b7 ")),
+            showHistory && onOpenWorkout
+              ? (histList || (histList = historyList({ log, today, onOpen: (day, sessionId) => onOpenWorkout(day, sessionId) })))
+              : null,
           )
-        : null,
+        : el("p.note-inline", "No workouts yet. The first one you finish lands here."),
       onChooseProgram
         ? el("button.link", { onclick: () => { sheet.close(); onChooseProgram(); } }, "Change program")
         : null,

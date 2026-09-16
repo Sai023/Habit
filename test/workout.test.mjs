@@ -537,6 +537,34 @@ test("a session cut short has no trend — one set is not a collapse in form", (
   assert.equal(superman.trend, null, "and it is not read as going down");
 });
 
+test("a workout knows how many sets it held, and says it was cut short when fewer were banked", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [
+      { id: "pushup", sets: [10, 10, 10] }, { id: "shoulder-tap", sets: [12, 12, 12] }, { id: "dip", sets: [8, 8, 8] },
+      { id: "superman", sets: [10, 10, 10] }, { id: "plank", sets: [30, 30, 30] } ] }), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(2), { exercises: [
+      { id: "pushup", sets: [11, 0, 0] }, { id: "shoulder-tap", sets: [0, 0, 0] }, { id: "dip", sets: [0, 0, 0] },
+      { id: "superman", sets: [0, 0, 0] }, { id: "plank", sets: [0, 0, 0] } ] }), at(2)),
+    E(ev.workout(ME, "match-fit", "push-core", day(4), { exercises: [
+      { id: "pushup", sets: [0, 0, 0] }, { id: "shoulder-tap", sets: [0, 0, 0] }, { id: "dip", sets: [0, 0, 0] },
+      { id: "superman", sets: [0, 0, 0] }, { id: "plank", sets: [0, 0, 0] } ] }), at(4)),
+  ]);
+  const log = workoutLog(s, ME, day(5));
+  const [empty, short, whole] = log;
+  assert.equal(whole.setsOf, 15);
+  assert.equal(whole.sets, 15);
+  assert.equal(whole.short, false, "every set banked is a whole day");
+  assert.equal(short.sets, 1);
+  assert.equal(short.setsOf, 15);
+  assert.equal(short.short, true, "one of fifteen is a day cut short, not a weak one");
+  assert.equal(empty.empty, true);
+  assert.equal(empty.short, false, "nothing banked is 'empty', which is its own word; not also 'cut short'");
+  // The exercise's own series carries the same fact, so a chart can draw the day hollow.
+  const ex = exerciseLog(s, ME, "pushup", day(5));
+  assert.deepEqual(ex.series.map((x) => [x.total, x.short]), [[30, false], [11, true]]);
+});
+
 test("a rope day is one row, in rounds", () => {
   const s = state([
     E(ev.program(ME, "rope-protocol"), at(0)),

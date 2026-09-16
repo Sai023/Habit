@@ -626,6 +626,9 @@ export function workoutLog(state, memberId, today = null) {
     const reps = exercises.filter((e) => e.unit !== "s").reduce((n, e) => n + e.total, 0);
     const seconds = exercises.filter((e) => e.unit === "s").reduce((n, e) => n + e.total, 0);
     const setsDone = exercises.reduce((n, e) => n + e.sets.filter(Number.isFinite).length, 0);
+    // How many sets the session held. Fewer banked than held is a day cut short, which a row
+    // says as "4 of 15 sets" rather than as a total that looks like a weak day.
+    const setsOf = exercises.reduce((n, e) => n + e.sets.length, 0);
     const minutes = Number.isFinite(w.startedAt) && Number.isFinite(w.endedAt) && w.endedAt > w.startedAt
       ? Math.round((w.endedAt - w.startedAt) / 60000)
       : (Number.isFinite(w.minutes) ? w.minutes : null);
@@ -648,6 +651,8 @@ export function workoutLog(state, memberId, today = null) {
       classMinutes: Number.isFinite(w.minutes) ? w.minutes : null,
       exercises,
       sets: setsDone,
+      setsOf,
+      short: !empty && setsOf > 0 && setsDone < setsOf,
       reps,
       seconds,
       pbs: exercises.filter((e) => e.pb.some(Boolean)).map((e) => e.name),
@@ -718,6 +723,6 @@ export function exerciseLog(state, memberId, exerciseId, today = null) {
     if (!bestTotal || r.total > bestTotal.value) bestTotal = { value: r.total, day: r.day };
   }
   // Oldest-first for the chart; the rows above are newest-first for the list.
-  const series = rows.slice().reverse().map((r) => ({ day: r.day, total: r.total, best: r.best }));
+  const series = rows.slice().reverse().map((r) => ({ day: r.day, total: r.total, best: r.best, short: r.sets.some((n) => n === null) }));
   return { rows, series, best, bestTotal, unit: rows.length ? rows[0].unit : "reps", name: rows.length ? rows[0].name : exerciseId };
 }

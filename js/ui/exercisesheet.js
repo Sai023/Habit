@@ -50,7 +50,9 @@ export function openExerciseSheet(host, { state, me, today, exerciseId, onOpenWo
     const top = Math.max(...series.map((s) => s.total), 1);
     const bestDay = log.bestTotal ? log.bestTotal.day : null;
     return el("div.ex-chart",
-      el("div.ex-bars", series.map((s) => el("i.ex-bar" + (s.day === bestDay ? ".is-best" : "") + (s.day === today ? ".is-today" : ""), {
+      // A session cut short is drawn hollow: it is there, because it happened, and it is not a
+      // collapse, because it was not a whole day.
+      el("div.ex-bars", series.map((s) => el("i.ex-bar" + (s.day === bestDay ? ".is-best" : "") + (s.day === today ? ".is-today" : "") + (s.short ? ".is-short" : ""), {
         style: "height:" + Math.max(4, Math.round((s.total / top) * 100)) + "%",
         title: fmt.dayLabel(s.day) + " · " + total(s.total),
       }))),
@@ -94,7 +96,8 @@ export function openExerciseSheet(host, { state, me, today, exerciseId, onOpenWo
       el("div.form.ex",
         el("div.sheet-head", el("span.sheet-title", log.name + (log.rows.length && log.rows[0].perSide ? " · per side" : ""))),
         log.rows.length
-          ? el("p.sheet-now", "Since " + fmt.dayLabel(log.rows[log.rows.length - 1].day) + " \u00b7 bars are session totals \u00b7 gold marks the record.")
+          ? el("p.sheet-now", "Since " + fmt.dayLabel(log.rows[log.rows.length - 1].day) + " \u00b7 bars are session totals \u00b7 gold marks the record"
+              + (log.series.some((s) => s.short) ? " \u00b7 a hollow bar was cut short." : "."))
           : el("p.sheet-now", "Not done yet."),
         tiles(),
         chart(),

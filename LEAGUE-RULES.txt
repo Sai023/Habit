@@ -669,13 +669,20 @@ out the next set begins on its own; Start moves it later if you rested
 longer, and Done during the rest means you did not rest. Somebody without
 a watch says so once and is not asked again.
 
-OVER MONTHS. The Workouts detail shows each exercise as the last dozen
-sessions in bars — the record lit once, the latest in the ring colour —
-with the last session's sets and the count. Each opens to the exercise's
-own sheet: a bar per session (up to the last 24), the best set and best
-day with their dates, then every session newest first with its sets, its
-minutes and what the watch said about it; any row opens the workout it
-came from. The workout log is headed by month and narrows by session.
+OVER MONTHS. Three steps, each one deeper. The Workouts screen is the
+landing: the habit, the week, today's session, and one button — HISTORIC
+WORKOUTS, with the count and the first date — that drops the log down
+in place, headed by month and narrowed by session with chips. A row
+opens that workout as its own sheet: the date, the vitals if a watch was
+worn, and each exercise's sets beside last time's. An exercise there
+opens its own breakdown: a bar per session (up to the last 24, the
+record capped in gold, a day cut short drawn hollow), the best set and
+best day with their dates, then every session newest first with its
+sets, its minutes and what the watch said; any row opens the workout it
+came from. Back goes one step up each time, and the list on the landing
+stays where it was left. A row says sets, never a reps total summed
+across different exercises — "15 sets", or "1 of 15 sets" for a day cut
+short — and the hub's "Every workout" opens the same log whole.
 Nothing is ever removed: a finish that banked no sets is kept and shown
 for what it was — sets that were skipped read as skipped, and a session
 with nothing in it draws no bar and moves no trend.

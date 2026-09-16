@@ -1776,43 +1776,31 @@ button.card-open:active { transform: scale(0.99); }
   display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   margin-bottom: 10px; font-size: var(--fs-small); color: var(--dim);
 }
-.hd-exlist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-/* One exercise, as a small card: name and trend on the first line, the shape of the last dozen
-   sessions under it, and one line of facts in the same order every time. The row opens. */
-.hd-exrow {
+/* The log, under one button on the Workouts landing. The button is the row every other list here
+   is made of (a name, a line under it, a chevron) so it reads as a door and not as a heading;
+   open, the chevron turns down and the list unfolds beneath it in the same panel. */
+.hd-histwrap { display: flex; flex-direction: column; margin-bottom: 10px; }
+.hd-histbtn {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 12px 14px; background: var(--surface-hi); border: 0; border-radius: var(--r); cursor: pointer;
+  font: inherit; color: inherit;
+}
+.hd-histbtn:active { transform: scale(0.995); }
+.hd-histbtn.is-open { border-radius: var(--r) var(--r) 0 0; }
+.hd-histbtn-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.hd-histbtn-k { font-size: var(--fs-body); font-weight: 700; }
+.hd-histbtn-n { font-size: var(--fs-small); color: var(--dim); font-variant-numeric: tabular-nums; }
+.hd-histbtn-go { color: var(--dim); font-weight: 700; flex: none; transition: transform 160ms ease; }
+.hd-histbtn.is-open .hd-histbtn-go { transform: rotate(90deg); color: var(--teal); }
+@media (prefers-reduced-motion: reduce) { .hd-histbtn-go { transition: none; } }
+/* Unfolded: the same list as the sheet, inset in the panel the button opened, its rows one
+   step quieter than the button above them so the button stays the top of the tree. */
+.hd-histwrap .wl-hist {
   display: flex; flex-direction: column; gap: 8px;
-  padding: 11px 13px; background: var(--panel); border-radius: var(--r-sm);
+  padding: 8px 8px 10px; background: var(--panel); border-radius: 0 0 var(--r) var(--r);
 }
-button.hd-exrow { width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; color: inherit; }
-button.hd-exrow:active { transform: scale(0.995); }
-.hd-exrow-head { display: flex; align-items: baseline; gap: 8px; }
-.hd-exrow-name { font-size: var(--fs-body); font-weight: 700; }
-.hd-exrow-trend { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-.hd-exrow-trend.up { color: var(--teal); }
-.hd-exrow-trend.down { color: var(--danger); }
-.hd-exrow-trend.same { color: var(--dim); }
-.hd-exrow-go { margin-left: auto; color: var(--dim); font-weight: 700; }
-
-/* A dozen sessions as bars: the shape of a month at a glance, the record lit once in amber, the
-   latest in the ring colour, a hairline for the floor. Nothing to read; that is the point. */
-.hd-spark {
-  display: flex; align-items: flex-end; gap: 3px; height: 28px;
-  border-bottom: 1px solid var(--line); padding-bottom: 1px;
-}
-/* One hue, two strengths: the ring colour at a fifth for what was, solid for what is. The record
-   is not a different colour — it is a hairline of gold along the top of its bar. Restraint is
-   the whole look; a block of yellow beside a block of green was a chart, not a sentence. */
-.hd-spark i { flex: 1; max-width: 16px; border-radius: 2px 2px 0 0; background: rgba(62, 224, 196, 0.22); }
-.hd-spark i.is-last { background: var(--teal); }
-.hd-spark i.is-best { box-shadow: inset 0 2px 0 0 var(--amber); }
-
-.hd-exrow-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: var(--fs-small); }
-.hd-exrow-last { display: flex; align-items: baseline; gap: 4px; min-width: 0; font-variant-numeric: tabular-nums; }
-.hd-exrow-day { color: var(--dim); }
-.hd-exrow-sets { font-weight: 700; letter-spacing: 0.02em; }
-.hd-exrow-sum { color: var(--dim); }
-.hd-exrow-n { color: var(--dim); font-size: var(--fs-micro); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.hd-exrow-none { font-size: var(--fs-micro); color: var(--dim); font-style: italic; }
+.hd-histwrap .wl-filter { padding: 2px 4px 0; }
+.hd-histwrap .wl-month { padding-top: 6px; }
 
 /* ---- the program hub ---- */
 
@@ -2287,6 +2275,7 @@ button.hd-exrow:active { transform: scale(0.995); }
 
 /* One workout per row, newest first: a name, a line of facts, the record if one fell, and what
    the watch said if one was worn. A button, because each opens. */
+.wl-hist { display: flex; flex-direction: column; gap: 8px; }
 .wl-list { display: flex; flex-direction: column; gap: 8px; }
 .wl-row {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
@@ -2304,6 +2293,11 @@ button.hd-exrow:active { transform: scale(0.995); }
 .wl-back { align-self: flex-start; }
 .wl-exs { display: flex; flex-direction: column; gap: 10px; }
 .wl-ex { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--surface-hi); border-radius: var(--r-sm); }
+/* A card that opens the exercise's breakdown is a button: same card, a chevron after the name,
+   the press. A skipped exercise has no breakdown to open and stays a plain card. */
+button.wl-ex { width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; color: inherit; }
+button.wl-ex:active { transform: scale(0.995); }
+.wl-ex-go { color: var(--dim); font-weight: 700; }
 .wl-ex-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .wl-ex-name { font-weight: 700; }
 .wl-ex-cost { font-size: var(--fs-small); color: var(--teal); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -2376,6 +2370,10 @@ button.hd-exrow:active { transform: scale(0.995); }
 }
 .ex-bar.is-today { background: linear-gradient(180deg, var(--teal), rgba(62, 224, 196, 0.40)); }
 .ex-bar.is-best { box-shadow: inset 0 3px 0 0 var(--amber); }
+/* Cut short: an outline where a bar would be. Present, because the day happened; hollow, because
+   it was not a whole day and must not read as a collapse beside the whole ones. */
+.ex-bar.is-short { background: transparent; box-shadow: inset 0 0 0 1px rgba(62, 224, 196, 0.45); }
+.ex-bar.is-short.is-today { box-shadow: inset 0 0 0 1px var(--teal); }
 .ex-chart-foot { display: flex; justify-content: space-between; font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
 .ex-list { display: flex; flex-direction: column; gap: 8px; }
 .ex-row {
@@ -2431,8 +2429,3 @@ button.hd-exrow:active { transform: scale(0.995); }
 .ex-row-total { font-size: var(--fs-small); font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wl-tile small { font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
 
-/* What the program still holds, folded under the rows that have something in them. */
-.hd-notyet { border-radius: var(--r-sm); background: var(--panel); padding: 0 12px; }
-.hd-notyet summary { padding: 10px 0; font-size: var(--fs-small); color: var(--dim); cursor: pointer; }
-.hd-notyet p { margin: 0 0 12px; font-size: var(--fs-small); color: var(--dim); line-height: 1.5; }
-.hd-history { align-self: flex-start; }

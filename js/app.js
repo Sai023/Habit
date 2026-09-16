@@ -234,21 +234,36 @@ const onWorkout = guard("workout", async () => {
   });
 });
 
-/** Every workout, one by one — the log the hub's training block adds up. Opens at one, if asked. */
-const onHistory = guard("history", async (openAt = null) => {
+/** Every workout, one by one — the log the hub's training block adds up, whole, from the hub. */
+const onHistory = guard("history", async () => {
   const { openWorkoutHistory } = await import("./ui/workouthistory.js");
   openWorkoutHistory(document.body, {
-    state: ctx.state, me: ctx.me, today: ctx.today, openAt,
+    state: ctx.state, me: ctx.me, today: ctx.today,
+    onExercise,
     onDone: () => {},
   });
 });
 
-/** One exercise over months, from the Workouts detail. A row there opens the workout it came from. */
+/**
+ * One workout, as its own sheet. The second step of the walk from the Workouts landing: the
+ * list there opens this, back returns there, and an exercise in it opens the third step.
+ */
+const onOpenWorkout = guard("workout detail", async (day, sessionId) => {
+  const { openWorkoutHistory } = await import("./ui/workouthistory.js");
+  openWorkoutHistory(document.body, {
+    state: ctx.state, me: ctx.me, today: ctx.today,
+    openAt: { day, sessionId }, standalone: true,
+    onExercise,
+    onDone: () => {},
+  });
+});
+
+/** One exercise over months — the third step. A row there opens the workout it came from. */
 const onExercise = guard("exercise", async (exerciseId) => {
   const { openExerciseSheet } = await import("./ui/exercisesheet.js");
   openExerciseSheet(document.body, {
     state: ctx.state, me: ctx.me, today: ctx.today, exerciseId,
-    onOpenWorkout: (day, sessionId) => onHistory({ day, sessionId }),
+    onOpenWorkout,
     onDone: () => {},
   });
 });
@@ -415,9 +430,9 @@ const onHabitDetail = guard("habit detail", async (habitId) => {
   openHabitDetail(document.body, {
     state: ctx.state, habit, me: ctx.me, today: ctx.today,
     onLog, onEdit: onEditHabit,
-    // The Workouts habit's detail carries the program: today's session and per-exercise history.
+    // The Workouts habit's detail carries the program: today's session, and the log under a button.
     onWorkout: isDemo ? null : onWorkout, onChooseProgram: isDemo ? null : onChooseProgram,
-    onExercise, onHistory,
+    onOpenWorkout,
     onDone: () => refresh(),
   });
 });
