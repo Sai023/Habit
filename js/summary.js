@@ -339,6 +339,7 @@ function trainingSummary(state, me, today) {
           kcal: burn.totalKcal,
           minutes: burn.totalMinutes,
           hrAvg: burn.hrAvg,
+          recovery: burn.recovery,
           line: burn.line,
           top: burn.exercises.slice(0, 3).map((x) => ({
             name: x.name, rate: x.kcalPerMin.toFixed(1) + " kcal/min", hr: x.hrAvg ? Math.round(x.hrAvg) : null,

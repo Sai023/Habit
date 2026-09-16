@@ -362,3 +362,20 @@ function safeParse(json) {
   if (json && typeof json === "object") return json;
   try { return JSON.parse(json); } catch { return null; }
 }
+
+/**
+ * Keep the screen on while a workout runs — and let it go when it ends.
+ *
+ * A set is thirty seconds of not looking at the phone, and a screen that has gone dark by the
+ * time you reach for Done costs a tap and a stamp that is late by however long the unlock took.
+ * The shell holds the window flag; a browser gets a wake lock where one exists. Either way it
+ * is released on Finish, Back and close, so a phone is never left burning by a sheet.
+ */
+let wakeLock = null;
+export async function keepScreenOn(on) {
+  if (call("keepScreenOn", { on: !!on })) return;
+  try {
+    if (on && !wakeLock && navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen");
+    if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { wakeLock = null; }
+}

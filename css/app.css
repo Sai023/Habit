@@ -2320,3 +2320,19 @@ button.card-open:active { transform: scale(0.99); }
 .wl-burn-name { flex: 1; font-weight: 600; }
 .wl-burn-rate { color: var(--teal); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .wo-history { align-self: flex-start; }
+
+/* ---------- before a workout, and during a set ---------- */
+
+/* Two things worth saying and Go. Its own box so it reads as a gate rather than as more notes. */
+.wo-preflight {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px var(--pad-card); border-radius: var(--r); background: var(--surface-hi);
+}
+.wo-pre-line { display: flex; gap: 10px; margin: 0; font-size: var(--fs-small); line-height: 1.5; color: var(--dim); }
+.wo-pre-line b { color: var(--text); }
+.wo-pre-ic { flex: none; font-size: 18px; line-height: 1.2; }
+.wo-go { margin-top: 4px; }
+
+/* The active set's own clock, and Start for the person who rested longer than the clock. */
+.wo-work { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: var(--fs-small); color: var(--dim); }
+.wo-work-k b { color: var(--teal); font-variant-numeric: tabular-nums; }

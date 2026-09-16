@@ -598,8 +598,13 @@ export function replay(events) {
                 // be laid over the workout afterwards: each set owns the time since the one
                 // before it. See workout.js spansOf.
                 at: Array.isArray(x.at) ? x.at.map((t) => (Number.isFinite(Number(t)) ? Number(t) : null)) : [],
+                // When each set's WORK began — the rest before it excluded. From a build that
+                // guided the session; absent, a set owns the time since the one before it.
+                from: Array.isArray(x.from) ? x.from.map((t) => (Number.isFinite(Number(t)) ? Number(t) : null)) : [],
               }))
             : [],
+          // When each rope round's work ended; with `work` that is each round's window.
+          roundsAt: Array.isArray(p.roundsAt) ? p.roundsAt.map((t) => (Number.isFinite(Number(t)) ? Number(t) : null)) : [],
           rounds: Number.isFinite(p.rounds) ? p.rounds : null,
           work: Number.isFinite(p.work) ? p.work : null,
           rest: Number.isFinite(p.rest) ? p.rest : null,
@@ -636,6 +641,10 @@ export function replay(events) {
           hrMax: num(p.hrMax),
           hrMin: num(p.hrMin),
           samples: num(p.samples) || 0,
+          // The heart between sets, and how far it fell in the minute after one. Only a guided
+          // session has the rest windows to say either.
+          hrRest: num(p.hrRest),
+          recovery: num(p.recovery),
           exercises: Array.isArray(p.exercises)
             ? p.exercises.filter((x) => x && x.id).map((x) => ({
                 id: String(x.id), kcal: num(x.kcal), hrAvg: num(x.hrAvg), hrMax: num(x.hrMax),

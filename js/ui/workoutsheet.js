@@ -38,20 +38,67 @@ import {
   sessionsOf, restDaysOf, personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS,
 } from "../workout.js";
 import * as fmt from "./format.js";
+import { keepScreenOn } from "../bridge.js";
 import { loadDraft, saveDraft, clearDraft, draftProgress } from "./workoutdraft.js";
 
 /** " reps", "s", " taps" — the unit as it follows a number. */
 /**
- * The window a workout ran in: from the sheet's first open (or, if that was hours before the
- * first set, five minutes before it — a sheet glanced at in the morning does not start an
- * evening workout) to now.
+ * The window a workout ran in: from Go (or, for a draft from before there was a Go, the sheet's
+ * first open — unless that was hours before the first set, in which case five minutes before it;
+ * a sheet glanced at in the morning does not start an evening workout) to now.
  */
 function sessionClock(openedAt, exercisesOut) {
   const banked = exercisesOut.flatMap((x) => (x.at || []).filter((t) => Number.isFinite(t)));
   const first = banked.length ? Math.min(...banked) : null;
   const STALE_MS = 3 * 60 * 60 * 1000;
-  const startedAt = first !== null && first - openedAt > STALE_MS ? first - 5 * 60 * 1000 : openedAt;
+  const base = Number.isFinite(openedAt) ? openedAt : (first !== null ? first - 5 * 60 * 1000 : Date.now());
+  const startedAt = first !== null && first - base > STALE_MS ? first - 5 * 60 * 1000 : base;
   return { startedAt, endedAt: Date.now() };
+}
+
+/**
+ * Whether this person wears a watch, remembered on the phone. "none" once they have said so;
+ * anything else means the preflight mentions it. A phone-level fact, not a group one.
+ */
+const WATCH_KEY = "wo-watch";
+function watchPref() {
+  try { return localStorage.getItem(WATCH_KEY) || "yes"; } catch { return "yes"; }
+}
+function setWatchPref(v) {
+  try { localStorage.setItem(WATCH_KEY, v); } catch { /* unavailable */ }
+}
+
+/**
+ * Before the first set: the two things worth saying, and Go.
+ *
+ * ---- Why a screen of its own ----
+ *
+ * A watch samples the heart every few minutes until a workout is running ON it, and every second
+ * once one is. The difference between "wearing a watch" and "started the workout on the watch
+ * too" is the difference between three readings and nine hundred, and no amount of engine can
+ * make up the gap afterwards. So it is said here, once, before anything is banked — with the
+ * session named, so the person picks the matching one on their wrist. And the screen stays on,
+ * because a set is thirty seconds of not looking at the phone.
+ *
+ * One tap for the common case. Somebody without a watch says so once and is not asked again.
+ */
+function preflight(watchType, onGo, onPaint) {
+  const pref = watchPref();
+  return el("div.wo-preflight",
+    el("h2.sec-title", "Before you start"),
+    // Named by the WATCH's own workout type, not the session's: the person is about to scroll a
+    // list on their wrist, and "Push + Core" is not on it.
+    pref !== "none"
+      ? el("p.wo-pre-line", el("span.wo-pre-ic", "\u231A"),
+          el("span", "Put your watch on and start ", el("b", watchType), " on it too \u2014 the app lays its heart rate over each set afterwards."))
+      : null,
+    el("p.wo-pre-line", el("span.wo-pre-ic", "\uD83D\uDCF1"),
+      el("span", "The screen stays on until you finish. Done ends a set; the rest clock starts the next.")),
+    el("button.tap.wo-go", { onclick: onGo }, "Go \u2192"),
+    el("button.link.sec-note", {
+      onclick: () => { setWatchPref(pref === "none" ? "yes" : "none"); onPaint(); },
+    }, pref === "none" ? "I\u2019m wearing a watch" : "No watch today"),
+  );
 }
 
 function unitSuffix(ex) {
@@ -305,10 +352,14 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   // draft[exerciseId] = [n, n, ...]  — banked sets. undefined slots are not yet done.
   const saved = loadDraft(program.id, session.id, today);
   const draft = (saved && saved.draft) || {};
-  // When each set was banked, beside it: draftAt[exerciseId] = [ms, ms, ...]. And when the
-  // session was first opened today, which is the earliest the workout can have begun.
+  // The clock: when each set's work began (draftFrom) and when it was banked (draftAt), both
+  // [exerciseId] -> [ms, ...]; when Go was tapped (startedAt); and whether it has been (live).
+  // A finisher runs inside a rope day that already went through Go, so it is live from the start.
   const draftAt = (saved && saved.at) || {};
-  const startedAt = (saved && Number.isFinite(saved.startedAt)) ? saved.startedAt : Date.now();
+  const draftFrom = (saved && saved.from) || {};
+  let startedAt = (saved && Number.isFinite(saved.startedAt)) ? saved.startedAt : null;
+  let live = !!(saved && saved.live) || !!finisherOf || Object.keys(draft).length > 0;
+  if (live && startedAt === null) startedAt = Date.now();
   // Which set is active: the first unbanked one, in order.
   let active = firstOpen();
   // The number in the active set's stepper. Starts on the prefill.
@@ -341,11 +392,32 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
   }
 
   function persist() {
-    saveDraft({ programId: program.id, sessionId: session.id, day: today, draft, at: draftAt, startedAt });
+    saveDraft({ programId: program.id, sessionId: session.id, day: today, draft, at: draftAt, from: draftFrom, startedAt, live });
   }
-  // Written once, on open, so a sheet opened and closed still dates the workout from the first
-  // look rather than from the first set — warm-up counts, and so does reading the how-to.
-  if (!saved) persist();
+
+  /** Go: the workout begins now, the first set with it, and the screen stays on. */
+  function go() {
+    live = true;
+    startedAt = Date.now();
+    startSet(Date.now());
+    keepScreenOn(true);
+    persist();
+    paint();
+  }
+
+  /** The active set's work begins — at Go, when the rest runs out, or on a tap of Start. */
+  function startSet(when) {
+    if (!active) return;
+    const ex = exercises[active.ex];
+    const from = draftFrom[ex.id] || (draftFrom[ex.id] = []);
+    from[active.set] = when;
+    persist();
+  }
+  function startedActive() {
+    if (!active) return null;
+    const from = (draftFrom[exercises[active.ex].id] || [])[active.set];
+    return Number.isFinite(from) ? from : null;
+  }
 
   function focus(ex, set) {
     just = null;
@@ -353,6 +425,9 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     active = { ex, set };
     const banked = draft[exercises[ex].id] || [];
     value = Number.isFinite(banked[set]) ? banked[set] : prefill(exercises[ex], previous, set);
+    // A set picked by hand, not yet done, starts now — unless the rest clock is still running,
+    // in which case it starts when that ends.
+    if (live && !Number.isFinite(banked[set]) && !rest && startedActive() === null) startSet(Date.now());
     paint();
   }
 
@@ -363,6 +438,10 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     list[active.set] = value;
     const when = draftAt[ex.id] || (draftAt[ex.id] = []);
     when[active.set] = Date.now();
+    // A set done straight after the last one, with the rest clock still running, began when
+    // the last one ended: they did not rest. Otherwise its start was already stamped.
+    const from = draftFrom[ex.id] || (draftFrom[ex.id] = []);
+    if (!Number.isFinite(from[active.set])) from[active.set] = lastEnd() ?? startedAt ?? Date.now();
     persist();
     const pb = beatsBest(pbs, ex.id, value);
     just = { ex: active.ex, set: active.set, pb };
@@ -377,12 +456,24 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     active = next;
     value = active ? prefill(exercises[active.ex], previous, active.set) : 0;
     if (startClock && active) startRest(session.restSeconds || 60);
+    // A circuit moves straight to the next exercise: its work begins now.
+    else if (active) startSet(Date.now());
     paint();
+  }
+
+  /** When the most recently banked set ended, or null before the first. */
+  function lastEnd() {
+    let best = null;
+    for (const ex of exercises) {
+      for (const t of draftAt[ex.id] || []) if (Number.isFinite(t) && (best === null || t > best)) best = t;
+    }
+    return best;
   }
 
   function startHold(ex) {
     stopRest();
     hold = { startedAt: Date.now(), target: ex.seconds ? ex.seconds[0] : 0, reached: false };
+    startSet(hold.startedAt);
     buzz(20);
     paint();
     holdTimer = setInterval(tickHold, 250);
@@ -433,10 +524,24 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     // strobed. Only the end of the rest is a structural change; only that calls paint().
     restTimer = setInterval(() => {
       if (!rest) return;
-      if (Date.now() >= rest.until) { buzz([60, 40, 60]); stopRest(); paint(); return; }
+      if (Date.now() >= rest.until) {
+        buzz([60, 40, 60]);
+        stopRest();
+        // The rest is over: the next set's work begins now, unless Start moves it later.
+        startSet(Date.now());
+        paint();
+        return;
+      }
       tickRest();
     }, 250);
   }
+
+  /** The active set's own clock, moved in place once a second. */
+  let workTimer = setInterval(() => {
+    const from = startedActive();
+    const clockEl = document.querySelector(".wo-work-clock");
+    if (clockEl && from !== null && !rest) clockEl.textContent = clock((Date.now() - from) / 1000);
+  }, 1000);
 
   /** The two things that move during a rest, moved without touching anything else. */
   function tickRest() {
@@ -452,8 +557,15 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
     restTimer = null;
     rest = null;
   }
-  // A closed sheet must not leave a clock ticking into a DOM that is gone.
-  const stopAllClocks = () => { stopRest(); if (holdTimer) clearInterval(holdTimer); holdTimer = null; hold = null; };
+  // A closed sheet must not leave a clock ticking into a DOM that is gone — nor the screen held.
+  const stopAllClocks = () => {
+    stopRest();
+    if (holdTimer) clearInterval(holdTimer);
+    holdTimer = null; hold = null;
+    if (workTimer) clearInterval(workTimer);
+    workTimer = null;
+    keepScreenOn(false);
+  };
 
   async function finish() {
     if (busy) return;
@@ -472,6 +584,7 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
         id: ex.id,
         sets: (draft[ex.id] || []).slice(0, ex.sets).map((n) => (Number.isFinite(n) ? n : null)),
         at: (draft[ex.id] || []).slice(0, ex.sets).map((n, i) => (Number.isFinite(n) ? ((draftAt[ex.id] || [])[i] ?? null) : null)),
+        from: (draft[ex.id] || []).slice(0, ex.sets).map((n, i) => (Number.isFinite(n) ? ((draftFrom[ex.id] || [])[i] ?? null) : null)),
       }));
       const clockOut = sessionClock(startedAt, exercisesOut);
       if (onFinished) {
@@ -536,7 +649,18 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
       );
     }
 
+    const from = startedActive();
     return el("div.wo-active",
+      // The set's own clock, and Start for the person who rested longer than the clock. Not for
+      // a timed hold, which has a clock of its own below.
+      !ex.seconds && live
+        ? el("div.wo-work",
+            rest
+              ? el("span.wo-work-k", "Next set after the rest")
+              : el("span.wo-work-k", "Working ", el("b.wo-work-clock", from !== null ? clock((Date.now() - from) / 1000) : "0:00")),
+            !rest ? el("button.link", { onclick: () => { startSet(Date.now()); paint(); } }, "Start now") : null,
+          )
+        : null,
       // Timed: Start is the way in. The stepper stays below it for a hold timed elsewhere, or a
       // number to correct — the same set can be typed as well as timed.
       ex.seconds
@@ -616,12 +740,14 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
           : null,
         previous ? el("p.note-inline", "Prefilled from " + fmt.dayLabel(previous.day) + ". Tap + when you beat it.") : null,
 
+        !live ? preflight("Circuit training", go, paint) : null,
+
         rest
           ? el("div.wo-rest",
               el("div.wo-rest-row",
                 el("span.wo-rest-label", "Rest"),
                 el("b.wo-rest-clock", clock((rest.until - Date.now()) / 1000)),
-                el("button.link", { onclick: () => { stopRest(); paint(); } }, "Skip"),
+                el("button.link", { onclick: () => { stopRest(); startSet(Date.now()); paint(); } }, "Skip"),
               ),
               // Drains left to right as the rest runs out. Motion is information here: a glance
               // at the bar says "nearly" without reading a number.
@@ -631,7 +757,7 @@ function setsSession(sheet, { state, program, session, me, today, finisherOf = n
             )
           : null,
 
-        exercises.map(exerciseCard),
+        live ? exercises.map(exerciseCard) : null,
 
         el("div.sheet-actions",
           el("button.ghost", { onclick: () => { stopAllClocks(); if (back) back(); else sheet.close(); } },
@@ -794,6 +920,8 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
   // their own clock; the day's event gets the earliest start and the latest end of the two.
   let ropeStartedAt = (saved && Number.isFinite(saved.startedAt)) ? saved.startedAt : null;
   const roundsAt = (saved && Array.isArray(saved.roundsAt)) ? saved.roundsAt.slice() : [];
+  // Go has been tapped: the preflight is behind us. A draft with rounds in it went through it.
+  let ropeLive = !!(saved && saved.live) || completed > 0;
 
   let phase = "idle";      // idle | work | rest | done
   let until = 0;           // when the current phase ends
@@ -801,7 +929,15 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
   let busy = false;
 
   function persist() {
-    saveDraft({ programId: program.id, sessionId: session.id, day: today, rounds: completed, work, rest: restLen, startedAt: ropeStartedAt, roundsAt });
+    saveDraft({ programId: program.id, sessionId: session.id, day: today, rounds: completed, work, rest: restLen, startedAt: ropeStartedAt, roundsAt, live: ropeLive });
+  }
+
+  function go() {
+    ropeLive = true;
+    if (ropeStartedAt === null) ropeStartedAt = Date.now();
+    keepScreenOn(true);
+    persist();
+    paint();
   }
 
   function start() {
@@ -853,9 +989,10 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
       onFinished: async (exercises, clockOut) => {
         await finishWorkout({
           programId: program.id, sessionId: session.id, day: today,
-          exercises, rounds: completed, work, rest: restLen,
+          exercises, rounds: completed, work, rest: restLen, roundsAt,
           startedAt: ropeStartedAt ?? clockOut.startedAt, endedAt: clockOut.endedAt,
         });
+        keepScreenOn(false);
         // The rope's own draft; the finisher's is cleared by the sets screen that owns it.
         clearDraft(session.id);
       },
@@ -876,9 +1013,10 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
     try {
       await finishWorkout({
         programId: program.id, sessionId: session.id, day: today,
-        exercises: [], rounds: completed, work, rest: restLen,
+        exercises: [], rounds: completed, work, rest: restLen, roundsAt,
         startedAt: ropeStartedAt ?? Date.now(), endedAt: Date.now(),
       });
+      keepScreenOn(false);
       clearDraft(session.id); stop(); sheet.close();
     } catch (err) {
       busy = false; paint();
@@ -910,7 +1048,9 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
         el("p.wo-stage", rx.name),
         el("p.sheet-now", rx.note),
 
-        el("div.wo-clock-wrap" + (phase === "work" ? ".is-work" : phase === "rest" ? ".is-rest" : phase === "done" ? ".is-done" : ""),
+        !ropeLive ? preflight("Jump rope (or Circuit training)", go, paint) : null,
+
+        ropeLive ? el("div.wo-clock-wrap" + (phase === "work" ? ".is-work" : phase === "rest" ? ".is-rest" : phase === "done" ? ".is-done" : ""),
           el("span.wo-clock-phase",
             phase === "work" ? "WORK" : phase === "rest" ? "REST" : phase === "done" ? "DONE" : "READY"),
           el("b.wo-clock", phase === "done" ? "✓" : clock(left)),
@@ -920,9 +1060,9 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
             phase === "done" ? completed + " rounds"
               : phase === "rest" ? completed + " of " + target + " done · next is round " + (completed + 1)
               : "Round " + Math.min(target, completed + 1) + " of " + target),
-        ),
+        ) : null,
 
-        phase === "idle"
+        ropeLive && phase === "idle"
           ? el("div.wo-lens",
               lengthChip("Work", () => work, (v) => { work = v; }, rx.work),
               lengthChip("Rest", () => restLen, (v) => { restLen = v; }, rx.rest),
@@ -940,15 +1080,15 @@ function ropeSession(sheet, { state, program, session, me, today, back = null })
         session.basics ? el("p.wo-watch", "⚠ " + session.basics.watch) : null,
         program.warmup && completed === 0 && phase === "idle" ? el("p.wo-warmup", "🔥 " + program.warmup) : null,
 
-        el("div.sheet-actions",
+        ropeLive ? el("div.sheet-actions",
           phase === "idle" && completed < target
             ? el("button.tap", { onclick: start }, completed ? "Resume" : "Start")
             : phase === "work" || phase === "rest"
               ? el("button.tap", { onclick: pause }, "Pause")
               : el("button.tap", { onclick: finisher }, "Core finisher →"),
-        ),
+        ) : null,
         el("div.sheet-actions",
-          el("button.ghost", { onclick: () => { stop(); if (back) back(); else sheet.close(); } },
+          el("button.ghost", { onclick: () => { stop(); keepScreenOn(false); if (back) back(); else sheet.close(); } },
             back ? "\u2190 Back" : "Later"),
           el("button.ghost", { onclick: finishNow, disabled: busy }, busy ? "Saving…" : "Finish without finisher"),
         ),

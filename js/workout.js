@@ -507,23 +507,26 @@ function exerciseIndex(program) {
 }
 
 /**
- * How long each exercise took, from the clock the sets carry.
+ * How long each exercise's WORK took, from the clock the sets carry.
  *
- * Each banked set owns the time since the set before it — the rest that led into it included,
- * because that is when the heart rate from the previous set is still being paid for. The first
- * set owns the time since the session began. A workout from a build that kept no clock has no
+ * A guided session stamps both ends of a set — when the rest clock ran out or Start was tapped,
+ * and when Done was — so a set's span is its work and nothing else. A set from before that kept
+ * only its end, and owns the time since the set before it, rest included; the first such set
+ * owns the time since the session began. A workout from a build that kept no clock has no
  * spans, and the history says so rather than guessing.
  *
- * Returns [{ id, ms, spans: [[from, to], ...] }] in the order the exercises were first done; and
- * for a rope day, the rope's own stretch as `id: sessionId` from the start to the first finisher
- * set (or the end, with no finisher).
+ * Returns [{ id, ms, spans: [[from, to], ...] }] in the order the exercises were first done. A
+ * rope day's rounds are the rope's own spans under `id: sessionId` — each round's work, exactly,
+ * because the app's own clock ran it — and a class is one span, the whole window.
  */
 export function spansOf(workout) {
   if (!workout || !Number.isFinite(workout.startedAt)) return [];
   const sets = [];
   for (const ex of workout.exercises || []) {
     (ex.at || []).forEach((t, i) => {
-      if (Number.isFinite(t) && Number.isFinite(ex.sets[i])) sets.push({ id: ex.id, at: t });
+      if (!Number.isFinite(t) || !Number.isFinite(ex.sets[i])) return;
+      const from = (ex.from || [])[i];
+      sets.push({ id: ex.id, at: t, from: Number.isFinite(from) && from < t ? from : null });
     });
   }
   sets.sort((a, b) => a.at - b.at);
@@ -538,15 +541,21 @@ export function spansOf(workout) {
   };
 
   let cursor = workout.startedAt;
-  if (Number.isFinite(workout.rounds) && workout.rounds > 0) {
-    // The rope ran from the start until the finisher began.
-    const ropeEnd = sets.length ? sets[0].at : (workout.endedAt || cursor);
-    add(workout.sessionId, cursor, ropeEnd);
-    cursor = ropeEnd;
+  const rounds = Number.isFinite(workout.rounds) && workout.rounds > 0 ? workout.rounds : 0;
+  if (rounds) {
+    const ends = (workout.roundsAt || []).filter(Number.isFinite);
+    if (ends.length && Number.isFinite(workout.work) && workout.work > 0) {
+      for (const end of ends) add(workout.sessionId, end - workout.work * 1000, end);
+      cursor = ends[ends.length - 1];
+    } else {
+      // No round clock kept: the rope ran from the start until the finisher began.
+      const ropeEnd = sets.length ? sets[0].at : (workout.endedAt || cursor);
+      add(workout.sessionId, cursor, ropeEnd);
+      cursor = ropeEnd;
+    }
   }
-  for (const s of sets) { add(s.id, cursor, s.at); cursor = s.at; }
-  if (!sets.length && !(Number.isFinite(workout.rounds) && workout.rounds > 0) && Number.isFinite(workout.endedAt)) {
-    // A class: one span, the whole window.
+  for (const s of sets) { add(s.id, s.from !== null && s.from >= cursor ? s.from : cursor, s.at); cursor = s.at; }
+  if (!sets.length && !rounds && Number.isFinite(workout.endedAt)) {
     add(workout.sessionId, cursor, workout.endedAt);
   }
   return [...out.values()];

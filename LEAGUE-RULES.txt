@@ -654,12 +654,24 @@ workout →" on the hub lists them newest first, and any one opens to its
 sets beside last time's, the record marked where it fell, the minutes it
 ran. A workout logged before the clock existed has no minutes and says so.
 
-THE WATCH. Each stamped set owns the minutes since the one before it. The
-phone is handed the timed workouts of the last two days with those
-windows, reads Health Connect for exactly those minutes — heart-rate
+BEFORE YOU START. A session opens on one screen: put your watch on and
+start Circuit training on it too (a watch samples the heart every few
+minutes until a workout is running on it, and every second once one is),
+and the screen stays on until you finish. Go begins the workout and the
+first set. Done ends a set and starts the rest clock; when the clock runs
+out the next set begins on its own; Start moves it later if you rested
+longer, and Done during the rest means you did not rest. Somebody without
+a watch says so once and is not asked again.
+
+THE WATCH. A guided set's span is its work alone; a set from before the
+guide owns the minutes since the one before it. The phone is handed the
+timed workouts of the last two days with those windows, reads Health
+Connect for exactly those minutes — heart-rate
 samples and active calories — and writes the answer back as vitals:
-total, average and peak for the session, and each exercise's share by
-overlap. It re-reads for two days, because a watch's data reaches Health
+total, average and peak for the session, each exercise's share by
+overlap, the heart between sets, and RECOVERY — how far the heart fell
+in the minute after a set, the one number here about fitness rather than
+effort. It re-reads for two days, because a watch's data reaches Health
 Connect late, and pushes only when the figures changed; the latest read
 wins. Heart rate is an optional permission asked for on the settings
 card; calories come with the core grant. Nothing is claimed without a

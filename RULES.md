@@ -123,7 +123,10 @@ on the wrong one.
 | Rope intervals step up by the week of the program, counted from its start day | `js/workout.js` — `intervalsFor`, `progressionWeek` | `test/workout.test.mjs` |
 | A class keeps minutes and how it felt, is one history row, and has no personal best | `js/workout.js` — `exerciseHistory`, `personalBests`, `workoutInsights` (`classes`) | `test/workout.test.mjs` |
 | A video never loads inside the bridged WebView; the shell plays it in a bridge-less player of its own | `js/ui/workoutsheet.js` — `player`; `habit/VideoPlayer.kt` | `.../VideoPlayerTest.kt` |
-| A finished workout carries a clock: the open, every set, the Done; each set owns the minutes since the one before | `js/ui/workoutsheet.js` — `sessionClock`; `js/workout.js` — `spansOf` | `test/workout.test.mjs` |
+| A finished workout carries a clock: Go, each set's start and end, Done; a guided set's span is its work alone, an unguided one owns the minutes since the one before | `js/ui/workoutsheet.js` — `go`, `startSet`, `sessionClock`; `js/workout.js` — `spansOf` | `test/workout.test.mjs` |
+| The next set begins when the rest clock runs out; Start moves it later; Done during the rest means no rest | `js/ui/workoutsheet.js` — `startRest`, `bank` | — (UI; verified by hand) |
+| The screen stays on from Go to Finish, Back or close, and a freshly loaded page always lets it go | `js/bridge.js` — `keepScreenOn`; `habit/HabitBridge.kt` — `keepScreenOn`, `announceReady` | — (verified by hand) |
+| Rest heart rate is what lies between the sets; recovery is the drop a minute after one, never negative, never from a sample far from the mark | `habit/VitalsSync.kt` — `summarise`, `RECOVERY_MS` | `.../VitalsSyncTest.kt` |
 | The log names everything and marks a record only against what stood BEFORE that day; a first time beats nothing | `js/workout.js` — `workoutLog`, `bestsBefore` | `test/workout.test.mjs` |
 | Vitals lie on the workout with the same session and day, whichever arrived first; the latest read wins | `js/habits.js` — `T.VITALS` replay | `test/vitals.test.mjs` |
 | The phone reads the watch for the timed workouts of the last two days and pushes only when the figures changed | `habit/VitalsSync.kt` — `pass`, `signature` | `.../VitalsSyncTest.kt` |

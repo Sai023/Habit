@@ -85,6 +85,15 @@ export function vitalsInsights(log) {
     return min ? measured.reduce((n, w) => n + w.vitals.hrAvg * w.minutes, 0) / min : null;
   })();
 
+  // Recovery across workouts: the drop a minute after a set, averaged over the sessions that
+  // measured one. The one number here that is about fitness rather than about effort.
+  const recovered = withVitals.filter((w) => Number.isFinite(w.vitals.recovery));
+  const recovery = recovered.length
+    ? recovered.reduce((n, w) => n + w.vitals.recovery, 0) / recovered.length
+    : null;
+  const rested = withVitals.filter((w) => Number.isFinite(w.vitals.hrRest));
+  const hrRest = rested.length ? rested.reduce((n, w) => n + w.vitals.hrRest, 0) / rested.length : null;
+
   const top = exercises[0] || null;
   const line = top
     ? top.name + " costs the most at " + top.kcalPerMin.toFixed(1) + " kcal a minute"
@@ -93,6 +102,7 @@ export function vitalsInsights(log) {
       + ". Over " + withVitals.length + " workouts with a watch on: " + Math.round(totalKcal) + " kcal in "
       + Math.round(totalMin) + " minutes"
       + (hrAvg ? ", averaging " + Math.round(hrAvg) + " bpm" : "") + "."
+      + (recovery !== null ? " Your heart drops " + Math.round(recovery) + " bpm in the minute after a set." : "")
     : "The watch has heart rate for " + withVitals.length + " workouts but no exercise has three stamped minutes yet.";
 
   return {
@@ -100,6 +110,8 @@ export function vitalsInsights(log) {
     totalKcal: Math.round(totalKcal),
     totalMinutes: Math.round(totalMin),
     hrAvg: hrAvg === null ? null : Math.round(hrAvg),
+    hrRest: hrRest === null ? null : Math.round(hrRest),
+    recovery: recovery === null ? null : Math.round(recovery),
     exercises,
     dearest: dearest && dearest.vitals.kcal
       ? { day: dearest.day, name: dearest.sessionName, kcal: Math.round(dearest.vitals.kcal) }

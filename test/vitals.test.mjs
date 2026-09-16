@@ -146,6 +146,22 @@ test("exercises are ranked by what they cost per minute, with the heart rate bes
   assert.ok(ins.line.startsWith("Push-up costs the most at 9.0 kcal a minute; Plank the least at 5.0"), ins.line);
 });
 
+test("recovery and the resting heart are averaged over the workouts that measured them", () => {
+  const s = world([
+    session(0), vitals(0, { kcal: 84, hrAvg: 124, hrRest: 118, recovery: 28, ...perExercise }),
+    session(2), vitals(2, { kcal: 84, hrAvg: 124, hrRest: 122, recovery: 34, ...perExercise }),
+    session(4), vitals(4, { kcal: 84, hrAvg: 124, ...perExercise }),   // an unguided one: no rest to speak of
+  ]);
+  const ins = vitalsInsights(workoutLog(s, ME, day(5)));
+  assert.equal(ins.recovery, 31);
+  assert.equal(ins.hrRest, 120);
+  assert.ok(ins.line.endsWith("Your heart drops 31 bpm in the minute after a set."), ins.line);
+  // Replay keeps both, and drops junk.
+  const v = s.workouts.get(ME).find((w) => w.day === day(0)).vitals;
+  assert.equal(v.recovery, 28);
+  assert.equal(v.hrRest, 118);
+});
+
 test("a workout that kept no clock contributes nothing to the ranking, even with vitals", () => {
   // Vitals with no spans to lay them over: the session total counts, the per-exercise rate cannot.
   const s = world([

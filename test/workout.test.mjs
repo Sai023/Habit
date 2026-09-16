@@ -253,6 +253,46 @@ test("each banked set owns the time since the set before it, from the session's 
   assert.deepEqual(spans[0].spans, [[T0, m(2)], [m(2), m(4)], [m(4), m(6)]]);
 });
 
+test("a guided set's span is its work alone; the rest before it belongs to nobody", () => {
+  // Set 1 ran 0:00-1:00, rest to 2:00, set 2 ran 2:00-3:00, a long rest, set 3 ran 5:30-6:30.
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), {
+      startedAt: T0, endedAt: m(7),
+      exercises: [{ id: "pushup", sets: [10, 10, 9], from: [T0, m(2), T0 + 330_000], at: [m(1), m(3), T0 + 390_000] }],
+    }), m(7)),
+  ]);
+  const [pushup] = spansOf(s.workouts.get(ME)[0]);
+  assert.equal(pushup.ms / 60_000, 3, "three minutes of work, not six and a half of elapsed");
+  assert.deepEqual(pushup.spans, [[T0, m(1)], [m(2), m(3)], [T0 + 330_000, T0 + 390_000]]);
+});
+
+test("a set whose start was not stamped falls back to owning the time since the last one", () => {
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.workout(ME, "match-fit", "push-core", day(0), {
+      startedAt: T0, endedAt: m(5),
+      exercises: [{ id: "pushup", sets: [10, 10], from: [T0, null], at: [m(1), m(3)] }],
+    }), m(5)),
+  ]);
+  const [pushup] = spansOf(s.workouts.get(ME)[0]);
+  assert.deepEqual(pushup.spans, [[T0, m(1)], [m(1), m(3)]]);
+});
+
+test("a rope day's rounds are its spans, each one exactly the work interval", () => {
+  const s = state([
+    E(ev.program(ME, "rope-protocol"), at(0)),
+    E(ev.workout(ME, "rope-protocol", "rope", day(0), {
+      exercises: [], rounds: 3, work: 30, rest: 30,
+      startedAt: T0, endedAt: m(3), roundsAt: [T0 + 30_000, T0 + 90_000, T0 + 150_000],
+    }), m(3)),
+  ]);
+  const [rope] = spansOf(s.workouts.get(ME)[0]);
+  assert.equal(rope.id, "rope");
+  assert.equal(rope.ms, 90_000, "three rounds of thirty seconds");
+  assert.deepEqual(rope.spans[0], [T0, T0 + 30_000]);
+});
+
 test("a workout from a build that kept no clock has no spans, and says so", () => {
   const s = state([
     E(ev.program(ME, "match-fit"), at(0)),

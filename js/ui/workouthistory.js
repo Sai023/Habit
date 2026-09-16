@@ -74,11 +74,14 @@ export function openWorkoutHistory(host, { state, me, today, onDone }) {
     if (v.kcal) tiles.push([Math.round(v.kcal), "kcal"]);
     if (v.hrAvg) tiles.push([Math.round(v.hrAvg), "avg bpm"]);
     if (v.hrMax) tiles.push([Math.round(v.hrMax), "max bpm"]);
+    if (v.hrRest) tiles.push([Math.round(v.hrRest), "rest bpm"]);
+    if (Number.isFinite(v.recovery)) tiles.push(["\u2212" + Math.round(v.recovery), "in a minute"]);
     if (v.kcal && w.minutes) tiles.push([(v.kcal / w.minutes).toFixed(1), "kcal / min"]);
     return el("div.wl-vitals",
       el("div.wl-tiles", tiles.map(([n, k]) => el("div.wl-tile", el("b", String(n)), el("span", k)))),
       el("p.note-inline", "From your watch, through Health Connect, laid over the minutes this workout ran."
-        + (v.samples ? " " + v.samples + " heart-rate readings." : "")),
+        + (v.samples ? " " + v.samples + " heart-rate readings." : "")
+        + (Number.isFinite(v.recovery) ? " \u201CIn a minute\u201D is how far your heart fell in the minute after a set." : "")),
     );
   }
 
