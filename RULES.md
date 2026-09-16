@@ -45,6 +45,7 @@ ever observes. Paths below are relative to each repo's root.
 | A retired preset name is renamed only where nobody typed over it | `js/schema.js` — `LEGACY_NAME` | `test/legacy.test.mjs` |
 | Deleting a habit retires it (kept in `state.retired`), it does not drop it; the logs never move | `js/habits.js` — `HABIT_DELETE` reducer | `test/habits.test.mjs` |
 | Restoring re-emits `habit_def` under the same id, so entries reattach and the birthday (taper/streak start) is unchanged | `js/habits.js` — `HABIT_DEF` (prev falls back to the retired def), `js/store.js` — `restoreHabit`, `js/ui/habitsheet.js` — Retired section | `test/habits.test.mjs` |
+| Adding a habit that matches a retired one by name+metric offers to restore it (reuse the id) instead of forking a new one | `js/ui/editor.js` — save() retired-match guard | browser-verified |
 
 ## Yours versus the group's
 

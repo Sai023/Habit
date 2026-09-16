@@ -179,6 +179,13 @@ function categoryMap(metric) {
   );
 }
 
+/** How many readings are on a habit — the history a restore would bring back. */
+function countEntries(state, habitId) {
+  let n = 0;
+  for (const key of state.logs.keys()) if (key.split("|")[0] === habitId) n += 1;
+  return n;
+}
+
 export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
   let saved = false;
   const sheet = openSheet(host, { onClose: () => onDone({ saved }) });
@@ -418,6 +425,30 @@ export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
       form.error = "Give it a goal greater than zero.";
       return paint();
     }
+    // Re-adding a habit you deleted should bring the SAME one back, not fork a new id and strand
+    // its history — the exact tangle that made a delete feel like data loss. If a new habit
+    // matches a retired one by name and metric, offer to restore it (reuse its id, so its entries
+    // reattach) instead of minting a fresh one. Confirmed, because a reused name can be deliberate.
+    if (form.isNew && state.retired && state.retired.size) {
+      const t0 = form.type;
+      const name0 = (form.name.trim() || t0.label).toLowerCase();
+      const match = [...state.retired.entries()].find(([, r]) =>
+        r.def && r.def.metric === t0.metric && (r.def.name || "").trim().toLowerCase() === name0);
+      if (match) {
+        const [rid, r] = match;
+        const kept = countEntries(state, rid);
+        const bring = await confirmSheet(document.body, {
+          title: "Bring back \u201c" + (r.def.name || t0.label) + "\u201d?",
+          body: "You deleted this habit"
+            + (kept ? " with " + kept + (kept === 1 ? " entry" : " entries") : "")
+            + ". Bring that one back so its history comes with it, or start a brand-new one instead.",
+          confirmLabel: "Bring it back",
+          cancelLabel: "Start fresh",
+        });
+        if (bring) { form.habitId = rid; form.isNew = false; }
+      }
+    }
+
     form.busy = true; form.error = ""; paint();
     try {
       const t = form.type;
