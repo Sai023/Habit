@@ -483,7 +483,7 @@ const _isDay = (x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
 export function validate(type, payload) {
   const p = payload || {};
   switch (type) {
-    case T.LOG:          return _isStr(p.habitId) && _isStr(p.memberId) && _isDay(p.day) && Number.isFinite(Number(p.value));
+    case T.LOG:          return _isStr(p.habitId) && _isStr(p.memberId) && _isDay(p.day); // value is coerced by the reducer; mirror its guard exactly, no stricter
     case T.LOG_CLEAR:    return _isStr(p.habitId) && _isStr(p.memberId) && _isDay(p.day);
     case T.HABIT_DEF:    return _isStr(p.habitId);
     case T.HABIT_DELETE: return _isStr(p.habitId);
