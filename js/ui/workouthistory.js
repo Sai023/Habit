@@ -95,6 +95,7 @@ export function historyList({ log, today, onOpen }) {
     const when = w.timed ? clockOf(w.startedAt) : null;
     const long = w.timed ? w.minutes + " min" : (w.classMinutes ? w.classMinutes + " min" : null);
     const much = w.empty ? null
+      : w.external ? (w.source === "health_connect" ? "from your watch" : "counted, no session")
       : w.kind === "intervals" ? (w.rounds ?? 0) + " rounds" + (w.sets ? " + " + w.sets + " sets" : "")
       : w.kind === "video" ? (w.effort ? EFFORT[w.effort] : "done")
       : w.short ? w.sets + " of " + w.setsOf + " sets"
@@ -236,7 +237,9 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, stan
     const when = w.timed
       ? clockOf(w.startedAt) + " → " + clockOf(w.endedAt) + " · " + w.minutes + " min"
       : w.classMinutes ? w.classMinutes + " min" : "no clock kept";
-    const sub = [w.programName, when, w.effort ? EFFORT[w.effort] : null, w.short ? "cut short" : null].filter(Boolean).join(" · ");
+    const sub = w.external
+      ? [w.source === "health_connect" ? "From your watch" : "Logged", w.timed ? w.minutes + " min" : null].filter(Boolean).join(" · ")
+      : [w.programName, when, w.effort ? EFFORT[w.effort] : null, w.short ? "cut short" : null].filter(Boolean).join(" · ");
     return el("div.wl-detail",
       standalone
         ? el("button.link.wl-back", { onclick: () => sheet.close() }, "\u2190 Back")
@@ -255,12 +258,17 @@ export function openWorkoutHistory(host, { state, me, today, openAt = null, stan
       w.empty
         ? el("p.note-inline", "Nothing was banked in this one — Finish was pressed on empty sets. It is kept, because it happened; it sets no record and moves no trend.")
         : null,
+      w.external
+        ? el("p.note-inline", w.source === "health_connect"
+            ? "Counted from your watch. It adds to your weekly total, but it was not a session run in the app, so there is nothing to break down set by set."
+            : "A workout you counted without running a session in the app — so it is on the tally, but there is nothing to break down here.")
+        : null,
       vitalsBlock(w),
       w.exercises.length ? el("div.wl-exs", w.exercises.map((e) => exerciseRow(e, w))) : null,
       w.pbs.length
         ? el("p.wl-pbline", "\u{1F3C6} Personal best on " + w.pbs.join(", ") + ".")
         : null,
-      !w.timed && !w.empty
+      !w.timed && !w.empty && !w.external
         ? el("p.note-inline", "Logged before the app kept a clock, so there are no minutes and nothing for a watch to line up with.")
         : null,
     );

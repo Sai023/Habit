@@ -631,6 +631,9 @@ export function replay(events) {
           externalId: p.externalId || null,
           reading,
           entryMethod,
+          // The activity's name, when the shell knew it (Health Connect's exercise type for a
+          // watch-detected workout). Lets the workout history read "Tennis" rather than "Workout".
+          title: typeof p.title === "string" && p.title ? p.title : null,
           // When it ran — a night's sleep, from the watch, the phone's quiet gap, or typed. Only
           // a pair that makes sense is kept; the value stands on its own either way.
           start: Number.isFinite(start) && Number.isFinite(end) && end > start ? start : null,

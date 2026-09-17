@@ -101,7 +101,7 @@ export function samplesToEvents(state, memberId, batch, opts = {}) {
         if (now - last < throttleMs) continue;
       }
 
-      events.push(ev.log(habit.habitId, memberId, day, value, source, sample.externalId || null, null, null, ENTRY_METHOD.SENSOR));
+      events.push(ev.log(habit.habitId, memberId, day, value, source, sample.externalId || null, null, null, ENTRY_METHOD.SENSOR, sample.title || null));
       emitted.set(habit.habitId + "|" + day, now);
     }
   }

@@ -565,6 +565,45 @@ test("a workout knows how many sets it held, and says it was cut short when fewe
   assert.deepEqual(ex.series.map((x) => [x.total, x.short]), [[30, false], [11, true]]);
 });
 
+test("the history reconciles with the count: watch-detected workouts show as light rows", () => {
+  // The Workouts card counts every gym log. An app session writes a WORKOUT event AND a gym log
+  // (externalId "workout:day:session"); a watch-detected activity writes only a gym log (a Health
+  // Connect session id). The history used to show only the WORKOUT events, so it disagreed with the
+  // card. Now the gym logs without a session surface too.
+  const s = state([
+    E(ev.program(ME, "match-fit"), at(0)),
+    E(ev.habit("gym", { name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST, target: 3, period: PERIOD.WEEK, tz: TZ }), at(0)),
+    // an app session: the WORKOUT + its paired gym log
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [10, 10, 10] }] }), at(0)),
+    E(ev.log("gym", ME, day(0), 1, SOURCE.MANUAL, "workout:" + day(0) + ":push-core"), at(0)),
+    // a watch-detected workout: only a gym log, from Health Connect, no session behind it
+    E(ev.log("gym", ME, day(1), 1, SOURCE.HEALTH_CONNECT, "hc-tennis-1"), at(1)),
+    // a named one, once the shell passes Health Connect's exercise type through as `title`
+    E(ev.log("gym", ME, day(2), 1, SOURCE.HEALTH_CONNECT, "hc-tennis-2", null, null, null, "Tennis"), at(2)),
+  ]);
+  const log = workoutLog(s, ME, day(3));
+  assert.equal(log.length, 3, "the app session and both watch workouts all appear");
+  const structured = log.find((w) => w.sessionId === "push-core");
+  const generic = log.find((w) => w.sessionId === "hc-tennis-1");
+  const named = log.find((w) => w.sessionId === "hc-tennis-2");
+  assert.equal(structured.external, false);
+  assert.equal(structured.exercises.length, 1, "the app session keeps its exercises");
+  assert.equal(generic.external, true);
+  assert.equal(generic.sessionName, "Workout", "un-named until the shell sends a title");
+  assert.equal(generic.exercises.length, 0, "nothing to break down");
+  assert.equal(named.sessionName, "Tennis", "named once the shell passes the exercise type");
+  assert.equal(named.external, true);
+});
+
+test("a re-synced watch workout is one row, not many", () => {
+  const s = state([
+    E(ev.habit("gym", { name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST, target: 3, period: PERIOD.WEEK, tz: TZ }), at(0)),
+    E(ev.log("gym", ME, day(0), 1, SOURCE.HEALTH_CONNECT, "hc-run-1"), at(0)),
+    E(ev.log("gym", ME, day(0), 1, SOURCE.HEALTH_CONNECT, "hc-run-1"), at(0, 1)), // same session re-read
+  ]);
+  assert.equal(workoutLog(s, ME, day(1)).length, 1, "deduped by externalId, like the count");
+});
+
 test("a rope day is one row, in rounds", () => {
   const s = state([
     E(ev.program(ME, "rope-protocol"), at(0)),

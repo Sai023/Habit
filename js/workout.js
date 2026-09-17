@@ -15,6 +15,7 @@
 
 import { PROGRAMS } from "./programs.js";
 import { isoDayOfWeek, daysBetween, addDays, isoWeekKey } from "./habits.js";
+import { METRIC } from "./schema.js";
 
 /** The program a member follows, or null. */
 export function programFor(state, memberId) {
@@ -588,11 +589,10 @@ export function spansOf(workout) {
  * T.WORKOUT_VITALS). Across programs, because a person who switched keeps their history.
  */
 export function workoutLog(state, memberId, today = null) {
-  const all = ((state.workouts && state.workouts.get(memberId)) || []).slice()
-    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : (b.ts || 0) - (a.ts || 0)));
+  const events = (state.workouts && state.workouts.get(memberId)) || [];
   const indexes = new Map();
 
-  return all.map((w) => {
+  const structured = events.map((w) => {
     const program = PROGRAMS[w.programId] || null;
     if (program && !indexes.has(program.id)) indexes.set(program.id, exerciseIndex(program));
     const names = program ? indexes.get(program.id) : new Map();
@@ -659,9 +659,59 @@ export function workoutLog(state, memberId, today = null) {
       empty,
       spans: spansOf(w),
       vitals: w.vitals || null,
+      external: false,
+      ts: w.ts ?? (w.startedAt || 0),
       isToday: today ? w.day === today : false,
     };
   });
+
+  // ---- Reconcile with the count ----
+  //
+  // The Workouts card counts every gym log — including the ones a watch writes for an activity it
+  // detected (a tennis match, a run) that was never a structured app session. Those have no WORKOUT
+  // event, so this history used to drop them, and the deeper screen disagreed with the number on the
+  // card. Surface each gym log that ISN'T an app session (its externalId does not start "workout:")
+  // as a light row, so the list matches the count. The activity's real name needs the shell to pass
+  // Health Connect's exercise type through as `title`; until it does, the row reads simply "Workout".
+  const gym = [...state.habits.values()].find((h) => h.metric === METRIC.SESSIONS);
+  const external = [];
+  if (gym) {
+    const prefix = gym.habitId + "|" + memberId + "|";
+    const seen = new Set();
+    for (const [key, entries] of state.logs) {
+      if (!key.startsWith(prefix)) continue;
+      const day = key.slice(prefix.length);
+      for (const e of entries) {
+        const ext = e.externalId || "";
+        if (ext.startsWith("workout:")) continue;   // an app session — already a structured row
+        if (ext && seen.has(ext)) continue;          // one row per activity, even if it re-synced
+        if (ext) seen.add(ext);
+        const timed = Number.isFinite(e.start) && Number.isFinite(e.end) && e.end > e.start;
+        external.push({
+          day,
+          external: true,
+          source: e.source || null,
+          programId: null,
+          programName: null,
+          sessionId: ext || ("ext:" + day + ":" + (e.ts || 0)),
+          sessionName: e.title || "Workout",
+          kind: "external",
+          startedAt: timed ? e.start : null,
+          endedAt: timed ? e.end : null,
+          minutes: timed ? Math.round((e.end - e.start) / 60000) : null,
+          timed,
+          effort: null, rounds: null, work: null, rest: null, classMinutes: null,
+          exercises: [], sets: 0, setsOf: 0, short: false, reps: 0, seconds: 0,
+          pbs: [], empty: false, spans: [], vitals: null,
+          ts: e.ts || 0,
+          isToday: today ? day === today : false,
+        });
+      }
+    }
+  }
+
+  return [...structured, ...external]
+    .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : (b.ts || 0) - (a.ts || 0)));
 }
 
 /** The best single set per exercise from every session BEFORE a day. */
