@@ -322,6 +322,27 @@ test("a held week forfeits the bonus, across every habit", () => {
   assert.ok(dayScore(s, "m1", "2026-03-16").bonus > 0, "the bonus comes back");
 });
 
+test("a member who never engaged with the tapering habit keeps their bonus", () => {
+  // The reported bug: a held week on the vape forfeited EVERYONE's bonus, including members who do
+  // not vape at all. Sahil logs the vape and blows three days (a genuine forfeit); Anj never logs
+  // it and never set a goal — she is not in the quit programme, so her silence is not a miss and
+  // her bonus stands. She is still tracking it by the group default (that is a separate, scoring
+  // question); this is only about the taper's whole-week, cross-habit penalty.
+  const s = replay([
+    E(ev.member("m1", "Sahil"), at(BASE_DAY, 7)),
+    E(ev.member("m2", "Anj"), at(BASE_DAY, 7)),
+    E(puffHabit(), at(BASE_DAY, 7)),
+    E(ev.goal("m1", "puffs", { target: 80 }), at(BASE_DAY, 8)),
+    ...week("m1", BASE_DAY, 3),          // Sahil: three days over the ceiling → the next week holds
+    ...clean("m1", "2026-03-09", 7),
+    // Anj: no goal, no puffs logs, never opted out.
+  ]);
+  const puffs = s.habits.get("puffs");
+  assert.ok(bonusForfeited(s, "m1", "2026-03-09"), "the vaper forfeits");
+  assert.equal(bonusForfeited(s, "m2", "2026-03-09"), false, "the non-vaper does not");
+  assert.equal(isTaperHeld(s, puffs, "m2", "2026-03-09"), false, "and her taper never held");
+});
+
 test("a member with no tapering habit at all forfeits nothing", () => {
   const s = replay([
     E(ev.member("m1", "Sahil"), at(BASE_DAY, 7)),

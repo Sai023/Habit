@@ -465,6 +465,12 @@ export function replay(events) {
   }
   const canon = (id) => (id == null ? id : _root(id));
   const excluded = { members: new Set(), habits: new Set() }; // marked out of analysis, not deleted
+  // "habitId|memberId" for every member who has actually ENGAGED with a habit — logged it at
+  // least once, or set a goal for it. This is stronger than isTracking (which defaults to "in"
+  // for the whole group): a member merely carried along by the group default, who has never
+  // touched a manual habit, is not IN it, and their silence must not be scored as a miss. Keyed on
+  // canonical member ids (the alias rewrite runs before these cases). See engagedWith.
+  const engaged = new Set();
   const aliases = new Map(); // duplicate id -> the id it now reads as
   for (const e of events || []) {
     if (e && e.type === T.MEMBER_MERGE && e.payload) {
@@ -630,6 +636,7 @@ export function replay(events) {
           start: Number.isFinite(start) && Number.isFinite(end) && end > start ? start : null,
           end: Number.isFinite(start) && Number.isFinite(end) && end > start ? end : null,
         });
+        engaged.add(p.habitId + "|" + p.memberId);
         break;
       }
 
@@ -758,6 +765,7 @@ export function replay(events) {
 
       case T.GOAL: {
         if (!p.memberId || !p.habitId) break;
+        engaged.add(p.habitId + "|" + p.memberId);
         const key = p.memberId + "|" + p.habitId;
         const list = goals.get(key) || [];
         const h = habits.get(p.habitId);
@@ -859,7 +867,7 @@ export function replay(events) {
     }
   }
 
-  return { meta, habits, retired, members, logs, exemptions, bindings, goals, programs, workouts, aliases, excluded };
+  return { meta, habits, retired, members, logs, exemptions, bindings, goals, programs, workouts, aliases, excluded, engaged };
 }
 
 // ============================================================================
@@ -1187,6 +1195,7 @@ function baselineOn(state, habit, memberId, day) {
  */
 function dayIsMissAgainst(state, habit, memberId, day, target) {
   if (!isTracking(state, habit, memberId, day)) return false;   // opted out is not failure
+  if (!engagedWith(state, habit, memberId)) return false;       // never in this habit — not their miss
   if (exemptReason(state, habit, memberId, day)) return false;  // travel, or a planned rest
   if (!habit.days.includes(isoDayOfWeek(day))) return false;    // not a day it runs on
 
@@ -1360,6 +1369,20 @@ export function canonicalMember(state, memberId) {
 export function aliasesOf(state, memberId) {
   if (!state || !state.aliases) return [];
   return [...state.aliases.entries()].filter(([, into]) => into === memberId).map(([from]) => from);
+}
+
+/**
+ * Has this member actually engaged with this habit — logged it at least once, or set a goal?
+ *
+ * The line between "in this habit" and "carried along by the group default". A shared habit is
+ * tracked by everyone unless they opt out (isTracking), which is right for SCORING a participant.
+ * But a manual habit's "no entry today is a miss" rule must only bite someone who is actually in
+ * it: a person who has never logged the vape and never set a goal for it is not failing a ceiling
+ * they never counted. Used by rawPeriodStatus and the taper so a non-participant is never dinged.
+ */
+export function engagedWith(state, habit, memberId) {
+  if (!state || !state.engaged || !habit) return true; // pre-engagement states: assume in, as before
+  return state.engaged.has(habit.habitId + "|" + canonicalMember(state, memberId));
 }
 
 /** Is this member or habit marked out of analysis? (The board and history ignore this flag.) */
