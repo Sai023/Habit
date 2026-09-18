@@ -423,16 +423,23 @@ html, body { overscroll-behavior-y: contain; }
 .hero-cats {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 7px;
   padding-top: 11px;
   border-top: 1px solid var(--line);
 }
-.hero-cat { display: flex; flex-direction: column; gap: 4px; }
-.hero-cat-top { display: flex; align-items: center; gap: 7px; font-size: var(--fs-small); }
+/* One compact row per attribute: icon · name · a thin inline track · the number. */
+.hero-cat { display: flex; align-items: center; gap: 8px; font-size: var(--fs-small); }
 .hero-cat-icon { flex: none; }
-.hero-cat-name { flex: 1; min-width: 0; color: var(--dim); }
-.hero-cat-num { font-weight: 600; color: var(--dim); font-variant-numeric: tabular-nums; }
+.hero-cat-name { flex: none; color: var(--dim); }
+.hero-cat .bar { flex: 1; min-width: 40px; margin: 0; }
+.hero-cat-num { flex: none; font-weight: 600; color: var(--dim); font-variant-numeric: tabular-nums; }
 .hero-cat-num.is-hit { color: var(--teal-soft); }
+.hero-cat-num.is-poor { color: var(--danger); }
+/* The countdown, lifted from the section heading to a quiet anchor above the widgets. */
+.day-anchor {
+  margin: 0 0 10px; font-size: var(--fs-small); color: var(--dim);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+}
 .bar.is-poor > i { background: var(--danger); }
 .bar.is-hit > i { background: var(--teal-soft); }
 

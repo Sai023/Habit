@@ -22,6 +22,7 @@ import { programFor, planFor } from "../workout.js";
 import { pendingGoal } from "../edits.js";
 import { lifetime } from "../levels.js";
 import { activityItems } from "../activity.js";
+import { todayModel } from "../today.js";
 import { levelMark } from "./levelmark.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
@@ -130,15 +131,17 @@ function todayTab(ctx) {
   // for the same walk to get the same answer.
   const scored = dayScore(ctx.state, ctx.me, ctx.today, ctx.today);
   const prices = priceHabits(scored);
+  // The Today tab, classified as data — see today.js. Phase 1 renders its hero and attribute bars
+  // from here; the cards still use the path above until their layouts are rebuilt.
+  const model = todayModel(ctx.state, ctx.me, ctx.today, ctx.now);
 
   return [
     travelBanner(ctx),
-    dayHero(ctx, scored),
+    dayHero(ctx, scored, model),
     el("section.sec",
-      el("div.sec-hd",
-        el("h2.sec-title", "Your day"),
-        el("span.sec-note", timeLeft(ctx)),
-      ),
+      el("div.sec-hd", el("h2.sec-title", "Your day")),
+      // The countdown, lifted out of the heading to sit as a quiet anchor right above the widgets.
+      model.hero.hoursLeft ? el("p.day-anchor", model.hero.hoursLeft + "h left today") : null,
       el("div.cards", habits.map((h) => habitCard(h, ctx, prices.get(h.habitId)))),
     ),
     // Worth noticing stays; it is the one thing on this screen that is not on a card. The
@@ -198,15 +201,6 @@ function correlationSection(ctx) {
           : "The " + r.missed.days + " days you didn't were actually better, by " + gap + "."),
     ),
   );
-}
-
-function timeLeft(ctx) {
-  const h = groupDayHabit(ctx.state);
-  if (!h) return "";
-  const now = new Date(ctx.now);
-  const hoursGone = ((now.getHours() - h.dayStartHour) + 24) % 24;
-  const left = 24 - hoursGone;
-  return left <= 0 ? "" : left + "h left today";
 }
 
 /**
@@ -511,7 +505,7 @@ function travelBanner(ctx) {
  * Earned is capped at the worth, like the category is capped at its share: the bonus is banked
  * beside it, not inside it, so a habit never reads as "26 of 23".
  */
-function dayHero(ctx, scored) {
+function dayHero(ctx, scored, model) {
   const streak = onGoalStreak(ctx.state, ctx.me, ctx.today);
   const pct = Math.round(scored.pct || 0);
   const bonus = Math.round(scored.bonus || 0);
@@ -557,29 +551,41 @@ function dayHero(ctx, scored) {
       // "34 to go" names it. The whole point of a day being worth exactly a hundred is that the
       // gap is a number somebody can picture — and the cards below each say what they are worth,
       // so it is also a number they can see how to close.
+      // A single, positive micro-copy line: the gap to a perfect day, and nothing about what went
+      // wrong. The long "no bonus this week, you missed three days, the N XP don't count" sentence
+      // that used to sit here is exactly the demotivating point-recalculation the redesign removes
+      // from the hero — the score itself already reflects it.
       scored && scored.scored
         ? el("p.hero-gap" + (pct >= 100 ? ".is-hit" : ""),
-            pct >= 100 ? "A perfect day." : (100 - pct) + " " + fmt.XP + " from a perfect day.")
+            pct >= 100 ? "A perfect day." : model.hero.awayXp + " " + fmt.XP + " away from a perfect day.")
         : null,
 
-      // The taper penalty, said out loud.
-      //
-      // Missing three days in a week holds the ceiling where it is AND costs every bonus point
-      // that week, across every habit. Nobody would ever deduce that from a smaller number, and it
-      // lived in one native card that no longer exists — so it gets a sentence rather than a
-      // silence, in the one place the day is being summarised.
-      scored.bonusForfeited
-        ? el("p.hero-penalty", scored.bonusWithheld > 0
-            ? "No bonus this week — you missed three days, so your limit holds and the "
-              + Math.round(scored.bonusWithheld) + " " + fmt.XP + " you'd have earned don't count."
-            : "No bonus this week — you missed three days, so your limit holds where it is.")
-        : null,
-
-      // What carried the day and what sank it. Only the categories actually being asked about
-      // today, because a row reading "0 of 0" is not a shortfall, it is a category nobody signed
-      // up for.
-      categoryLines(scored, ctx),
+      // The category bars, compressed to one row each — see attributeBars. Only the categories that
+      // actually count today; an empty one is dropped in the model, not explained away in a sentence.
+      attributeBars(model.attributes),
     ),
+  );
+}
+
+/**
+ * The three attribute bars, compressed: icon, name, a thin track and the number inline on one row.
+ *
+ * Was two stacked rows per category plus a paragraph naming the ones that don't count today. The
+ * model hands us only the categories that DO count (an empty one is hidden, not narrated), so this
+ * is just the live ones, each on a single line.
+ */
+function attributeBars(attributes) {
+  if (!attributes || !attributes.length) return null;
+  return el("div.hero-cats",
+    attributes.map((a) => {
+      const tone = a.pct >= 100 ? " is-hit" : a.pct < 50 ? " is-poor" : "";
+      return el("div.hero-cat",
+        el("span.hero-cat-icon", CATEGORY_ICON[a.category]),
+        el("span.hero-cat-name", CATEGORY_LABEL[a.category]),
+        el("div.bar" + tone, { role: "presentation" }, el("i", { style: "width:" + Math.min(100, a.pct) + "%" })),
+        el("span.hero-cat-num" + tone, a.points + " of " + a.offered),
+      );
+    }),
   );
 }
 
@@ -598,86 +604,6 @@ function tierLine(streak) {
   return (held ? held.name + " · " : "") + away + " to " + next.tier.name;
 }
 
-/**
- * Why a category is not being judged today, in the words its own cards already use.
- *
- * Derived here rather than carried out of the scorer, because it is a sentence rather than a fact:
- * the engine's answer is "not eligible" and the useful answer is which of three ordinary things
- * happened. All three are already true on the cards below, so this cannot say something the rest
- * of the screen contradicts.
- */
-/** "a", "a and b", "a, b and c" — the shape a person would say out loud. */
-function nameList(names) {
-  if (names.length <= 1) return names[0] || "";
-  return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
-}
-
-function whyQuiet(c, ctx) {
-  const mine = (c.habits || []).filter((h) => isTracking(ctx.state, h.habit, ctx.me));
-  if (!mine.length) return "not tracked";
-  const longer = mine.find((h) => h.habit.period !== PERIOD.DAY);
-  if (longer) {
-    return longer.habit.period === PERIOD.MONTH ? "counts at month end" : "counts at week end";
-  }
-  return "waiting for data";
-}
-
-/**
- * What the day is made of, including the parts of it that are not being judged.
- *
- * ---- Why the quiet ones are drawn ----
- *
- * They used to be filtered out, and the weights of whatever remained grew to fill the hundred —
- * which is the correct scoring rule and, drawn this way, an invisible one. A morning where sleep
- * had not arrived and savings was mid-month showed two categories reading "of 57" and "of 43", and
- * nothing on the screen said where the other thirty points had gone or that they were coming back.
- *
- * It reads as data missing rather than as a rule working. So all four are always here: the ones
- * being judged with their numbers, the ones that are not with the reason, and a line underneath
- * saying what that does to the split. The arithmetic stops being a surprise.
- */
-function categoryLines(scored, ctx) {
-  const all = (scored.categories || []);
-  if (!all.length) return null;
-  const live = all.filter((c) => c.eligible && c.share > 0);
-  const quiet = all.filter((c) => !c.eligible || c.share <= 0);
-
-  return el("div.hero-cats",
-    quiet.length ? el("p.hero-cat-note",
-      quiet.length === all.length
-        ? "Nothing is being judged today, so there is no score to make."
-        // Names the QUIET ones, which are usually the fewer and always the surprising ones. The
-        // first draft listed the live ones and read "core fitness and discipline and rest" — the
-        // information somebody wants here is which part is missing and why it is coming back.
-        : nameList(quiet.map((c) => CATEGORY_LABEL[c.category]))
-          + (quiet.length === 1 ? " isn't counted today, so the rest carry"
-            : " aren't counted today, so the rest carry")
-          + " the whole hundred between them.") : null,
-    live.map((c) => {
-    const reached = Math.min(100, Math.round((c.score || 0) * 100));
-    const tone = reached >= 100 ? " is-hit" : reached < 50 ? " is-poor" : "";
-    const bonus = Math.round(c.bonus || 0);
-    return el("div.hero-cat",
-      el("div.hero-cat-top",
-        el("span.hero-cat-icon", CATEGORY_ICON[c.category]),
-        el("span.hero-cat-name", CATEGORY_LABEL[c.category]),
-        el("span.hero-cat-num" + tone,
-          Math.round(c.points) + " of " + Math.round(c.share),
-          bonus > 0 ? el("span.row-bonus", " +" + bonus) : null,
-        ),
-      ),
-      el("div.bar" + tone, { role: "presentation" }, el("i", { style: "width:" + reached + "%" })),
-    );
-  }),
-    quiet.map((c) => el("div.hero-cat.is-quiet",
-      el("div.hero-cat-top",
-        el("span.hero-cat-icon", CATEGORY_ICON[c.category]),
-        el("span.hero-cat-name", CATEGORY_LABEL[c.category]),
-        el("span.hero-cat-num", whyQuiet(c, ctx)),
-      ),
-    )),
-  );
-}
 
 /**
  * What a monthly goal can honestly say mid-month.
