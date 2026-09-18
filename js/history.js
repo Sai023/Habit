@@ -24,7 +24,7 @@ import {
   visibilityFor, publicValue,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
-import { PERIOD, AT_MOST, VISIBILITY } from "./schema.js";
+import { PERIOD, AT_MOST, VISIBILITY, AGGREGATE } from "./schema.js";
 
 /**
  * How many periods back is worth showing, per cadence.
@@ -40,41 +40,85 @@ export const SPAN = {
 };
 
 /**
- * One habit's recent periods, oldest first.
+ * The granularities a habit's chart can be read at, finest first.
+ *
+ * Never finer than the habit is judged in: a weekly target says nothing about which days, so a
+ * "Days" view of it would draw a week's verdict on seven bars that were never judged. Coarser is
+ * always honest — a week of daily verdicts is a fact about the week — so every habit can roll up.
+ */
+export function viewsFor(habit) {
+  const period = (habit && habit.period) || PERIOD.DAY;
+  if (period === PERIOD.DAY) return [PERIOD.DAY, PERIOD.WEEK, PERIOD.MONTH];
+  if (period === PERIOD.WEEK) return [PERIOD.WEEK, PERIOD.MONTH];
+  return [PERIOD.MONTH];
+}
+
+/**
+ * How many periods one screenful can hold, per granularity — the ranges the reader picks from.
+ * SPAN is among each, so a chart nobody has touched draws exactly what it always did.
+ */
+export const SPANS = {
+  [PERIOD.DAY]: [7, 14, 28],
+  [PERIOD.WEEK]: [4, 8, 13, 26],
+  [PERIOD.MONTH]: [3, 6, 12],
+};
+
+/** The period `n` steps away from `key` — negative for earlier. Months by arithmetic, not by days. */
+export function shiftPeriod(key, period, n) {
+  if (period === PERIOD.WEEK) return periodKey(addDays(periodStart(key, period), n * 7), period);
+  if (period === PERIOD.MONTH) {
+    const [y, m] = key.split("-").map(Number);
+    const total = y * 12 + (m - 1) + n;
+    return Math.floor(total / 12) + "-" + String((((total % 12) + 12) % 12) + 1).padStart(2, "0");
+  }
+  return addDays(key, n);
+}
+
+/**
+ * The stretch of days a chart is looking at: `span` whole periods of `view`, ending with the one
+ * running now — or, paged back `offset` screenfuls, ending with an earlier one.
+ *
+ * `to` is today for the live window, so nothing in the future is ever asked for; a paged window
+ * ends on its last period's last day. Whole periods either way, so the bars are always the same
+ * shapes and paging never lands mid-week.
+ */
+export function chartWindow(today, view, span, offset = 0) {
+  const lastKey = shiftPeriod(periodKey(today, view), view, -(offset * span));
+  const firstKey = shiftPeriod(lastKey, view, -(span - 1));
+  return {
+    from: periodStart(firstKey, view),
+    to: offset > 0 ? periodEnd(lastKey, view) : today,
+    firstKey,
+    lastKey,
+  };
+}
+
+/**
+ * One habit's periods across a range of days, oldest first, in the period it is judged in.
  *
  * Oldest first because that is the direction a chart reads and the direction a person scans; the
  * caller reverses it if a list suits better.
  *
- * The last entry is the period still running. It carries `open: true` and every summary below
- * excludes it — a week two days in is not a week you failed, and counting it as one is how a
- * screen tells somebody they are doing worse than they are.
+ * Clipped at both ends: never before the habit existed (the same birthday habitScore refuses to
+ * judge across, so history cannot draw cells for days the engine would not score), and never past
+ * today. The period containing today carries `open: true` and every summary below excludes it — a
+ * week two days in is not a week you failed, and counting it as one is how a screen tells somebody
+ * they are doing worse than they are.
  */
-export function habitHistory(state, habit, memberId, today, want = null) {
-  const period = habit.period || PERIOD.DAY;
-  const span = want || SPAN[period] || SPAN[PERIOD.DAY];
+export function historyBetween(state, habit, memberId, today, fromDay, toDay, period = null) {
+  const p = period || habit.period || PERIOD.DAY;
+  const currentKey = periodKey(today, p);
+  const born = habit.createdDay;
+  const start = fromDay > born ? fromDay : born;
+  const last = daysBetween(toDay, today) > 0 ? toDay : today;
+  if (!start || daysBetween(start, last) < 0) return [];
 
-  const currentKey = periodKey(today, period);
-  // Never before the habit existed — the same birthday habitScore refuses to judge across, so
-  // history cannot draw cells for days the engine would not score.
-  const from = habit.createdDay;
-
-  // Reach back generously and take the last `span`, rather than trying to step back N periods.
-  //
-  // Stepping is the version that looks right and is not: a month is not 31 days, so five of them
-  // subtracted from the first of March lands in September and returns seven months. Asking
-  // periodsBetween for a wide range and slicing the end off is arithmetic the period functions
-  // already own, and it cannot drift from how they count.
-  const reach = period === PERIOD.DAY ? span : period === PERIOD.WEEK ? span * 7 + 7 : span * 32;
-  const wide = addDays(periodStart(currentKey, period), -reach);
-  const start = wide > from ? wide : from;
-  if (daysBetween(start, today) < 0) return [];
-
-  return periodsBetween(start, today, period).slice(-span).map((key) => {
-    const end = periodEnd(key, period);
-    const begin = periodStart(key, period);
+  return periodsBetween(start, last, p).map((key) => {
+    const end = periodEnd(key, p);
+    const begin = periodStart(key, p);
     return {
       key,
-      period,
+      period: p,
       from: begin,
       to: end,
       open: key === currentKey,
@@ -84,6 +128,88 @@ export function habitHistory(state, habit, memberId, today, want = null) {
       target: targetFor(state, habit, memberId, end, begin),
       status: rawPeriodStatus(state, habit, memberId, key),
     };
+  });
+}
+
+/**
+ * One habit's recent periods, oldest first: the last `want` (or SPAN) periods ending today.
+ *
+ * Asked for as a window of whole periods rather than by stepping back N days, because stepping by
+ * days is the version that looks right and is not: a month is not 31 days, so five of them
+ * subtracted from the first of March lands in September and returns seven months. shiftPeriod
+ * counts months as months.
+ */
+export function habitHistory(state, habit, memberId, today, want = null) {
+  const period = habit.period || PERIOD.DAY;
+  const span = want || SPAN[period] || SPAN[PERIOD.DAY];
+  const w = chartWindow(today, period, span, 0);
+  return historyBetween(state, habit, memberId, today, w.from, w.to, period);
+}
+
+/**
+ * A habit's periods, read at a coarser grain: a daily habit by the week or the month, a weekly one
+ * by the month. Same entry shape as habitHistory, so the chart draws either without knowing.
+ *
+ * ---- How the parts combine ----
+ *
+ * The way a day combines its readings (AGGREGATE): a `sum` habit's week is its total — a week of
+ * puffs against a week of allowance, which for a taper is each day's own ceiling added up, so the
+ * line steps down week by week exactly as the quit plan does. A `last` habit's week is its AVERAGE
+ * per day that reported — a week of steps is not seventy thousand of them — against the average
+ * target. Days that reported nothing are left out of the average, not counted as zero; rest days
+ * contribute no allowance, because nobody was judged on them.
+ *
+ * ---- The verdict ----
+ *
+ * One rule, the same one every bar uses: the aggregate against its target. A week averaging over
+ * the goal is met, even if two nights inside it fell short — the nights are one tap away in the
+ * Days view, and the count of them rides on the entry (`hits` of `judged`) so the panel can say so.
+ * A bucket nobody was judged in is quiet when a sensor was silent, rest when every day was booked
+ * off. The open bucket is the one containing the period still running.
+ */
+export function rollup(entries, view, habit) {
+  const sum = !!habit && habit.aggregate === AGGREGATE.SUM;
+  const reduce = !!habit && habit.direction === AT_MOST;
+  const buckets = new Map();
+
+  for (const e of entries || []) {
+    // A week belongs to the month its Thursday falls in — the ISO rule — so a week that straddles
+    // the boundary is counted once, in one month.
+    const anchor = e.period === PERIOD.WEEK && view === PERIOD.MONTH ? addDays(e.from, 3) : e.from;
+    const key = periodKey(anchor, view);
+    let b = buckets.get(key);
+    if (!b) {
+      b = {
+        key, period: view, from: periodStart(key, view), to: periodEnd(key, view), open: false,
+        parts: 0, judged: 0, hits: 0, misses: 0, quiet: 0, rest: 0, values: [], targets: [],
+      };
+      buckets.set(key, b);
+    }
+    b.parts += 1;
+    if (e.open) b.open = true;
+    if (e.status === HIT) { b.judged += 1; b.hits += 1; }
+    // The active-day guard, reaching the rollup: the period still running has not been judged, so
+    // its shortfall is not a miss and is not counted as one — its value still rides into the
+    // aggregate, because what has been done so far is a fact. A running period already at its
+    // goal is a hit, as everywhere else.
+    else if (e.status === MISS) { if (!e.open) { b.judged += 1; b.misses += 1; } }
+    else if (e.status === NO_DATA) b.quiet += 1;
+    else if (e.status === EXEMPT) b.rest += 1;
+    if (Number.isFinite(e.value)) b.values.push(e.value);
+    if (e.status !== EXEMPT && Number.isFinite(e.target)) b.targets.push(e.target);
+  }
+
+  const total = (xs) => xs.reduce((t, v) => t + v, 0);
+  const combine = (xs) => (xs.length ? (sum ? total(xs) : total(xs) / xs.length) : null);
+
+  return [...buckets.values()].map(({ values, targets, ...b }) => {
+    const value = combine(values);
+    const target = combine(targets);
+    let status;
+    if (!b.judged && !b.open) status = b.quiet ? NO_DATA : EXEMPT;
+    else if (value == null || target == null) status = NO_DATA;
+    else status = (reduce ? value <= target : value >= target) ? HIT : MISS;
+    return { ...b, value, target, status };
   });
 }
 
@@ -124,8 +250,23 @@ export function barHeight(entry, scale) {
  * ceiling, is not a taper.
  */
 export function targetMoved(entries) {
+  return targetDrift(entries) !== null;
+}
+
+/**
+ * Which way the target moved across the window — "down", "up", or null when it held.
+ *
+ * The caption used to say "coming down" whenever the target had moved at all, which on a Workouts
+ * goal raised from two a week to four told the reader their goal was falling. Only a taper comes
+ * down; a goal somebody raised went up, and the caption has to know the difference.
+ */
+export function targetDrift(entries) {
   const targets = (entries || []).map((e) => e.target).filter(Number.isFinite);
-  return targets.length > 1 && targets[0] !== targets[targets.length - 1];
+  if (targets.length < 2) return null;
+  const first = targets[0];
+  const last = targets[targets.length - 1];
+  if (first === last) return null;
+  return last < first ? "down" : "up";
 }
 
 /**

@@ -18,6 +18,7 @@ import { replay, addDays, HIT, MISS, NO_DATA, EXEMPT } from "../js/habits.js";
 import {
   habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday,
   groupHistory, SPAN, chartScale, barHeight, targetMoved,
+  viewsFor, SPANS, shiftPeriod, chartWindow, historyBetween, rollup, targetDrift,
 } from "../js/history.js";
 import {
   ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD, VISIBILITY,
@@ -530,6 +531,250 @@ test("targetMoved is true only when a taper actually moved the ceiling", () => {
   assert.equal(targetMoved([{ target: 80 }, { target: 80 }]), false, "an unchanged ceiling is not a taper");
   assert.equal(targetMoved([{ target: 80 }]), false, "a single period cannot have moved");
   assert.equal(targetMoved([]), false);
+});
+
+test("targetDrift says which way the target went, and targetMoved agrees", () => {
+  assert.equal(targetDrift([{ target: 80 }, { target: 70 }, { target: 60 }]), "down", "a taper comes down");
+  assert.equal(targetDrift([{ target: 2 }, { target: 4 }, { target: 4 }]), "up",
+    "a goal somebody raised went UP — the caption must never call that 'coming down'");
+  assert.equal(targetDrift([{ target: 80 }, { target: 80 }]), null, "an unchanged target has no drift");
+  assert.equal(targetDrift([{ target: 80 }]), null);
+  assert.equal(targetDrift([{ target: NaN }, { target: 5 }]), null, "one finite target is not a movement");
+  assert.equal(targetMoved([{ target: 2 }, { target: 4 }]), true, "moved in either direction");
+});
+
+// ---------------------------------------------------------------------------
+// The chart's window and its coarser views — Days / Weeks / Months, a range the reader picks, and
+// paging back through time. Whole periods always, so a bar is always the same shape.
+// ---------------------------------------------------------------------------
+
+test("a habit can be read at its own grain and every coarser one, never finer", () => {
+  assert.deepEqual(viewsFor({ period: PERIOD.DAY }), [PERIOD.DAY, PERIOD.WEEK, PERIOD.MONTH]);
+  assert.deepEqual(viewsFor({ period: PERIOD.WEEK }), [PERIOD.WEEK, PERIOD.MONTH],
+    "a weekly target says nothing about which days");
+  assert.deepEqual(viewsFor({ period: PERIOD.MONTH }), [PERIOD.MONTH]);
+  assert.deepEqual(viewsFor({}), [PERIOD.DAY, PERIOD.WEEK, PERIOD.MONTH], "no period means daily");
+  for (const p of Object.values(PERIOD)) {
+    assert.ok(SPANS[p].includes(SPAN[p]), "the untouched chart's span is one of the offered ranges (" + p + ")");
+  }
+});
+
+test("shiftPeriod steps days, ISO weeks and months as themselves", () => {
+  assert.equal(shiftPeriod("2026-03-02", PERIOD.DAY, -1), "2026-03-01");
+  assert.equal(shiftPeriod("2026-W10", PERIOD.WEEK, -1), "2026-W09");
+  assert.equal(shiftPeriod("2026-W01", PERIOD.WEEK, -1), "2025-W52", "a week steps across the year");
+  assert.equal(shiftPeriod("2026-03", PERIOD.MONTH, -1), "2026-02");
+  assert.equal(shiftPeriod("2026-01", PERIOD.MONTH, -1), "2025-12", "a month steps across the year");
+  assert.equal(shiftPeriod("2026-01", PERIOD.MONTH, -13), "2024-12", "and across more than one");
+  assert.equal(shiftPeriod("2026-03", PERIOD.MONTH, 10), "2027-01", "forwards too");
+  assert.equal(shiftPeriod("2026-03", PERIOD.MONTH, 0), "2026-03", "zero is the identity");
+});
+
+test("the live window is `span` whole periods ending today", () => {
+  // Wednesday 2026-03-11.
+  const w = chartWindow(day(9), PERIOD.WEEK, 4, 0);
+  assert.equal(w.to, day(9), "ends today — nothing in the future is asked for");
+  assert.equal(w.from, addDays(MON, -14), "W08–W11: four ISO weeks, starting on W08's Monday");
+  assert.equal(w.lastKey, "2026-W11");
+  assert.equal(w.firstKey, "2026-W08");
+
+  const d = chartWindow(day(9), PERIOD.DAY, 7, 0);
+  assert.equal(d.from, day(3));
+  assert.equal(d.to, day(9));
+
+  const m = chartWindow("2026-03-11", PERIOD.MONTH, 6, 0);
+  assert.equal(m.from, "2025-10-01", "six months, counted as months");
+  assert.equal(m.to, "2026-03-11");
+});
+
+test("a paged window ends on its last period's last day, one screenful earlier per page", () => {
+  const w = chartWindow(day(9), PERIOD.WEEK, 4, 1);
+  assert.equal(w.lastKey, "2026-W07", "four weeks before this one");
+  assert.equal(w.to, periodEndOf("2026-W07"), "a closed week ends on its Sunday, not on a weekday");
+  assert.equal(w.firstKey, "2026-W04");
+
+  const d = chartWindow(day(9), PERIOD.DAY, 7, 2);
+  assert.equal(d.to, day(9 - 14));
+  assert.equal(d.from, day(9 - 20));
+
+  const m = chartWindow("2026-03-11", PERIOD.MONTH, 3, 1);
+  assert.equal(m.from, "2025-10-01", "the three months before Jan–Mar");
+  assert.equal(m.to, "2025-12-31", "the month's own last day");
+});
+
+function periodEndOf(weekKey) {
+  const [y, w] = weekKey.split("-W").map(Number);
+  const jan4 = Date.UTC(y, 0, 4);
+  const monday = jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * 86400000;
+  return new Date(monday + ((w - 1) * 7 + 6) * 86400000).toISOString().slice(0, 10);
+}
+
+test("historyBetween is clipped to the habit's birthday and to today, and only today's period is open", () => {
+  const values = {};
+  for (let n = 0; n <= 20; n += 1) values[n] = 100;
+  const state = world({ values });
+  const all = historyBetween(state, state.habits.get("h"), "me", day(20), day(-30), day(40));
+  assert.equal(all.length, 21, "nothing before birth, nothing after today");
+  assert.equal(all[0].from, day(0));
+  assert.equal(all[20].from, day(20));
+  assert.equal(all.filter((e) => e.open).length, 1);
+  assert.equal(all[20].open, true);
+
+  const past = historyBetween(state, state.habits.get("h"), "me", day(20), day(2), day(8));
+  assert.equal(past.length, 7);
+  assert.equal(past.some((e) => e.open), false, "a window that ended last week has nothing running in it");
+  assert.deepEqual(past.map((e) => e.status), Array(7).fill(HIT));
+
+  const asWeeks = historyBetween(state, state.habits.get("h"), "me", day(20), day(0), day(20), PERIOD.WEEK);
+  assert.equal(asWeeks.length, 3, "asked at a coarser period, the same days come back as weeks");
+  assert.equal(asWeeks[2].open, true);
+
+  assert.deepEqual(historyBetween(state, state.habits.get("h"), "me", day(20), day(-9), day(-1)), [],
+    "a window entirely before the habit existed is empty");
+});
+
+test("habitHistory is the live window of SPAN periods — unchanged by the refactor", () => {
+  const values = {};
+  for (let n = 0; n <= 30; n += 1) values[n] = 100;
+  const state = world({ values });
+  const h = state.habits.get("h");
+  const daily = habitHistory(state, h, "me", day(30));
+  assert.equal(daily.length, SPAN[PERIOD.DAY]);
+  assert.equal(daily[daily.length - 1].from, day(30));
+  assert.equal(daily[0].from, day(30 - 13));
+
+  const weekly = world({ period: PERIOD.WEEK, values });
+  const weeks = habitHistory(weekly, weekly.habits.get("h"), "me", day(30));
+  assert.equal(weeks.length, 5, "a habit five weeks old has five weeks, whatever SPAN says");
+  assert.equal(weeks[0].from, day(0), "the first week starts on the birthday's Monday");
+});
+
+// ---- rollup: pure over entries, so the arithmetic is pinned without a world ----
+
+const D = (n, value, status, target = 100, open = false) => ({
+  key: day(n), period: PERIOD.DAY, from: day(n), to: day(n), open, value, target, status,
+});
+
+test("a `last` habit's week is the average of the days that reported, against the average target", () => {
+  const entries = [
+    D(0, 120, HIT), D(1, 80, MISS), D(2, NaN, NO_DATA), D(3, 100, HIT),
+    D(4, null, EXEMPT), D(5, 110, HIT), D(6, 90, MISS),
+  ];
+  const [w] = rollup(entries, PERIOD.WEEK, { aggregate: AGGREGATE.LAST, direction: AT_LEAST });
+  assert.equal(w.key, "2026-W10");
+  assert.equal(w.period, PERIOD.WEEK);
+  assert.equal(w.from, day(0));
+  assert.equal(w.to, day(6));
+  assert.equal(w.value, 100, "(120+80+100+110+90)/5 — the silent day is not a zero");
+  assert.equal(w.target, 100, "the rest day contributes no target");
+  assert.equal(w.status, HIT, "the average met the goal — the verdict is the aggregate's");
+  assert.equal(w.parts, 7);
+  assert.equal(w.judged, 5);
+  assert.equal(w.hits, 3);
+  assert.equal(w.misses, 2);
+  assert.equal(w.quiet, 1);
+  assert.equal(w.rest, 1);
+  assert.equal(w.open, false);
+  assert.equal("values" in w, false, "the working lists do not leak onto the entry");
+});
+
+test("a `sum` habit's week is its total, and a tapering ceiling is each day's allowance added up", () => {
+  const entries = [
+    D(0, 10, HIT, 12), D(1, 12, HIT, 12), D(2, 14, MISS, 12), D(3, 9, HIT, 11),
+    D(4, 11, HIT, 11), D(5, 0, HIT, 11), D(6, 8, HIT, 11),
+  ];
+  const [w] = rollup(entries, PERIOD.WEEK, { aggregate: AGGREGATE.SUM, direction: AT_MOST });
+  assert.equal(w.value, 64);
+  assert.equal(w.target, 80, "12+12+12+11+11+11+11 — the ceiling steps down mid-week and the week's allowance says so");
+  assert.equal(w.status, HIT, "under the week's allowance is met, even with one day over");
+  assert.equal(w.misses, 1);
+});
+
+test("a rollup is chronological, one bucket per period, and the bucket with today in it is open", () => {
+  const entries = [];
+  for (let n = 0; n <= 16; n += 1) entries.push(D(n, 100, HIT, 100, n === 16));
+  const weeks = rollup(entries, PERIOD.WEEK, { aggregate: AGGREGATE.LAST, direction: AT_LEAST });
+  assert.deepEqual(weeks.map((w) => w.key), ["2026-W10", "2026-W11", "2026-W12"]);
+  assert.deepEqual(weeks.map((w) => w.parts), [7, 7, 3], "the running week is partial, the closed ones whole");
+  assert.deepEqual(weeks.map((w) => w.open), [false, false, true]);
+  assert.equal(weeks[2].from, day(14), "a partial bucket still spans its whole period");
+  assert.equal(weeks[2].to, day(20));
+});
+
+test("a bucket nobody was judged in is quiet when a sensor was silent, rest when every day was booked off", () => {
+  const quiet = rollup([D(0, NaN, NO_DATA), D(1, NaN, NO_DATA)], PERIOD.WEEK, {});
+  assert.equal(quiet[0].status, NO_DATA);
+  assert.equal(quiet[0].value, null, "nothing reported is null, never zero");
+  const rest = rollup([D(0, null, EXEMPT), D(1, null, EXEMPT)], PERIOD.WEEK, {});
+  assert.equal(rest[0].status, EXEMPT);
+  assert.equal(rest[0].target, null, "no allowance on days nobody was judged");
+  const mixed = rollup([D(0, null, EXEMPT), D(1, NaN, NO_DATA)], PERIOD.WEEK, {});
+  assert.equal(mixed[0].status, NO_DATA, "one silent day among rest days is still a silence");
+});
+
+test("an open bucket with nothing in it yet is quiet, and one with a value is judged on what is there", () => {
+  const empty = rollup([D(14, NaN, NO_DATA, 100, true)], PERIOD.WEEK, { aggregate: AGGREGATE.LAST, direction: AT_LEAST });
+  assert.equal(empty[0].status, NO_DATA);
+  assert.equal(empty[0].open, true);
+  const partial = rollup([D(14, 120, HIT, 100), D(15, 130, HIT, 100, true)], PERIOD.WEEK,
+    { aggregate: AGGREGATE.LAST, direction: AT_LEAST });
+  assert.equal(partial[0].status, HIT, "a running week already over its goal shows met");
+  assert.equal(partial[0].value, 125);
+
+  // The active-day guard: today at 40 of 100 by noon is not a miss, and the week must not say so.
+  const running = rollup([D(14, 120, HIT, 100), D(15, 40, MISS, 100, true)], PERIOD.WEEK,
+    { aggregate: AGGREGATE.LAST, direction: AT_LEAST });
+  assert.equal(running[0].misses, 0, "the running day's shortfall is not counted as a miss");
+  assert.equal(running[0].judged, 1, "only the closed day has been judged");
+  assert.equal(running[0].value, 80, "but what it has done so far still rides into the average");
+  assert.equal(running[0].open, true);
+});
+
+test("a `last` ceiling by the week is the average against the cap, over when the average is", () => {
+  const entries = [D(0, 100, HIT, 120), D(1, 150, MISS, 120), D(2, 140, MISS, 120)];
+  const [w] = rollup(entries, PERIOD.WEEK, { aggregate: AGGREGATE.LAST, direction: AT_MOST });
+  assert.equal(w.value, 130);
+  assert.equal(w.status, MISS, "130 a day against a cap of 120");
+});
+
+test("daily entries roll up to months by the calendar, and weekly ones by the ISO Thursday rule", () => {
+  const days = [];
+  for (let n = 25; n <= 35; n += 1) days.push(D(n, 100, HIT));   // 27 Mar – 6 Apr
+  const months = rollup(days, PERIOD.MONTH, { aggregate: AGGREGATE.LAST, direction: AT_LEAST });
+  assert.deepEqual(months.map((m) => m.key), ["2026-03", "2026-04"]);
+  assert.deepEqual(months.map((m) => m.parts), [5, 6]);
+  assert.equal(months[0].from, "2026-03-01");
+  assert.equal(months[0].to, "2026-03-31");
+
+  // Week 2026-W14 runs Mon 30 Mar – Sun 5 Apr; its Thursday is 2 April, so it is an April week.
+  const W = (from, value, status) => ({
+    key: "w", period: PERIOD.WEEK, from, to: addDays(from, 6), open: false, value, target: 3, status,
+  });
+  const weeks = [W("2026-03-16", 3, HIT), W("2026-03-23", 2, MISS), W("2026-03-30", 4, HIT), W("2026-04-06", 3, HIT)];
+  const byMonth = rollup(weeks, PERIOD.MONTH, { aggregate: AGGREGATE.SUM, direction: AT_LEAST });
+  assert.deepEqual(byMonth.map((m) => [m.key, m.parts, m.value, m.target]),
+    [["2026-03", 2, 5, 6], ["2026-04", 2, 7, 6]],
+    "the straddling week is counted once, in April, and a month's target is its weeks' added up");
+  assert.deepEqual(byMonth.map((m) => m.status), [MISS, HIT]);
+});
+
+test("a rollup built from real history agrees with the summary of the days inside it", () => {
+  const values = {};
+  for (let n = 0; n <= 20; n += 1) values[n] = n % 4 === 0 ? 60 : 120;   // every fourth day short
+  const state = world({ values });
+  const h = state.habits.get("h");
+  const days = historyBetween(state, h, "me", day(20), day(0), day(20));
+  const weeks = rollup(days, PERIOD.WEEK, h);
+  assert.equal(weeks.length, 3);
+  const closedDays = historySummary(days);
+  const closedWeeks = weeks.filter((w) => !w.open);
+  assert.equal(closedWeeks.reduce((t, w) => t + w.judged, 0) + weeks[2].judged, closedDays.judged + 0,
+    "every judged day lands in exactly one bucket (the open day is unjudged in both)");
+  assert.equal(closedWeeks.reduce((t, w) => t + w.hits, 0) + weeks[2].hits, closedDays.hits);
+  // Week one: days 0 and 4 short (60), the other five 120 → (60+600+60)/7 = 102.9 → met.
+  assert.equal(weeks[0].status, HIT);
+  assert.equal(weeks[0].misses, 2);
+  assert.equal(Math.round(weeks[0].value), 103);
 });
 
 if (failures.length) {

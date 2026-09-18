@@ -1501,42 +1501,122 @@ button.card-open:active { transform: scale(0.99); }
 .hd-run b { display: block; font-size: var(--fs-title); font-variant-numeric: tabular-nums; }
 .hd-run span { font-size: var(--fs-micro); color: var(--dim); }
 
-/* A fortnight of bars. A shape read at a glance, and the only honest way to show four states at
-   once — "9 of 14" collapses them into two. */
-/* stretch, not flex-end. flex-end shrinks each column to its content, so the track never got the
-   height its bar was a percentage OF and the whole chart drew as a row of tick letters. */
+/* ---------- the chart ----------
+
+   A fortnight of bars — or a season of weeks, or a year of months. A shape read at a glance, and
+   the only honest way to show four states at once: "9 of 14" collapses them into two.
+
+   ---- The controls ----
+
+   The grain toggle on the left, the dates on the right with the paging arrows either side. The
+   dates are a button: tapping them drops the range chips underneath, so the filter lives on the
+   thing it filters rather than in a row of its own. */
+.hd-controls {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 0 0 10px;
+}
+.hd-seg {
+  display: inline-flex; padding: 2px;
+  background: var(--bg); border-radius: 999px;
+}
+.hd-seg-btn {
+  border: 0; background: none; cursor: pointer;
+  padding: 5px 11px; border-radius: 999px;
+  font: inherit; font-size: var(--fs-micro); font-weight: 700; color: var(--dim);
+}
+.hd-seg-btn.on { background: var(--teal); color: #00201B; }
+/* A habit with one grain gets the word, not a toggle with one button in it. */
+.hd-seg-only { font-size: var(--fs-micro); font-weight: 700; color: var(--dim); padding-left: 2px; }
+.hd-range { display: flex; align-items: center; gap: 2px; }
+.hd-page {
+  width: 28px; height: 28px; border: 0; border-radius: 999px;
+  background: none; color: var(--dim); cursor: pointer;
+  font-size: 20px; line-height: 1; padding: 0 0 2px;
+}
+.hd-page:disabled { opacity: 0.25; cursor: default; }
+.hd-range-btn {
+  border: 0; cursor: pointer;
+  padding: 5px 10px; border-radius: 999px;
+  background: var(--bg); color: var(--text);
+  font: inherit; font-size: var(--fs-micro); font-weight: 700;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.hd-range-btn::after { content: "\25BE"; margin-left: 5px; color: var(--dim); }
+.hd-range-btn.is-open { box-shadow: inset 0 0 0 1px var(--teal-dim); }
+.hd-range-btn.is-open::after { color: var(--teal); }
+.hd-spans { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 10px; }
+.chip.chip-sm { padding: 5px 10px; font-size: var(--fs-micro); }
+
+/* ---- The plot ----
+
+   The bars and, beside them, an axis naming the top of the scale and the goal. A goal that held
+   across the window is one line across the whole chart; one that moved — a taper coming down, a
+   goal somebody raised — is a step on each bar, at that period's own number. */
+.hd-plot { display: flex; gap: 6px; align-items: stretch; }
+/* A grid of --n columns (set inline: the span), shared with the tick row, so a tick can never
+   drift from its bar. Columns are capped in width and packed to the right, where now is: a chart
+   of three weeks draws three bars beside the axis, not three slabs across the screen. One row,
+   the full height, so a bar's percentage has something to be a percentage OF — flex-end shrank
+   each column to its content and the whole chart drew as a row of tick letters. */
 .hd-chart {
-  position: relative;
-  display: flex; align-items: flex-end; gap: 3px;
+  position: relative; flex: 1; min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--n, 14), minmax(0, 56px));
+  grid-template-rows: minmax(0, 1fr);
+  justify-content: end; column-gap: 3px; align-items: end;
   /* Taller than it was. Fourteen bars in 96px gave a good day and a scraped-through one about
      eleven pixels to differ by, which is the whole thing the height is carrying. */
-  height: 124px;
+  height: 136px;
+  /* A baseline, and a faint line at the top of the scale for the axis label to sit on. */
+  border-bottom: 1px solid var(--line);
 }
-/* The goal, per bar, at that period's own target. One line across the chart could only ever show
-   one number, and the number moves: a taper brings the ceiling down, and each person's target is
-   their own rather than the group's seed. */
+.hd-chart::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0;
+  border-top: 1px dashed var(--line); opacity: 0.7;
+}
+/* A grid item in the bars' own row, spanning the columns that have a bar (set inline), lifted to
+   the goal by its bottom margin (set inline as a percentage of the row). Light rather than teal
+   or red: a teal dash on a teal fill was invisible on exactly the days it mattered, and a
+   threshold drawn pale across everything reads as one whichever side of it the bars fall. The
+   legend under the chart says whether it is a goal or a ceiling. */
+.hd-goal-line {
+  grid-row: 1; align-self: stretch; position: relative;
+  height: 100%; width: 100%;
+  pointer-events: none; z-index: 2;
+}
+/* The dash itself sits at --goal (set inline) of the item's HEIGHT. A percentage margin would
+   have resolved against the width, which is how the line first drew above the whole chart. */
+.hd-goal-line::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: var(--goal, 0%);
+  border-top: 1px dashed rgba(234, 240, 255, 0.62);
+}
+/* The goal, per bar, at that period's own target — only when the one line cannot be drawn. The
+   same pale dash, for the same reason. */
 .hd-bar-goal {
   position: absolute; left: 0; right: 0; height: 0;
-  border-top: 1px dashed var(--teal-soft); opacity: 0.75;
+  border-top: 1px dashed rgba(234, 240, 255, 0.62);
   pointer-events: none; z-index: 1;
 }
-.hd-bar-goal.is-ceiling { border-top-color: var(--danger); opacity: 0.65; }
 
+/* Bars are capped in width and anchored to the right, where now is. A chart of three weeks draws
+   three bars beside the axis, not three slabs across the screen. */
 .hd-bar {
-  position: relative;
-  flex: 1; min-width: 0; height: 100%;
+  position: relative; grid-row: 1;
+  min-width: 0; height: 100%;
   display: flex; align-items: flex-end;
-  background: var(--bg); border: 0; border-radius: 4px; padding: 0;
+  background: var(--bg); border: 0; border-radius: 4px 4px 0 0; padding: 0;
   cursor: pointer; overflow: hidden;
 }
-.hd-bar-fill { display: block; width: 100%; border-radius: 4px; }
-.hd-bar-fill.is-hit { background: var(--teal); }
-.hd-bar-fill.is-miss { background: var(--danger); }
+.hd-bar-fill { display: block; width: 100%; border-radius: 4px 4px 0 0; }
+/* A touch of light at the top of a fill, so a bar reads as a thing standing on the baseline rather
+   than a rectangle of colour. */
+.hd-bar-fill.is-hit { background: linear-gradient(180deg, var(--teal-soft) 0, var(--teal) 28%); }
+.hd-bar-fill.is-miss { background: linear-gradient(180deg, #FF8A8A 0, var(--danger) 28%); }
 /* An OPEN period is still climbing, not judged: a quiet in-progress fill, never the miss red. */
 .hd-bar-fill.is-now { background: var(--teal-dim); }
-.hd-bar.is-now { border: 1px dashed var(--teal-dim); }
+.hd-bar.is-now { box-shadow: inset 0 0 0 1px var(--teal-dim); }
 /* Silence and rest are drawn, not blank — a missing bar reads as a failure nobody had.
-   
+
    They were drawn as a four-pixel stub along the floor of the track, which is the same shape a
    value of almost zero makes and, on this ground, close to invisible: the screenshot that started
    this had two of them and neither could be seen at all. So the whole COLUMN is marked instead of
@@ -1553,12 +1633,47 @@ button.card-open:active { transform: scale(0.99); }
   -45deg, var(--teal-dim) 0 2px, transparent 2px 6px); }
 /* And no stub. The hatch is the whole statement; a bar on top of it would be a quantity again. */
 .hd-bar-fill.is-quiet, .hd-bar-fill.is-rest { display: none; }
+/* Before the habit existed: a slot with nothing in it, so the axis keeps its shape. Not hatched —
+   hatching says "nothing was recorded", and there was nothing to record. */
+.hd-bar.is-void { background: none; cursor: default; pointer-events: none; }
+/* A clean day on a tally where zero is the perfect day: the mark, and no stub under it. */
+.hd-bar.is-clean .hd-bar-fill { display: none; }
+.hd-bar.is-clean::after {
+  content: "\2713"; position: absolute; left: 0; right: 0; bottom: 5px;
+  text-align: center; color: var(--teal); font-size: 11px; font-weight: 800; line-height: 1;
+}
 
-.hd-bar.is-picked { outline: 1px solid var(--dim); outline-offset: 1px; }
+.hd-bar.is-picked { outline: 1.5px solid var(--text); outline-offset: -1.5px; z-index: 1; }
+.hd-bar.is-picked .hd-bar-fill.is-now { background: var(--teal-dim); }
 
-.hd-ticks { display: flex; gap: 3px; margin-top: 5px; }
-.hd-tick { flex: 1; min-width: 0; font-size: 9px; color: var(--dim); text-align: center; }
-.hd-tick.is-now { color: var(--teal); font-weight: 800; }
+/* The axis: the top of the scale, and the goal, each beside the line it names. */
+.hd-axis {
+  position: relative; flex: 0 0 30px;
+  font-size: 9px; color: var(--dim); font-variant-numeric: tabular-nums;
+}
+.hd-axis > span {
+  position: absolute; left: 0; white-space: nowrap; line-height: 1;
+  transform: translateY(-50%);
+}
+.hd-axis-goal { transform: translateY(50%); color: var(--teal-soft); font-weight: 700; }
+.hd-axis-goal.is-ceiling { color: var(--danger); }
+
+/* Ticks mirror the bars: same gap, same cap, same anchor, with the axis's width kept clear. */
+.hd-ticks {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 14), minmax(0, 56px));
+  justify-content: end; column-gap: 3px;
+  margin-top: 5px; padding-right: 36px;
+}
+.hd-tick {
+  min-width: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  font-size: 9px; color: var(--dim); text-align: center; line-height: 1.1;
+}
+.hd-tick b { font-weight: 600; }
+.hd-tick small { font-size: 8px; opacity: 0.8; }
+.hd-tick.is-now b { color: var(--teal); font-weight: 800; }
+.hd-tick.is-picked b { color: var(--text); font-weight: 800; }
 
 .hd-chart-wrap { margin-bottom: 12px; }
 /* The line's own label, beside the line rather than whispering under the right-hand corner at
@@ -1572,9 +1687,8 @@ button.card-open:active { transform: scale(0.99); }
 .hd-scale::before {
   content: "";
   flex: 0 0 16px; height: 0;
-  border-top: 1px dashed var(--teal-soft);
+  border-top: 1px dashed rgba(234, 240, 255, 0.62);
 }
-.hd-scale.is-ceiling::before { border-top-color: var(--danger); }
 
 .hd-detail {
   padding: 12px 14px; margin-bottom: 12px;

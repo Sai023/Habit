@@ -1,8 +1,9 @@
-// demo.js — a believable three weeks, so the dashboard can be looked at before there is a backend.
+// demo.js — a believable eleven weeks, so the dashboard can be looked at before there is a backend.
 //
 // Reachable only via ?demo=1, and the header says so. It exists because the interesting states in
 // this app take weeks to occur naturally — a spent grace token, a pending goal, a watch that
-// stopped reporting — and those are exactly the states worth reviewing the design against.
+// stopped reporting, a taper most of the way down, a history long enough to read by the month —
+// and those are exactly the states worth reviewing the design against.
 //
 // It builds a real event log and runs it through the real engine. Nothing here fakes a derived
 // number, so if the leaderboard is wrong on this screen it is wrong in production too.
@@ -31,7 +32,7 @@ export function demoState(now = Date.now()) {
   seq = 0;
   const today = dayKey(now, TZ, DAY_START);
   const day = (n) => addDays(today, n);
-  const start = day(-20);
+  const start = day(-75);
   const t0 = evening(start, 7);
 
   const events = [
@@ -52,7 +53,9 @@ export function demoState(now = Date.now()) {
       tz: TZ, dayStartHour: DAY_START, source: SOURCE.MANUAL, visibility: VISIBILITY.FULL,
     }), t0),
     E(ev.habit("urges", {
-      name: "Vape puffs", icon: "💨", metric: METRIC.PUFFS, direction: AT_MOST, target: 8,
+      // Eighteen at birth, one fewer a week: eight by today, so the last three weeks read as they
+      // did when the demo was three weeks long, and the eight before them show the ceiling coming down.
+      name: "Vape puffs", icon: "💨", metric: METRIC.PUFFS, direction: AT_MOST, target: 18,
       aggregate: AGGREGATE.SUM, tz: TZ, dayStartHour: DAY_START, source: SOURCE.PAUSE,
       visibility: VISIBILITY.PROGRESS,
       taper: { amount: 1, everyDays: 7, floor: 0 },
@@ -70,6 +73,13 @@ export function demoState(now = Date.now()) {
       name: "Workouts", icon: "🏋", metric: METRIC.SESSIONS, direction: AT_LEAST,
       target: 3, period: PERIOD.WEEK, aggregate: AGGREGATE.SUM, tz: TZ, dayStartHour: DAY_START,
       source: SOURCE.HEALTH_CONNECT, visibility: VISIBILITY.FULL,
+    }), t0),
+
+    // And a monthly one: one number, asked at the end of the month. The sixth of the six.
+    E(ev.habit("savings", {
+      name: "Savings", icon: "💰", metric: METRIC.AMOUNT, direction: AT_LEAST,
+      target: 1000, period: PERIOD.MONTH, aggregate: AGGREGATE.LAST, tz: TZ, dayStartHour: DAY_START,
+      source: SOURCE.MANUAL, visibility: VISIBILITY.PROGRESS,
     }), t0),
 
     // Two phones report automatically; the third types it in. This is the whole reason bindings
@@ -108,8 +118,13 @@ export function demoState(now = Date.now()) {
   // overlap here is deliberately partial so the sentence stays a comparison.
   const heavyPhone = new Set([-19, -16, -13, -9, -6, -3, -1]);
 
-  for (let n = -20; n <= 0; n += 1) {
+  for (let n = -75; n <= 0; n += 1) {
     const d = day(n);
+
+    // Savings: a balance typed in near the end of each month, some months short of the thousand,
+    // and a part-way figure for the month still running.
+    if (d.endsWith("-28")) log("savings", DEMO_ME, d, 700 + spread(n, 700), SOURCE.MANUAL);
+    if (n === 0 && Number(d.slice(8)) < 28) log("savings", DEMO_ME, d, 350, SOURCE.MANUAL);
 
     // Thabo: the metronome. Earns the crown honestly.
     log("steps", "thabo", d, 10400 + spread(n, 2600), SOURCE.HEALTH_CONNECT);
@@ -126,7 +141,7 @@ export function demoState(now = Date.now()) {
 
     // Screen time, counted by Pause itself. Two days missing near the start: the shell was not
     // reporting yet, and those days have to read as NO_DATA rather than as perfect ones.
-    if (n > -19) {
+    if (n > -74) {
       log("screen", DEMO_ME, d, heavyPhone.has(n) ? 140 + spread(n, 70) : 44 + spread(n, 38), SOURCE.PAUSE);
       log("screen", "thabo", d, 52 + spread(n, 30), SOURCE.PAUSE);
     }
@@ -139,7 +154,19 @@ export function demoState(now = Date.now()) {
   }
 
   // Sessions carry the source's own id, so re-reporting one is harmless and two on a day are two.
-  for (const n of [-6, -4, -1]) {
+  //
+  // The last week is the three the demo always had; the weeks before it are roughly three a week on
+  // a Mon/Wed/Fri rhythm, with one week that managed only one — so the weekly chart has a miss in
+  // it and the monthly rollup has something to add up.
+  const gymDays = [-6, -4, -1];
+  for (let n = -75; n < -7; n += 1) {
+    const dow = ((n % 7) + 7) % 7;
+    const week = Math.floor(-n / 7);
+    if (![1, 3, 5].includes(dow)) continue;
+    if (week === 5 && dow !== 3) continue;
+    gymDays.push(n);
+  }
+  for (const n of gymDays) {
     events.push(E(ev.log("gym", DEMO_ME, day(n), 1, SOURCE.HEALTH_CONNECT, "w" + n), evening(day(n), 18)));
   }
   for (const n of [-5, -2]) {

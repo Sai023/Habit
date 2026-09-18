@@ -3,7 +3,7 @@
 // Kept apart from the dashboard because the same value is rendered in several places and a metric
 // that reads "450" in one and "7h 30m" in another looks like two different numbers.
 
-import { METRIC, AT_MOST, SOURCE } from "../schema.js";
+import { METRIC, AT_MOST, SOURCE, PERIOD } from "../schema.js";
 
 /** A metric's value, in the words a person would use for it. */
 export function value(metric, n) {
@@ -220,4 +220,106 @@ export function fromClock(text) {
 export function windowLabel(w) {
   if (!w) return null;
   return clockLabel(w.start) + " \u2192 " + clockLabel(w.end) + (w.source === "pause" ? " (phone quiet)" : "");
+}
+
+// ---------------------------------------------------------------------------
+// The history chart's words: its axis, its ticks, and the range it is looking at.
+//
+// Pure, so the choices in them are pinned — which tick gets a second line, how a value is shortened
+// to fit beside a bar — rather than living inline in the sheet where nothing could test them.
+// ---------------------------------------------------------------------------
+
+const MON_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DOW_LETTER = ["M", "T", "W", "T", "F", "S", "S"];
+
+function parts(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return { y, m, d, dow: (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7 };
+}
+
+/**
+ * A value shortened for an axis, where there is room for four characters and no more.
+ *
+ * Minutes become hours ("7h", "7.5h", "45m"), thousands become "k" ("10k", "12.5k") and anything
+ * else is rounded — the axis names a scale, the panel below names the number.
+ */
+export function axisValue(metric, n) {
+  if (n == null || !Number.isFinite(n)) return "";
+  if (metric === METRIC.SLEEP || metric === METRIC.SCREEN_MINUTES) {
+    if (Math.abs(n) < 60) return Math.round(n) + "m";
+    const h = n / 60;
+    return (Number.isInteger(h) ? h : Math.round(h * 10) / 10) + "h";
+  }
+  if (Math.abs(n) >= 1000) {
+    const k = n / 1000;
+    return (Number.isInteger(k) ? k : Math.round(k * 10) / 10) + "k";
+  }
+  return String(Math.round(n));
+}
+
+/**
+ * The top of a chart's scale: the smallest round number at or above the window's biggest value.
+ *
+ * Bars drawn to the raw maximum always have one touching the ceiling and an axis that reads
+ * "7.8h"; a round top gives the tallest bar a little air and the axis a number somebody would say.
+ * Round in the metric's own units — whole or half hours for a duration, thousands for steps — and
+ * for anything under ten, the next whole one: a chart of workouts has no use for a top of 4.4.
+ */
+export function niceTop(metric, n) {
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  let step;
+  if (metric === METRIC.SLEEP || metric === METRIC.SCREEN_MINUTES) step = n < 240 ? 30 : 60;
+  else if (n < 10) step = 1;
+  else step = Math.pow(10, Math.floor(Math.log10(n))) / 5;
+  return Math.ceil(n / step - 1e-9) * step;
+}
+
+/**
+ * The stretch of days a chart covers, said once: "7 – 20 Sep", "31 Aug – 13 Sep", or across a
+ * year "28 Dec 2025 – 10 Jan 2026". A months view names months: "Apr – Sep 2026".
+ */
+export function dateRange(from, to, view = PERIOD.DAY) {
+  if (!from || !to) return "";
+  const a = parts(from);
+  const b = parts(to);
+  if (view === PERIOD.MONTH) {
+    if (a.y === b.y && a.m === b.m) return MON_ABBR[a.m - 1] + " " + a.y;
+    if (a.y === b.y) return MON_ABBR[a.m - 1] + " – " + MON_ABBR[b.m - 1] + " " + a.y;
+    return MON_ABBR[a.m - 1] + " " + a.y + " – " + MON_ABBR[b.m - 1] + " " + b.y;
+  }
+  if (from === to) return a.d + " " + MON_ABBR[a.m - 1];
+  if (a.y !== b.y) {
+    return a.d + " " + MON_ABBR[a.m - 1] + " " + a.y + " – " + b.d + " " + MON_ABBR[b.m - 1] + " " + b.y;
+  }
+  if (a.m === b.m) return a.d + " – " + b.d + " " + MON_ABBR[a.m - 1];
+  return a.d + " " + MON_ABBR[a.m - 1] + " – " + b.d + " " + MON_ABBR[b.m - 1];
+}
+
+/**
+ * What goes under each bar: a main label, and a second line only where the calendar turns.
+ *
+ * Days are their weekday letter, with the date under Mondays (and the first bar) so a fortnight
+ * can be placed without counting. Weeks are the date of their Monday, with the month under the
+ * first bar of each month. Months are their name, with the year under each January and the first.
+ * Labelling every bar twice would double the ink for nothing; the second line is a landmark.
+ */
+export function chartTicks(entries) {
+  let prev = null;
+  return (entries || []).map((e) => {
+    const p = parts(e.from);
+    let main;
+    let sub = null;
+    if (e.period === PERIOD.WEEK) {
+      main = String(p.d);
+      if (!prev || prev.m !== p.m) sub = MON_ABBR[p.m - 1];
+    } else if (e.period === PERIOD.MONTH) {
+      main = MON_ABBR[p.m - 1];
+      if (!prev || prev.y !== p.y) sub = String(p.y);
+    } else {
+      main = DOW_LETTER[p.dow];
+      if (!prev || p.dow === 0) sub = String(p.d);
+    }
+    prev = p;
+    return { main, sub };
+  });
 }

@@ -18,34 +18,42 @@
 // to show four states at once. "9 of 14" collapses HIT, MISS, NO_DATA and EXEMPT into two, and the
 // difference between "you missed four days" and "your watch said nothing on four days" is the
 // difference between a screen that is fair and one that is not.
+//
+// ---- Days, weeks, months; a range; paging ----
+//
+// The chart reads at the habit's own grain or any coarser one (viewsFor), over a range the reader
+// picks by tapping the dates above it (SPANS), and pages back through time with the arrows. Every
+// view is the same bar chart drawing the same entry shape: a coarser view is a rollup of the finer
+// entries (history.js), so a week of steps is the average of its days and a week of puffs is their
+// total against that week's added-up allowance — the taper drawn stepping down. The verdict on a
+// rolled-up bar is the aggregate against its target, and the count of days inside it that were met
+// is said in the panel underneath rather than painted on the bar.
+//
+// The three headline numbers and the pills follow the window on screen, so changing the range never
+// leaves a "10/12 met" describing a fortnight the chart is no longer showing. The run, the trend and
+// the lifetime record are about the habit, not the window, and stay put.
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import {
-  habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday, groupHistory,
-  companionTotal, chartScale, barHeight, targetMoved,
+  habitHistory, historyBetween, rollup, chartWindow, viewsFor, SPAN, SPANS,
+  historySummary, runs, trend, lifetime, byWeekday, worstWeekday, groupHistory,
+  companionTotal, chartScale, barHeight, targetDrift,
 } from "../history.js";
 import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { sourceFor, isTracking, HIT, MISS, NO_DATA, EXEMPT, windowOn } from "../habits.js";
 import { programFor, planFor, sessionsOf, workoutLog } from "../workout.js";
 import { historyList } from "./workouthistory.js";
 import { draftsInProgress } from "./workoutdraft.js";
-import { AT_MOST, METRIC, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
+import { AT_MOST, AGGREGATE, METRIC, PERIOD, AUTOMATIC_SOURCES } from "../schema.js";
 import * as fmt from "./format.js";
 
-/** What one period is called, in the fewest characters that stay unambiguous. */
+/** What one period is called, in full, for the row under the chart. */
 const WEEKDAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const WEEKDAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
   "Saturday", "Sunday"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function tick(entry) {
-  const d = new Date(entry.from + "T12:00:00Z");
-  if (entry.period === PERIOD.DAY) return WEEKDAY[(d.getUTCDay() + 6) % 7][0];
-  if (entry.period === PERIOD.WEEK) return String(d.getUTCDate());
-  return MONTH[d.getUTCMonth()][0];
-}
 
 /** The full label, for the row under the chart. */
 function periodLabel(entry) {
@@ -92,8 +100,42 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
 
   const reduce = habit.direction === AT_MOST;
-  const entries = habitHistory(state, habit, me, today);
-  const sum = historySummary(entries);
+  const native = habit.period || PERIOD.DAY;
+  const views = viewsFor(habit);
+
+  // ---- The window ----
+  //
+  // What grain the bars are (view), how many of them (span), and how many screenfuls back from
+  // now (offset). Changing any of them reloads `base` — the habit's own periods across the window —
+  // and `entries`, which is `base` itself at the native grain or its rollup at a coarser one.
+  let view = native;
+  let span = SPAN[native];
+  let offset = 0;
+  let win = null;
+  let base = [];
+  let entries = [];
+  let sum = historySummary([]);
+  // Which bar the reader is looking at. The newest to begin with — the one they just tapped a card
+  // about — and again whenever the window moves under them.
+  let picked = -1;
+  // Whether the range chips are dropped down under the dates.
+  let rangeOpen = false;
+
+  function load() {
+    win = chartWindow(today, view, span, offset);
+    base = historyBetween(state, habit, me, today, win.from, win.to, native);
+    entries = view === native ? base : rollup(base, view, habit);
+    sum = historySummary(base);
+    picked = entries.length - 1;
+  }
+  load();
+
+  // The target in force right now, which is what the header should quote — MY target, from the
+  // period running today, rather than habit.target: that field is the group's seed, and a header
+  // quoting it tells somebody with a goal of their own that their goal is a number they never chose.
+  const current = habitHistory(state, habit, me, today, 1);
+  const liveTarget = current.length && Number.isFinite(current[0].target) ? current[0].target : habit.target;
+
   const run = runs(state, habit, me, today);
   const move = trend(state, habit, me, today);
   const life = lifetime(state, habit, me, today);
@@ -118,9 +160,6 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   const srcLabel = fmt.source(src);
   const automatic = AUTOMATIC_SOURCES.has(src);
 
-  // Which period the reader is looking at. The open one to begin with, because that is the one
-  // they just tapped a card about.
-  let picked = entries.length - 1;
   // Whether the log is dropped down on the Workouts landing. Closed on open: the screen is the
   // habit first, and the list is one tap away.
   let showHistory = false;
@@ -131,48 +170,157 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   const unit = (v) => (v == null ? "—" : fmt.value(habit.metric, v));
   // What one period is called, in the sentences below. Derived from the habit and constant for the
   // life of the sheet, so it lives out here rather than inside paint where only paint could see it.
-  const label = habit.period === PERIOD.DAY ? "day"
-    : habit.period === PERIOD.WEEK ? "week" : "month";
+  const label = native === PERIOD.DAY ? "day"
+    : native === PERIOD.WEEK ? "week" : "month";
+  // What one of the habit's own periods is called inside a rolled-up one: a week of sleep is seven
+  // nights, a week of steps seven days, a month of workouts four or five weeks.
+  const part = native === PERIOD.DAY ? (habit.metric === METRIC.SLEEP ? "night" : "day") : label;
+  const isSum = habit.aggregate === AGGREGATE.SUM;
+
+  const VIEW_NAME = { [PERIOD.DAY]: "Days", [PERIOD.WEEK]: "Weeks", [PERIOD.MONTH]: "Months" };
+  const PERIOD_WORD = { [PERIOD.DAY]: "day", [PERIOD.WEEK]: "week", [PERIOD.MONTH]: "month" };
+
+  /** "7 days", "8 weeks", "3 months" — a range, in the unit the reader will recognise it by. */
+  function spanLabel(v, n) {
+    if (v === PERIOD.WEEK && n >= 13) return count(Math.round(n / 4.33), "month");
+    if (v === PERIOD.MONTH && n === 12) return "1 year";
+    return count(n, PERIOD_WORD[v]);
+  }
+
+  function setView(v) { view = v; span = SPAN[v]; offset = 0; rangeOpen = false; load(); paint(); }
+  function setSpan(n) { span = n; offset = 0; rangeOpen = false; load(); paint(); }
+  function page(by) { offset = Math.max(0, offset + by); load(); paint(); }
+
+  /**
+   * The grain toggle, and the dates with the paging arrows either side. Tapping the dates drops
+   * the range chips underneath — the filter the request asked for, one tap on the thing it filters.
+   */
+  function controls() {
+    // Nothing earlier than the habit's birthday to page back to; nothing later than now.
+    const canBack = !!win && win.from > habit.createdDay;
+    const canForward = offset > 0;
+    const first = entries.length === span || !entries.length ? win.from : entries[0].from;
+    const dates = fmt.dateRange(first, win.to, view);
+
+    return [
+      el("div.hd-controls",
+        views.length > 1
+          ? el("div.hd-seg", { role: "tablist", "aria-label": "Chart grain" }, views.map((v) =>
+              el("button.hd-seg-btn" + (v === view ? ".on" : ""), {
+                role: "tab", "aria-selected": v === view ? "true" : "false",
+                onclick: () => { if (v !== view) setView(v); },
+              }, VIEW_NAME[v])))
+          : el("span.hd-seg-only", VIEW_NAME[view]),
+        el("div.hd-range",
+          el("button.hd-page", { disabled: !canBack, "aria-label": "Earlier", onclick: () => page(1) }, "\u2039"),
+          el("button.hd-range-btn" + (rangeOpen ? ".is-open" : ""), {
+            "aria-expanded": rangeOpen ? "true" : "false", "aria-label": "Change the range",
+            onclick: () => { rangeOpen = !rangeOpen; paint(); },
+          }, dates),
+          el("button.hd-page", { disabled: !canForward, "aria-label": "Later", onclick: () => page(-1) }, "\u203a"),
+        ),
+      ),
+      rangeOpen
+        ? el("div.hd-spans", SPANS[view].map((n) =>
+            el("button.chip.chip-sm" + (n === span ? ".on" : ""),
+              { onclick: () => setSpan(n) }, spanLabel(view, n))))
+        : null,
+    ];
+  }
 
   function chart() {
-    const scale = chartScale(entries);
-    const now = entries[entries.length - 1];
+    // The window's biggest value or target, rounded up to a number the axis can say.
+    const scale = fmt.niceTop(habit.metric, chartScale(entries));
+    // Whether the GOAL moved is a question about the habit's own periods, never about the bars:
+    // a month of a weekly habit has four weeks' worth of goal or five, and calling August "lowered"
+    // because July had five Thursdays would be a lie about a goal nobody touched.
+    const drift = targetDrift(base);
+    // One line across the chart when every bar shares a target, a step per bar when they differ —
+    // a taper coming down, a goal somebody raised, or a rollup whose months hold different numbers
+    // of weeks. The field on the habit is the group's SEED — a joiner's default — so the line is
+    // drawn from each period's own target (the member's, tapered), never from habit.target.
+    const stepped = targetDrift(entries) !== null;
+    const flatTarget = !stepped && entries.length && Number.isFinite(entries[entries.length - 1].target)
+      ? entries[entries.length - 1].target : null;
+    const goalPct = flatTarget != null ? Math.min(100, Math.round((flatTarget / scale) * 100)) : null;
+    // The axis names the top of the scale and the goal. When the goal IS the top (nothing in the
+    // window went past it) the two labels would sit on each other, and one of them is enough.
+    const topLabel = goalPct != null && goalPct > 91 ? null : fmt.axisValue(habit.metric, scale);
+    // Slots for the periods before the habit existed, so a habit three weeks old is drawn as three
+    // bars at the right of an eight-week axis rather than three bars each a third of the screen —
+    // and the bars are the same width on every page of history.
+    const voids = Math.max(0, span - entries.length);
+    const ticks = fmt.chartTicks(entries);
+    // Four weeks of letters do not fit under four weeks of bars; the dates under the Mondays do.
+    const sparse = entries.length > 21;
+    // The legend quotes the goal in the habit's OWN period — "3 a week", "7h 00m a night" — from
+    // the last closed one, because that is the number the reader set and recognises. A rolled-up
+    // bar's target is that goal added up or averaged, and "Goal 12 a month" is only true of the
+    // months with four weeks in them.
+    const closed = [...base].reverse().find((e) => !e.open && Number.isFinite(e.target));
+    const legendTarget = closed ? closed.target : liveTarget;
+    const legendEach = view === native ? "" : " a " + part;
+    const legendDrift = drift === "down" ? (reduce ? " \u2014 coming down" : " \u2014 lowered")
+      : drift === "up" ? " \u2014 raised" : "";
 
-    // The goal is drawn PER BAR, at that period's own target.
-    //
-    // Phase one drew one line across the chart at habit.target, which is wrong twice over. That
-    // field is the group's SEED — the number a new joiner inherits — so anybody who had set a goal
-    // of their own saw a line at somebody else's number, and every bar was judged against it by
-    // eye while the colours were judged against the real one. And a tapering ceiling MOVES: one
-    // flat line cannot show a ceiling coming down, which is the entire point of a taper.
+    // One column per slot, shared with the tick row below, so the two can never drift apart.
+    const columns = "--n:" + span;
+
     return el("div.hd-chart-wrap",
-      el("div.hd-chart",
-        // The verdict goes on the COLUMN as well as on the fill. A day with nothing recorded has
-        // no height to carry it — the whole track is hatched instead, which says absent rather
-        // than "very nearly zero", and those are not the same day.
-        entries.map((e, i) => el("button.hd-bar"
-          + "." + barTone(e)
-          + (i === picked ? ".is-picked" : ""), {
-          onclick: () => { picked = i; paint(); },
-          "aria-label": periodLabel(e),
-        },
-          el("i.hd-bar-fill." + barTone(e),
-            { style: "height:" + barHeight(e, scale) + "%" }),
-          e.target
-            ? el("i.hd-bar-goal" + (reduce ? ".is-ceiling" : ""), {
-                // Capped just below the top rather than at it. The bar clips its overflow so the
-                // fill keeps its rounded corners, and a marker sitting exactly ON the edge is
-                // clipped with it — which hid the ceiling on every period that set the scale.
-                style: "bottom:" + Math.min(98, Math.round((e.target / scale) * 100)) + "%",
-              })
+      controls(),
+      el("div.hd-plot",
+        el("div.hd-chart", { style: columns },
+          // The goal, across the bars that exist — not across the slots before the habit was born.
+          goalPct != null
+            ? el("i.hd-goal-line",
+                { style: "--goal:" + goalPct + "%;grid-column:" + (voids + 1) + " / -1" })
             : null,
+          Array.from({ length: voids }, (_, i) => el("span.hd-bar.is-void",
+            { "aria-hidden": "true", style: "grid-column:" + (i + 1) })),
+          // The verdict goes on the COLUMN as well as on the fill. A day with nothing recorded has
+          // no height to carry it — the whole track is hatched instead, which says absent rather
+          // than "very nearly zero", and those are not the same day.
+          entries.map((e, i) => el("button.hd-bar"
+            + "." + barTone(e)
+            + (i === picked ? ".is-picked" : "")
+            // A clean day on a tally where zero is the perfect day gets a mark, not a stub: a
+            // three-pixel sliver reads as "very little", and none is the whole achievement.
+            + (!e.open && e.status === HIT && e.value === 0 && isSum && reduce ? ".is-clean" : ""), {
+            style: "grid-column:" + (voids + i + 1),
+            onclick: () => { picked = i; paint(); },
+            "aria-label": periodLabel(e),
+            "aria-pressed": i === picked ? "true" : "false",
+          },
+            el("i.hd-bar-fill." + barTone(e),
+              { style: "height:" + barHeight(e, scale) + "%" }),
+            goalPct == null && Number.isFinite(e.target)
+              ? el("i.hd-bar-goal", {
+                  // Capped just below the top rather than at it. The bar clips its overflow so the
+                  // fill keeps its rounded corners, and a marker sitting exactly ON the edge is
+                  // clipped with it — which hid the ceiling on every period that set the scale.
+                  style: "bottom:" + Math.min(98, Math.round((e.target / scale) * 100)) + "%",
+                })
+              : null,
+          )),
+        ),
+        el("div.hd-axis",
+          topLabel ? el("span.hd-axis-top", { style: "top:0" }, topLabel) : null,
+          goalPct != null
+            ? el("span.hd-axis-goal" + (reduce ? ".is-ceiling" : ""),
+                { style: "bottom:" + goalPct + "%" }, fmt.axisValue(habit.metric, flatTarget))
+            : null,
+        ),
+      ),
+      el("div.hd-ticks", { style: columns },
+        Array.from({ length: voids }, () => el("span.hd-tick.is-void")),
+        entries.map((e, i) => el("span.hd-tick"
+          + (e.open ? ".is-now" : "") + (i === picked ? ".is-picked" : ""),
+          el("b", sparse && !ticks[i].sub ? "" : ticks[i].main),
+          ticks[i].sub ? el("small", ticks[i].sub) : null,
         )),
       ),
-      el("div.hd-ticks", entries.map((e) =>
-        el("span.hd-tick" + (e.open ? ".is-now" : ""), tick(e)))),
       el("p.hd-scale" + (reduce ? ".is-ceiling" : ""),
-        (reduce ? "Ceiling " : "Goal ") + unit(now ? now.target : habit.target)
-        + (targetMoved(entries) ? " — coming down" : "")),
+        (reduce ? "Ceiling " : "Goal ") + unit(legendTarget) + legendEach + legendDrift),
     );
   }
 
@@ -183,23 +331,48 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     const verdict = e.open ? "still running"
       : e.status === HIT ? (reduce ? "under" : "met")
       : e.status === MISS ? (reduce ? "over" : "short")
-      : e.status === EXEMPT ? "rest day"
+      : e.status === EXEMPT ? "rest " + PERIOD_WORD[e.period]
       : automatic ? "nothing came through" : "not logged";
 
+    const rolled = e.period !== native;
     return el("div.hd-detail",
       el("div.hd-detail-top",
         el("span.hd-detail-when", periodLabel(e)),
         el("span.hd-detail-verdict." + barTone(e), verdict),
       ),
       el("div.hd-detail-num",
+        // A rolled-up `last` habit is an average, and without the word it reads as one period's number.
+        rolled && !isSum && e.value != null ? el("span", "avg ") : null,
         el("b", unit(e.value)),
-        e.target ? el("span", (reduce ? " of " : " of ") + unit(e.target)) : null,
+        e.target
+          ? el("span", " of " + unit(e.target) + (reduce ? " max" : "") + (rolled && isSum && e.open ? " so far" : ""))
+          : null,
       ),
+      partsLine(e),
       // When the night ran, where whoever reported it said. Under the number rather than beside
       // it: the minutes are the verdict, the clock is the story.
       nightLine(e),
       companionLine(e),
     );
+  }
+
+  /**
+   * What was inside a rolled-up period: how many of its days (or weeks) were met, and what was set
+   * aside. The bar carries one verdict for the whole week; this is where the seven underneath it
+   * are accounted for.
+   */
+  function partsLine(e) {
+    if (e.period === native) return null;
+    const bits = [];
+    if (e.judged) {
+      bits.push(e.hits + " of " + count(e.judged, part) + (reduce ? " under" : " met"));
+    }
+    if (e.quiet) {
+      bits.push(automatic ? count(e.quiet, "sensor gap") : e.quiet + " unlogged");
+    }
+    if (e.rest) bits.push(count(e.rest, "rest " + part));
+    if (!bits.length) return null;
+    return el("p.hd-extra", el("span.hd-extra-icon", "\uD83D\uDCC6"), bits.join(" \u00b7 "));
   }
 
   function nightLine(e) {
@@ -371,8 +544,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     // which is why it does not match the fourteen bars above it — rest days and days a sensor
     // said nothing are not in it. And the figure underneath is an AVERAGE across those periods,
     // which everybody reads as today's number.
-    const span = habit.period === PERIOD.DAY ? "days"
-      : habit.period === PERIOD.WEEK ? "weeks" : "months";
+    const periods = label + "s";
 
     // Sorted by who is furthest along their own goal, so the board reads top-down like a board.
     // Ties settle by days met, then name, so it is the same order on every phone.
@@ -389,8 +561,8 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         el("details.hd-info",
           el("summary", { "aria-label": "How this is counted" }, "ⓘ"),
           el("p",
-            "The " + span + " each person met their own goal, out of the " + span + " that counted — "
-            + "rest " + span + " and ones with nothing from a sensor are left out."
+            "The " + periods + " each person met their own goal, out of the " + periods + " that counted — "
+            + "rest " + periods + " and ones with nothing from a sensor are left out."
             + (someTicksOnly ? " Some show ticks only — everyone picks what the group sees of their numbers." : "")),
         )),
       el("div.hd-people", ranked.map((r) => el(
@@ -474,10 +646,6 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   }
 
   function paint() {
-    // The target in force right now, which is what a header should quote.
-    const latest = entries[entries.length - 1];
-    const mine = latest && Number.isFinite(latest.target) ? latest.target : habit.target;
-
     sheet.paint(
       // .hd carries this screen's panel colour. Every tile inside used to be painted --surface,
       // which is the sheet's OWN background, so none of them were visible at all.
@@ -487,10 +655,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
           el("div.hd-title",
             el("h1", habit.name || "Habit"),
             el("span.hd-sub",
-              // MY target, from the newest entry, rather than habit.target — that field is the
-              // group's seed, and a header quoting it tells somebody with a goal of their own that
-              // their goal is a number they never chose.
-              (reduce ? "Stay under " : "Reach ") + unit(mine)
+              (reduce ? "Stay under " : "Reach ") + unit(liveTarget)
               // fmt.source returns { icon, label } — it is drawn as two pieces everywhere else,
               // and interpolating it into a string gets you [object Object].
               + " a " + label + " · " + srcLabel.icon + " " + srcLabel.label),
