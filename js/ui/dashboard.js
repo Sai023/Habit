@@ -547,8 +547,15 @@ function dayHero(ctx, scored, model) {
       el("div.hero-head",
         // The badge replaces the flame once there is one. A flame beside a Gold badge is two
         // decorations competing to say the same thing, and the badge says it better.
+        //
+        // Before a badge, the mark is a RING that fills with the day. "Meet every goal today to
+        // begin" and "a perfect day" are the same condition — every habit at its target — so the
+        // ring closing is the streak starting, and an empty grey circle becomes the one thing on
+        // the card that moves as the reader does things.
         tierBadge(streak, "lg")
-          || el("div.hero-mark" + (streak > 0 ? ".is-lit" : ""), streak > 0 ? "🔥" : "·"),
+          || el("div.hero-mark.hero-ring" + (streak > 0 ? ".is-lit" : ""),
+              { style: "--pct:" + Math.min(100, pct) + "%", "aria-label": pct + " of 100 " + fmt.XP + " today" },
+              el("span.hero-mark-face", "🔥")),
         el("div.hero-run",
           streak > 0
             ? el("div.hero-streak", el("b", String(streak)), el("span", streak === 1 ? " day" : " days"))
@@ -575,7 +582,14 @@ function dayHero(ctx, scored, model) {
           bonus > 0 ? el("span.row-bonus", " +" + bonus) : null,
         ),
       ),
-      el("div.bar", { role: "presentation" }, el("i", { style: "width:" + Math.min(100, pct) + "%" })),
+      // The hundred, drawn — the same shape "How scoring works" uses to explain it, filled in.
+      //
+      // Three bars of the same length under "47 of 47", "20 of 35" and "17 of 18" made Discipline
+      // look half done and Rest nearly there, when Discipline held fifteen of the seventeen missing
+      // points and Rest held one. A bar's length has to mean something, and here it can mean the
+      // one thing that matters: how much of the day each category IS. So one bar, split by share,
+      // each segment filled to what it earned — the gap to a perfect day sits exactly where it is.
+      daySplit(model.attributes, pct),
 
       // The distance to a perfect day, said as a number to close rather than a percentage reached.
       //
@@ -606,16 +620,49 @@ function dayHero(ctx, scored, model) {
  * model hands us only the categories that DO count (an empty one is hidden, not narrated), so this
  * is just the live ones, each on a single line.
  */
+/**
+ * The day as one bar, split by category share and filled by what each earned.
+ *
+ * Widths are the model's `offered` (they sum to the hundred the day is worth), fills its `pct`.
+ * Colours are the category's own — the same four "How scoring works" keys its split with — so a
+ * reader who has seen that screen recognises this one without a legend. Falls back to a plain bar
+ * when nothing counts today, which the model signals by handing over no attributes.
+ */
+function daySplit(attributes, pct) {
+  if (!attributes || !attributes.length) {
+    return el("div.bar", { role: "presentation" }, el("i", { style: "width:" + Math.min(100, pct) + "%" }));
+  }
+  return el("div.hero-split", { role: "presentation" },
+    attributes.map((a) => el("span.hero-seg" + (a.pct >= 100 ? ".is-hit" : ""), {
+      style: "flex:" + a.offered,
+      title: CATEGORY_LABEL[a.category] + " " + a.points + " of " + a.offered,
+    },
+      el("i.seg-" + a.category, { style: "width:" + Math.min(100, a.pct) + "%" }),
+    )),
+  );
+}
+
+/**
+ * The legend under the split: a dot in the segment's colour, the name, and the number. No bar per
+ * row any more — the split above IS the bars, drawn to a scale that means something.
+ *
+ * No red. This is the open day, and the active-day guard holds here as it does on every card: a
+ * category at 40% at noon is a category still being earned, not a poor one.
+ */
 function attributeBars(attributes) {
   if (!attributes || !attributes.length) return null;
   return el("div.hero-cats",
     attributes.map((a) => {
-      const tone = a.pct >= 100 ? " is-hit" : a.pct < 50 ? " is-poor" : "";
+      const tone = a.pct >= 100 ? " is-hit" : "";
       return el("div.hero-cat",
+        el("i.hero-cat-dot.seg-" + a.category),
         el("span.hero-cat-icon", CATEGORY_ICON[a.category]),
         el("span.hero-cat-name", CATEGORY_LABEL[a.category]),
-        el("div.bar" + tone, { role: "presentation" }, el("i", { style: "width:" + Math.min(100, a.pct) + "%" })),
-        el("span.hero-cat-num" + tone, a.points + " of " + a.offered),
+        el("span.hero-cat-num" + tone,
+          a.points + " of " + a.offered,
+          // What is left in this category, said as a number to close — the same logic as the
+          // "away from a perfect day" line, per category, so the reader can see where the gap is.
+          a.pct < 100 ? el("span.hero-cat-gap", " · " + (a.offered - a.points) + " to go") : null),
       );
     }),
   );

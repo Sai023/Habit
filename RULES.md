@@ -95,6 +95,8 @@ on the wrong one.
 | A weekday pattern is named only when it is real | `js/history.js` — `worstWeekday` | `test/history.test.mjs` |
 | A comparison shows only what each person chose to share | `js/history.js` — `groupHistory` | `test/history.test.mjs` |
 | Progress is measured against THEIR target, not the seed | `js/habits.js` — `publicValue` | `test/history.test.mjs` |
+| A rolled-up period (a week of days, a month of weeks) never counts the running period's shortfall as a miss — the active-day guard reaches the rollup | `js/history.js` — `rollup` | `test/history.test.mjs` |
+| Whether a goal moved is judged on the habit's own periods, never on rolled-up bars — five Thursdays in July is not a lowered goal | `js/history.js` — `targetDrift`; `js/ui/habitdetail.js` reads it off `base` | `test/history.test.mjs` |
 
 ## The season
 

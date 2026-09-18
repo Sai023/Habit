@@ -401,6 +401,22 @@ html, body { overscroll-behavior-y: contain; }
   filter: grayscale(1); opacity: 0.5;
 }
 .hero-mark.is-lit { filter: none; opacity: 1; }
+/* The ring: a conic sweep of today's points (--pct, set inline) with the middle covered, so only
+   a band shows. The face inside keeps the grey/lit rule; the ring is never greyed, because it is
+   the day's progress and the day is always live. */
+.hero-ring {
+  filter: none; opacity: 1;
+  background: conic-gradient(var(--teal) var(--pct, 0%), var(--surface-hi) 0);
+  position: relative;
+}
+.hero-ring::before {
+  content: ""; position: absolute; inset: 4px;
+  border-radius: 50%; background: var(--surface);
+}
+.hero-ring .hero-mark-face {
+  position: relative; filter: grayscale(1); opacity: 0.45;
+}
+.hero-ring.is-lit .hero-mark-face { filter: none; opacity: 1; }
 .hero-run { min-width: 0; }
 .hero-streak { display: flex; align-items: baseline; gap: 5px; }
 .hero-streak b { font-size: var(--fs-display); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
@@ -418,23 +434,35 @@ html, body { overscroll-behavior-y: contain; }
   color: var(--danger);
 }
 
+/* The day, split. Segments sized by each category's share of the hundred (flex, set inline), each
+   filled to what it has earned, in the category's own colour — the same keys the scoring sheet
+   uses. Taller than the plain bar because it carries the split as well as the total. */
+.hero-split {
+  display: flex; gap: 2px; height: 9px;
+  border-radius: 999px; overflow: hidden;
+}
+.hero-seg { display: block; min-width: 0; background: var(--surface-hi); }
+.hero-seg > i { display: block; height: 100%; }
+/* A category with nothing left to earn glows a shade brighter than one still filling. */
+.hero-seg.is-hit > i.seg-fitness { background: var(--teal-soft); }
+
 /* Secondary to the streak above it, and separated rather than merely spaced: this is the day
    broken down, not another headline. */
 .hero-cats {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding-top: 11px;
+  gap: 6px;
+  padding-top: 10px;
   border-top: 1px solid var(--line);
 }
-/* One compact row per attribute: icon · name · a thin inline track · the number. */
+/* One compact row per attribute: a dot in the segment's colour · icon · name · the number. */
 .hero-cat { display: flex; align-items: center; gap: 8px; font-size: var(--fs-small); }
+.hero-cat-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; }
 .hero-cat-icon { flex: none; }
-.hero-cat-name { flex: none; color: var(--dim); }
-.hero-cat .bar { flex: 1; min-width: 40px; margin: 0; }
-.hero-cat-num { flex: none; font-weight: 600; color: var(--dim); font-variant-numeric: tabular-nums; }
+.hero-cat-name { flex: 1; min-width: 0; color: var(--dim); }
+.hero-cat-num { flex: none; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 .hero-cat-num.is-hit { color: var(--teal-soft); }
-.hero-cat-num.is-poor { color: var(--danger); }
+.hero-cat-gap { font-weight: 500; color: var(--dim); }
 /* The countdown, lifted from the section heading to a quiet anchor above the widgets. */
 .day-anchor {
   margin: 0 0 10px; font-size: var(--fs-small); color: var(--dim);
