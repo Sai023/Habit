@@ -73,6 +73,21 @@ const TONE = {
   [EXEMPT]: "is-rest",
 };
 
+/**
+ * The colour a period's bar and verdict take — under the active-day guard.
+ *
+ * An OPEN period has not been judged: the day (or week, or month) is still running, so a shortfall
+ * is not a miss and must never wear the miss colour. It reads as "in progress" instead — the same
+ * rule the Today cards follow, reaching the history chart so a bar at 429 of 6 000 at eleven in the
+ * morning is not painted red. A CLOSED period keeps its real verdict.
+ */
+function barTone(e) {
+  // A running period already at its goal still shows met — the guard suppresses the FAILURE of an
+  // unfinished day, not the success of one already won.
+  if (e.open) return e.status === HIT ? "is-hit" : "is-now";
+  return TONE[e.status] || "is-quiet";
+}
+
 export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram, onOpenWorkout = null }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
 
@@ -136,12 +151,12 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         // no height to carry it — the whole track is hatched instead, which says absent rather
         // than "very nearly zero", and those are not the same day.
         entries.map((e, i) => el("button.hd-bar"
-          + (TONE[e.status] ? "." + TONE[e.status] : "")
+          + "." + barTone(e)
           + (i === picked ? ".is-picked" : ""), {
           onclick: () => { picked = i; paint(); },
           "aria-label": periodLabel(e),
         },
-          el("i.hd-bar-fill." + (TONE[e.status] || "is-quiet"),
+          el("i.hd-bar-fill." + barTone(e),
             { style: "height:" + barHeight(e, scale) + "%" }),
           e.target
             ? el("i.hd-bar-goal" + (reduce ? ".is-ceiling" : ""), {
@@ -174,7 +189,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     return el("div.hd-detail",
       el("div.hd-detail-top",
         el("span.hd-detail-when", periodLabel(e)),
-        el("span.hd-detail-verdict." + (TONE[e.status] || "is-quiet"), verdict),
+        el("span.hd-detail-verdict." + barTone(e), verdict),
       ),
       el("div.hd-detail-num",
         el("b", unit(e.value)),

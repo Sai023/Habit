@@ -1532,6 +1532,9 @@ button.card-open:active { transform: scale(0.99); }
 .hd-bar-fill { display: block; width: 100%; border-radius: 4px; }
 .hd-bar-fill.is-hit { background: var(--teal); }
 .hd-bar-fill.is-miss { background: var(--danger); }
+/* An OPEN period is still climbing, not judged: a quiet in-progress fill, never the miss red. */
+.hd-bar-fill.is-now { background: var(--teal-dim); }
+.hd-bar.is-now { border: 1px dashed var(--teal-dim); }
 /* Silence and rest are drawn, not blank — a missing bar reads as a failure nobody had.
    
    They were drawn as a four-pixel stub along the floor of the track, which is the same shape a
@@ -1584,6 +1587,8 @@ button.card-open:active { transform: scale(0.99); }
 .hd-detail-verdict.is-hit { color: var(--teal); }
 .hd-detail-verdict.is-miss { color: var(--danger); }
 .hd-detail-verdict.is-quiet, .hd-detail-verdict.is-rest { color: var(--dim); }
+/* "still running" is a statement, not a verdict — neutral, never the miss red. */
+.hd-detail-verdict.is-now { color: var(--dim); }
 .hd-detail-num { margin-top: 4px; font-size: var(--fs-head); }
 /* Context under the verdict, not a second verdict beside it. Nobody passes or fails this line, so
    it is drawn in the quiet colour and separated by a hairline rather than given a panel of its own. */
