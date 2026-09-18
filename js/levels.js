@@ -210,3 +210,16 @@ function firstHabitDay(state) {
   }
   return earliest;
 }
+
+/**
+ * Should reaching `level` open the celebration, given the last level this device saw (`seen`)?
+ *
+ * Once per level, and never on the first level a device ever sees — a fresh install at Level 7
+ * shows 7 on the header, not seven fanfares. So a null "last seen" is a starting point, not a
+ * level-up; any strictly higher level than the last one seen is. The pure rule behind
+ * levelsheet.levelUpDue, kept here (away from localStorage) so it can be tested.
+ */
+export function shouldCelebrate(seen, level) {
+  if (seen == null) return false;
+  return level > seen;
+}

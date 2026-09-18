@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import { ev, SOURCE, METRIC, AT_LEAST, AGGREGATE, PERIOD } from "../js/schema.js";
 import {
-  LEVEL_MAX, FIRST_GAP, GAP_STEP, TITLES, gapTo, thresholdFor, titleFor, levelFor, lifetime, titleBand,
+  LEVEL_MAX, FIRST_GAP, GAP_STEP, TITLES, gapTo, thresholdFor, titleFor, levelFor, lifetime, titleBand, shouldCelebrate,
 } from "../js/levels.js";
 import { levelNotice } from "../js/notices.js";
 
@@ -231,6 +231,14 @@ test("the same state answers from cache; a new event answers afresh", () => {
   assert.equal(a, b, "one object, one walk");
   const s2 = world([hit("me", 0), hit("me", 1)]);
   assert.equal(lifetime(s2, "me", day(2)).banked, 200);
+});
+
+test("shouldCelebrate: a higher level than last seen, but never the first level a device sees", () => {
+  assert.equal(shouldCelebrate(null, 7), false, "a fresh install adopts its level — no seven fanfares");
+  assert.equal(shouldCelebrate(6, 7), true, "climbing a level celebrates");
+  assert.equal(shouldCelebrate(7, 7), false, "the same level never celebrates twice");
+  assert.equal(shouldCelebrate(8, 7), false, "and it is strictly higher, so a step back is silent");
+  assert.equal(shouldCelebrate(0, 1), true, "seen 0 is a real starting point, not the null first-sight");
 });
 
 if (failures.length) {

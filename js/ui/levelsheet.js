@@ -11,7 +11,7 @@
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import { lifetime, titleBand, TITLES, LEVEL_MAX, thresholdFor, gapTo } from "../levels.js";
+import { lifetime, titleBand, TITLES, LEVEL_MAX, thresholdFor, gapTo, shouldCelebrate } from "../levels.js";
 import { levelMark } from "./levelmark.js";
 import { factsAbout } from "../facts.js";
 import * as fmt from "./format.js";
@@ -35,8 +35,8 @@ export function markSeen(memberId, level) {
  */
 export function levelUpDue(memberId, level) {
   const seen = seenLevel(memberId);
-  if (seen == null) { markSeen(memberId, level); return false; }
-  return level > seen;
+  if (seen == null) markSeen(memberId, level); // first sight on this device: adopt it silently
+  return shouldCelebrate(seen, level);
 }
 
 /**
