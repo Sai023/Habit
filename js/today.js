@@ -26,7 +26,7 @@ import {
   groupDayHabit, EXEMPT,
 } from "./habits.js";
 import { AT_MOST, AGGREGATE, METRIC, PERIOD, isInterventionHabit } from "./schema.js";
-import { dayScore, priceHabits, expectedBy } from "./score.js";
+import { dayScore, priceHabits, expectedBy, apportion } from "./score.js";
 import { onGoalStreak } from "./summary.js";
 
 const WEEKDAY = ["M", "T", "W", "T", "F", "S", "S"]; // isoDayOfWeek 1..7 → Mon..Sun
@@ -167,9 +167,17 @@ export function todayModel(state, me, today, now = Date.now()) {
 
   // Only the categories that actually calculate today — a monthly Savings goal contributes nothing
   // on a mid-month day, so its row is hidden rather than shown empty (the clutter rule).
-  const attributes = (scored.categories || [])
-    .filter((c) => c.eligible && c.share > 0)
-    .map((c) => ({ category: c.category, points: Math.round(c.points), offered: Math.round(c.share), pct: pctOf(c.points, c.share) }));
+  //
+  // Rounded TOGETHER, not each on its own: the shares to the hundred the day is worth, the points
+  // to the headline (which is the rounded sum of them), each category's points never past its
+  // share. So the rows add up to the line above them, and the "to go" on each row adds up to the
+  // "away from a perfect day" under it. See apportion.
+  const live = (scored.categories || []).filter((c) => c.eligible && c.share > 0);
+  const offered = apportion(live.map((c) => c.share), live.reduce((sum, c) => sum + c.share, 0));
+  const points = apportion(live.map((c) => c.points), pct, offered);
+  const attributes = live.map((c, i) => ({
+    category: c.category, points: points[i], offered: offered[i], pct: pctOf(points[i], offered[i]),
+  }));
 
   const cards = [...state.habits.values()]
     .filter((h) => isTracking(state, h, me))

@@ -147,6 +147,12 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 .chip:disabled { opacity: 0.4; cursor: default; }
 .chip.on:disabled { opacity: 0.75; }
 .chips-tight { margin-top: 2px; }
+/* One row that scrolls rather than two that wrap: a filter directly above the rows it narrows. */
+.chips.chips-row {
+  flex-wrap: nowrap; overflow-x: auto; margin: 0 -2px 10px; padding: 0 2px 2px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.chips.chips-row::-webkit-scrollbar { display: none; }
 
 /* Seven of them across a phone, so they are square and terse rather than word-shaped. */
 .chips-days { gap: 6px; }
@@ -449,20 +455,20 @@ html, body { overscroll-behavior-y: contain; }
 /* Secondary to the streak above it, and separated rather than merely spaced: this is the day
    broken down, not another headline. */
 .hero-cats {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
-/* One compact row per attribute: a dot in the segment's colour · icon · name · the number. */
-.hero-cat { display: flex; align-items: center; gap: 8px; font-size: var(--fs-small); }
-.hero-cat-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; }
-.hero-cat-icon { flex: none; }
-.hero-cat-name { flex: 1; min-width: 0; color: var(--dim); }
-.hero-cat-num { flex: none; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+/* One row per attribute, as columns rather than a flex row: dot · icon · name · what is left ·
+   the number. A table, so "47 of 47" sits over "20 of 35" over "17 of 18" and the eye can run
+   down the column; appended in a flex row, the "· 15 to go" pushed every number to a different x. */
+.hero-cats { display: grid; grid-template-columns: auto auto 1fr auto auto; column-gap: 8px; row-gap: 6px; align-items: center; }
+.hero-cat { display: contents; font-size: var(--fs-small); }
+.hero-cat-dot { width: 8px; height: 8px; border-radius: 999px; }
+.hero-cat-icon { font-size: var(--fs-small); }
+.hero-cat-name { min-width: 0; color: var(--dim); font-size: var(--fs-small); }
+.hero-cat-gap { font-size: var(--fs-micro); color: var(--dim); text-align: right; white-space: nowrap; }
+.hero-cat-num { font-size: var(--fs-small); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .hero-cat-num.is-hit { color: var(--teal-soft); }
-.hero-cat-gap { font-weight: 500; color: var(--dim); }
 /* The countdown, lifted from the section heading to a quiet anchor above the widgets. */
 .day-anchor {
   margin: 0 0 10px; font-size: var(--fs-small); color: var(--dim);
@@ -1115,11 +1121,12 @@ html, body { overscroll-behavior-y: contain; }
 /* The board's three destinations. A segmented control rather than another row of the loose .chips
    used for the category filter directly below it, because these are places you GO and that is a
    filter you APPLY — two identical rows of pills would claim they were the same kind of thing. */
+/* Compact: these are three words, and the season card under them is the headline. */
 .board-tabs {
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  margin-bottom: 14px;
+  gap: 3px;
+  padding: 3px;
+  margin-bottom: 10px;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -1127,11 +1134,12 @@ html, body { overscroll-behavior-y: contain; }
 .board-tabs .chip {
   flex: 1;
   min-width: 0;
-  padding: 8px 4px;
+  padding: 6px 4px;
   text-align: center;
   background: none;
   border-color: transparent;
   color: var(--dim);
+  font-size: var(--fs-small);
 }
 .board-tabs .chip.on {
   background: var(--surface-hi);
@@ -1325,22 +1333,30 @@ html, body { overscroll-behavior-y: contain; }
 /* ---------- the season strip ---------- */
 
 /* When it started, when it ends, how long is left — the three facts that make a leaderboard a
-   contest rather than a running total. Quiet by design: it sits above the standings and must not
-   compete with them, so it is a line of text and a hairline bar rather than a card. */
-.season-strip { display: flex; flex-direction: column; gap: 6px; padding: 0 2px; }
-.season-strip-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: var(--fs-small);
+   contest rather than a running total. A card, the headline above the standings: the time left
+   large, the bar thick enough to read, the start and the end under the two ends of it. */
+.season-strip {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 12px 14px; margin-bottom: 12px;
+  background: var(--surface); border-radius: var(--r);
+  background-image: linear-gradient(140deg, rgba(62, 224, 196, 0.10), transparent 60%);
 }
-.season-strip-dates { color: var(--dim); font-variant-numeric: tabular-nums; }
-.season-strip-left { font-weight: 700; color: var(--teal); font-variant-numeric: tabular-nums; }
-
-/* The last stretch. Amber rather than red: the season ending is not a failure, and a countdown
-   that turns the colour of an error teaches people to dread the finish. */
+.season-strip-top {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+/* What follows, as a tag — the date is the warning; the rule lives in the sheet. */
+.season-strip-next { font-size: var(--fs-micro); color: var(--dim); white-space: nowrap; }
+.season-strip-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.season-strip-left {
+  font-size: var(--fs-title); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1;
+  color: var(--teal); font-variant-numeric: tabular-nums;
+}
+.season-strip .season-bar { height: 8px; background: var(--bg); }
 .season-strip .bar > i { background: var(--teal); }
+.season-strip-ends {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums;
+}
 
 /* Over. The bar goes flat and the words go quiet — a finished season should read as settled rather
    than as still asking for something. */
@@ -1449,14 +1465,14 @@ html, body { overscroll-behavior-y: contain; }
 
 /* ---------- the season list ---------- */
 
-/* The strip is a button now. It has to keep reading as a status line rather than a control, so it
+/* The card is a button. It has to keep reading as a status card rather than a control, so it
    borrows nothing from .tap and gains only a chevron and a press. */
 button.season-strip {
-  display: block; width: 100%; text-align: left;
-  border: 1px solid var(--line); cursor: pointer;
+  display: flex; width: 100%; text-align: left;
+  border: 1px solid var(--line); cursor: pointer; color: inherit; font: inherit;
 }
 button.season-strip:active { transform: scale(0.995); }
-.season-strip-go { color: var(--dim); }
+.season-strip-go { color: var(--dim); font-size: var(--fs-title); line-height: 1; }
 
 .season-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .season-item {
@@ -2445,8 +2461,8 @@ button.card-open:active { transform: scale(0.99); }
 .row[role="button"] { cursor: pointer; }
 .row[role="button"]:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
-/* The season strip, named. */
-.season-strip-k { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); margin-right: 8px; }
+/* The season card, named. */
+.season-strip-k { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); }
 
 /* ---- the week sheet ---- */
 .wk-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; align-items: end; }
@@ -2490,11 +2506,7 @@ button.card-open:active { transform: scale(0.99); }
 
 /* ---------- seasons on a schedule ---------- */
 
-/* What follows the season on the strip. Quiet, because it is a fact about next month sitting
-   under a countdown about this one; but present, because a season that starts by itself is a
-   season nobody was warned about otherwise. */
-.season-strip-next { font-size: var(--fs-micro); color: var(--dim); line-height: 1.4; }
-.season-strip-next:empty { display: none; }
+
 
 /* How seasons run, at the top of the list of them: the rule, the one being played, the next. A
    card, unlike the strip, because on this sheet it is the headline and the list is the detail. */

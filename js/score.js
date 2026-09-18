@@ -736,6 +736,50 @@ export function splitWhole(total, n) {
 }
 
 /**
+ * Real numbers rounded to whole ones that still sum to `total` — largest remainder.
+ *
+ * Rounding each category on its own put "47 of 47", "20 of 35" and "17 of 18" under a headline of
+ * 83: three numbers that sum to 84, and "15 to go" and "1 to go" under "17 away". The card exists
+ * to show a total broken into parts, and parts that do not add up to the total are the one thing
+ * it must never show. So the whole parts are taken first, and what is left of the total goes one
+ * each to the biggest fractional claims (ties by position, so the answer is the same on every
+ * phone) — and the rounded headline is the sum of the rounded parts by construction.
+ *
+ * `caps` bounds each part from above: a category's points can never round past its share, or a
+ * full category would read "47 of 46". A part that has hit its cap passes its turn; a total that
+ * the floors already exceed is trimmed from the smallest fractional claims.
+ */
+export function apportion(values, total, caps = null) {
+  const n = values.length;
+  if (!n) return [];
+  const cap = (i) => (caps && Number.isFinite(caps[i]) ? caps[i] : Infinity);
+  const whole = values.map((v, i) => Math.min(cap(i), Math.max(0, Math.floor(v))));
+  let left = Math.max(0, Math.round(total)) - whole.reduce((sum, w) => sum + w, 0);
+
+  const byClaim = values
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+
+  while (left > 0) {
+    let moved = false;
+    for (const { i } of byClaim) {
+      if (left <= 0) break;
+      if (whole[i] < cap(i)) { whole[i] += 1; left -= 1; moved = true; }
+    }
+    if (!moved) break;
+  }
+  while (left < 0) {
+    let moved = false;
+    for (const { i } of [...byClaim].reverse()) {
+      if (left >= 0) break;
+      if (whole[i] > 0) { whole[i] -= 1; left += 1; moved = true; }
+    }
+    if (!moved) break;
+  }
+  return whole;
+}
+
+/**
  * What each habit's card on Today is worth, and what it earned — priced off the SAME dayScore the
  * hero shows, so the cards can never total something other than the line above them.
  *

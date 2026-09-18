@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import {
   dayScore, categoryScores, habitScore, categoryFor, scoreOver, categoryOver, expectedBy,
-  CATEGORY, CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES, rankCompare, tieBreak, priceHabits, splitWhole,
+  CATEGORY, CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES, rankCompare, tieBreak, priceHabits, splitWhole, apportion,
 } from "../js/score.js";
 import { ev, SOURCE, METRIC, AT_LEAST, AT_MOST, AGGREGATE, PERIOD } from "../js/schema.js";
 
@@ -405,6 +405,38 @@ test("tieBreak on its own is streak then name", () => {
 // The whole screen exists so the numbers add up: three cards under a heading of 47 must total 47,
 // not 48. This was computed inline in the card, untested.
 // ---------------------------------------------------------------------------
+
+test("apportion rounds parts so they still sum to the whole, by largest remainder", () => {
+  // The hero that started this: 47.06 + 19.6 + 16.6 = 83.3 → headline 83, and the parts must too.
+  assert.deepEqual(apportion([47.06, 19.6, 16.6], 83), [47, 20, 16], "the .6 and .6 tie, the earlier one wins the last point");
+  assert.deepEqual(apportion([47.06, 35.29, 17.65], 100), [47, 35, 18], "shares to the hundred");
+  assert.deepEqual(apportion([33.33, 33.33, 33.34], 100), [33, 33, 34]);
+  assert.deepEqual(apportion([1.5, 1.5, 1.5], 5), [2, 2, 1], "ties go by position, so every phone agrees");
+  assert.deepEqual(apportion([], 10), []);
+  assert.deepEqual(apportion([0, 0], 0), [0, 0]);
+  for (const [vals, total] of [[[47.06, 19.6, 16.6], 83], [[12.2, 0.4, 87.4], 100], [[0.9, 0.9, 0.9, 0.3], 3]]) {
+    assert.equal(apportion(vals, total).reduce((a, b) => a + b, 0), total, "always sums to the total");
+  }
+});
+
+test("apportion never rounds a part past its cap, and hands the point to one with room", () => {
+  // Fitness is full at 46.6 of a 46.6 share; its share rounded DOWN to 46 (Discipline's .7 won the
+  // hundredth point), so its points must not round UP to 47 — "47 of 46" is the bug being pinned.
+  const shares = [46.6, 35.7, 17.7];
+  const offered = apportion(shares, 100);
+  assert.deepEqual(offered, [46, 36, 18]);
+  const points = apportion([46.6, 20.0, 17.7], 84, offered);
+  assert.deepEqual(points, [46, 20, 18], "fitness capped at its 46; the spare point went to rest, which had room");
+  assert.ok(points.every((p, i) => p <= offered[i]));
+  assert.equal(points.reduce((a, b) => a + b, 0), 84);
+  // Every category full: parts equal the caps exactly, whatever the fractions.
+  assert.deepEqual(apportion(shares, 100, offered), offered);
+});
+
+test("apportion trims from the smallest claims when the floors already exceed the total", () => {
+  assert.deepEqual(apportion([2.9, 2.1, 2.0], 5), [2, 2, 1], "7 of floor against a total of 5: the two smallest fractions give one back... in order");
+  assert.equal(apportion([2.9, 2.1, 2.0], 5).reduce((a, b) => a + b, 0), 5);
+});
 
 test("splitWhole is as even as whole numbers allow, larger first, and always sums to the total", () => {
   assert.deepEqual(splitWhole(48, 2), [24, 24]);

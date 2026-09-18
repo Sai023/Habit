@@ -654,15 +654,16 @@ function attributeBars(attributes) {
   return el("div.hero-cats",
     attributes.map((a) => {
       const tone = a.pct >= 100 ? " is-hit" : "";
+      const left = a.offered - a.points;
       return el("div.hero-cat",
         el("i.hero-cat-dot.seg-" + a.category),
         el("span.hero-cat-icon", CATEGORY_ICON[a.category]),
         el("span.hero-cat-name", CATEGORY_LABEL[a.category]),
-        el("span.hero-cat-num" + tone,
-          a.points + " of " + a.offered,
-          // What is left in this category, said as a number to close — the same logic as the
-          // "away from a perfect day" line, per category, so the reader can see where the gap is.
-          a.pct < 100 ? el("span.hero-cat-gap", " · " + (a.offered - a.points) + " to go") : null),
+        // What is left in this category, said as a number to close — the same logic as the "away
+        // from a perfect day" line, per category, so the reader can see where the gap is. These
+        // add up to that line: the model rounds the parts to the whole (apportion).
+        el("span.hero-cat-gap", left > 0 ? left + " to go" : ""),
+        el("span.hero-cat-num" + tone, a.points + " of " + a.offered),
       );
     }),
   );
@@ -819,18 +820,22 @@ function boardTab(ctx) {
 
   return el("section.sec",
     boardTabs(ctx),
-    live.length > 1 ? el("div.chips.chips-tight",
-      el("button.chip" + (!filter ? ".on" : ""), {
+    // The contest first, then the filter, then the standings: where am I, what are we playing,
+    // narrowed to what, who is winning. The filter used to sit between the tabs and the season and
+    // wrap onto two rows, so the season — the one thing that says what the numbers are FOR — was
+    // the smallest thing above the board.
+    seasonStrip(ctx),
+    live.length > 1 ? el("div.chips.chips-row",
+      el("button.chip.chip-sm" + (!filter ? ".on" : ""), {
         onclick: () => ctx.onBoardCategory(null),
       }, "Overall"),
-      live.map((c) => el("button.chip" + (filter === c ? ".on" : ""), {
+      live.map((c) => el("button.chip.chip-sm" + (filter === c ? ".on" : ""), {
         onclick: () => ctx.onBoardCategory(c),
         title: CATEGORY_LABEL[c],
       }, CATEGORY_ICON[c] + " " + CATEGORY_SHORT[c])),
     ) : null,
     filter ? el("p.sec-note", { style: "padding:0 2px" },
       CATEGORY_LABEL[filter] + " only: the " + fmt.XP + " this category earned each day, of the share of the day it was worth.") : null,
-    seasonStrip(ctx),
     el("div.board", ranked.map((r) => boardRow(r, ctx, unbroken.get(r.memberId)))),
     seasonBeacon(ctx),
     el("p.sec-note", { style: "padding:0 2px" },
@@ -864,6 +869,16 @@ function boardTab(ctx) {
  * facts that make it a contest — when it began, when it finishes, how long is left — were derivable
  * and shown nowhere, so "how long have we got" had no answer.
  *
+ * ---- Why it is a card and not a line ----
+ *
+ * It was a line of text and a hairline bar, quiet by design so as not to compete with the
+ * standings. It competed with the filters instead, and lost: two rows of chips above a strip of
+ * small print, with the season's two-sentence footnote the longest thing on the screen. The season
+ * is what the standings are FOR, so it gets the shape of a headline — the time left large, the bar
+ * thicker, the start and the end at the two ends of the bar where a reader looks for them — and
+ * the footnote shrinks to a tag. What follows, and how seasons run, is one tap away in the sheet
+ * this card opens; it does not need to be read every time the board is.
+ *
  * The bar moves by DAYS rather than by completed weeks. A bar that only advances on Mondays sits
  * still for six days at a time, which reads as broken rather than as patient.
  *
@@ -874,28 +889,34 @@ function seasonStrip(ctx) {
   const p = seasonProgress(ctx.state, ctx.today);
   if (!p || !p.end) return null;
 
+  // What follows, as a tag rather than a sentence — see seasonNextTag for the wording and why.
+  const next = fmt.seasonNextTag(p);
+
   // A button, because this is now the way into the season list — and the only reliable way into
   // starting one. The link at the foot of the All-time view vanished whenever a season was booked
   // and not yet running, which left a group with no entry point anywhere.
-  const next = fmt.seasonNext(p);
   return el("button.season-strip" + (p.ended ? ".is-over" : ""), {
     onclick: () => ctx.onSeasons && ctx.onSeasons(),
     "aria-label": "Seasons",
   },
-    // Named and numbered, because a strip of dates with a bar under it reads as the week — and
-    // this one can run from the 20th to the 19th, which no week does.
+    // Named and numbered, because a bar between two dates reads as the week — and this one can
+    // run from the 20th to the 19th, which no week does.
     el("div.season-strip-top",
-      el("span.season-strip-dates",
-        el("span.season-strip-k", p.index ? "Season " + p.index : "Season"),
-        fmt.dayLabel(p.start), " → ", fmt.dayLabel(p.end)),
-      el("span.season-strip-left", fmt.seasonLeft(p), el("span.season-strip-go", " ›")),
+      el("span.season-strip-k", p.index ? "Season " + p.index : "Season"),
+      next ? el("span.season-strip-next", next) : null,
     ),
-    el("div.bar", { role: "presentation" },
+    el("div.season-strip-main",
+      el("span.season-strip-left", fmt.seasonLeft(p)),
+      el("span.season-strip-go", "\u203a"),
+    ),
+    el("div.bar.season-bar", { role: "presentation" },
       el("i", { style: "width:" + p.pct + "%" })),
-    // What follows. Under a schedule the next season starts by itself, and a season that begins
-    // with nobody pressing anything is a season nobody was warned about otherwise. Between
-    // hand-started seasons, this is the one place that says nothing is coming.
-    el("div.season-strip-next", next || (p.ended ? "Nothing follows until somebody starts the next one." : null)),
+    // The start under the left end of the bar, the end under the right: the two facts a bar
+    // between them is measuring, put where a reader looks for them.
+    el("div.season-strip-ends",
+      el("span", fmt.dayLabel(p.start)),
+      el("span", fmt.dayLabel(p.end)),
+    ),
   );
 }
 

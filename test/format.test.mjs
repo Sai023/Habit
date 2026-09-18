@@ -5,7 +5,7 @@
 // field is the one here that turns free text into a stored number, so it is the one worth pinning.
 
 import assert from "node:assert/strict";
-import { toClock, fromClock, axisValue, dateRange, chartTicks, niceTop } from "../js/ui/format.js";
+import { toClock, fromClock, axisValue, dateRange, chartTicks, niceTop, seasonNextTag, dayLabel } from "../js/ui/format.js";
 import { METRIC, PERIOD } from "../js/schema.js";
 
 let passed = 0;
@@ -42,6 +42,19 @@ test("fromClock refuses what is not a time, and clamps what is out of range", ()
   assert.equal(fromClock("7"), null, "an hour with no minutes is not a complete time");
   assert.equal(fromClock("25:00"), 1439, "past midnight clamps to the last minute, never wraps");
   assert.equal(fromClock("-1:00"), 0, "before the day clamps to the first minute");
+});
+
+// ---- the season card's tag ----
+
+test("seasonNextTag names what follows, says so when nothing does, and is silent mid-season", () => {
+  assert.equal(seasonNextTag({ next: { index: 4, from: "2026-09-20" }, ended: false }),
+    "then Season 4 \u00b7 " + dayLabel("2026-09-20"));
+  assert.equal(seasonNextTag({ next: { from: "2026-09-20" }, ended: false }),
+    "then the next \u00b7 " + dayLabel("2026-09-20"), "an unnumbered successor is still announced");
+  assert.equal(seasonNextTag({ next: null, ended: true }), "nothing booked yet",
+    "after a season with no successor, the board is the one place that says so");
+  assert.equal(seasonNextTag({ next: null, ended: false }), null, "mid-season with nothing booked is not yet a line");
+  assert.equal(seasonNextTag(null), null);
 });
 
 // ---- the history chart's words ----

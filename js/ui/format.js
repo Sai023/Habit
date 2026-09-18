@@ -190,6 +190,22 @@ export function seasonNext(p) {
   return name + " starts " + dayLabel(p.next.from) + ".";
 }
 
+/**
+ * What follows this season, as a tag for the board's card rather than a sentence: "then Season 4
+ * · Sun, 20 Sept". The date is the warning that another one is coming; the rule for how it comes
+ * lives in the seasons sheet the card opens. After a season with nothing booked, says so — between
+ * hand-started seasons this is the one place that does. Null while a season runs with no successor
+ * booked, because that is not yet a fact worth a line.
+ */
+export function seasonNextTag(p) {
+  if (!p) return null;
+  if (p.next) {
+    const name = p.next.index ? "Season " + p.next.index : "the next";
+    return "then " + name + " · " + dayLabel(p.next.from);
+  }
+  return p.ended ? "nothing booked yet" : null;
+}
+
 /** "23:14" — a clock time in the reader's own zone. Used for when a night began and ended. */
 export function clockLabel(ms) {
   return new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });

@@ -173,6 +173,17 @@ test("attributes: only the categories that count today, none empty", () => {
   assert.ok(m.attributes.every((a) => a.offered > 0), "no zero-share rows clutter the overview");
 });
 
+test("attributes: the rows add up to the hero, and the to-go on each row adds up to the gap", () => {
+  const m = todayModel(world(), "me", TODAY);
+  const offered = m.attributes.reduce((s, a) => s + a.offered, 0);
+  const points = m.attributes.reduce((s, a) => s + a.points, 0);
+  assert.equal(offered, 100, "the shares are the hundred the day is worth");
+  assert.equal(points, m.hero.dayXp, "the category points sum to the headline — 47 + 20 + 17 under an 83 is the bug");
+  assert.equal(offered - points, m.hero.awayXp, "so the per-row 'to go' sums to 'away from a perfect day'");
+  assert.ok(m.attributes.every((a) => a.points <= a.offered), "never '47 of 46'");
+  assert.ok(m.attributes.every((a) => Number.isInteger(a.points) && Number.isInteger(a.offered)));
+});
+
 if (failures.length) {
   for (const { name, err } of failures) {
     console.error("\n✗ " + name);
