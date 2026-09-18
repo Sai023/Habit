@@ -324,26 +324,29 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     const tiers = HABIT_TIERS[habit.period] || HABIT_TIERS.day;
     const level = habitLevel(run.best, habit.period);
     const next = tiers.find((t) => run.current < t.at);
+    const nextIdx = next ? tiers.indexOf(next) : -1;
 
     return el("div.hd-ladder",
       el("h2.sec-title", "Badges for this habit"),
-      // Every rung is drawn, won or not — the same rule the Awards tab follows. A ladder you
-      // cannot see the top of is not a ladder, and a badge nobody knows exists is not a target.
-
+      // Every rung is drawn: won (struck), the one coming up (lit), the rest locked (dimmed) — so
+      // the ladder shows both how far you have come and what is next.
       el("div.hd-rungs", tiers.map((t, i) => el(
-        "div.hd-rung" + (i < level ? ".is-won" : ""),
+        "div.hd-rung" + (i < level ? ".is-won" : i === nextIdx ? ".is-next" : ".is-locked"),
         el("span.badge.badge-md.badge-" + LEVEL_KEY[i + 1]
           + (String(t.at).length > 2 ? ".badge-wide" : ""),
           el("span.badge-face", el("span.badge-n", String(t.at)))),
         el("span.hd-rung-span", t.span),
       ))),
+      // Instead of a countdown sentence, a progress bar under the next badge with the value on it —
+      // so how close the unlock is can be read, not counted.
       next
-        ? el("p.note-inline",
-            // "8 more days", not "8 days more" — count() puts the unit next to its number, which
-            // is right everywhere else on this screen and wrong in front of "more".
-            (next.at - run.current) + " more " + label
-            + (next.at - run.current === 1 ? "" : "s")
-            + " without a miss for " + next.span + ".")
+        ? el("div.hd-next",
+            el("div.hd-next-bar", { role: "presentation" },
+              el("i", { style: "width:" + Math.min(100, Math.round((run.current / next.at) * 100)) + "%" })),
+            el("div.hd-next-label",
+              el("b", run.current + " / " + next.at + " " + label + (next.at === 1 ? "" : "s")),
+              el("span", "to " + next.span)),
+          )
         : el("p.note-inline", "Every badge for this habit is won."),
     );
   }
@@ -371,22 +374,36 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     const span = habit.period === PERIOD.DAY ? "days"
       : habit.period === PERIOD.WEEK ? "weeks" : "months";
 
+    // Sorted by who is furthest along their own goal, so the board reads top-down like a board.
+    // Ties settle by days met, then name, so it is the same order on every phone.
+    const ranked = [...others].sort((a, b) =>
+      (b.rate - a.rate) || (b.hits - a.hits) || String(a.name || "").localeCompare(String(b.name || "")));
+    const leader = ranked.find((r) => r.judged > 0) || null;
+    const someTicksOnly = others.some((r) => !r.shown);
+
     return el("div.hd-group",
-      el("h2.sec-title", "Everyone on this"),
-      el("p.note-inline",
-        "The " + span + " each person met their own goal, out of the " + span + " that counted — "
-        + "rest " + span + " and ones with nothing from a sensor are left out."),
-      el("div.hd-people", others.map((r) => el("div.hd-person" + (r.isMe ? ".is-me" : ""),
-        el("span.hd-person-name", r.isMe ? "You" : r.name),
+      // The long paragraph of counting rules moves behind an (i) — there when wanted, out of the
+      // way when not, so the rows themselves are what the eye lands on.
+      el("div.hd-group-head",
+        el("h2.sec-title", "Everyone on this"),
+        el("details.hd-info",
+          el("summary", { "aria-label": "How this is counted" }, "ⓘ"),
+          el("p",
+            "The " + span + " each person met their own goal, out of the " + span + " that counted — "
+            + "rest " + span + " and ones with nothing from a sensor are left out."
+            + (someTicksOnly ? " Some show ticks only — everyone picks what the group sees of their numbers." : "")),
+        )),
+      el("div.hd-people", ranked.map((r) => el(
+        "div.hd-person" + (r.isMe ? ".is-me" : "") + (leader && r === leader ? ".is-leader" : ""),
+        el("span.hd-person-name",
+          leader && r === leader ? el("span.hd-crown", { title: "Leading" }, "👑") : null,
+          r.isMe ? "You" : r.name),
         el("span.hd-person-bar",
           el("i", { style: "width:" + Math.round(r.rate * 100) + "%" })),
         el("span.hd-person-num",
           r.hits + "/" + r.judged,
-          // Their number, their percentage, or nothing — whichever they chose to share.
-          //
-          // Said to be an average, every time it is shown. It is the mean across the periods that
-          // counted, and without the word it reads as today's figure, or their latest, or their
-          // best — three different numbers, none of them this one.
+          // Always labelled an average — it is the mean across the periods that counted, and
+          // without the word it reads as today's figure.
           r.shown && "value" in r.shown
             ? el("span.hd-person-sub", "avg " + unit(Math.round(r.shown.value)))
             : r.shown && "pct" in r.shown
@@ -394,12 +411,66 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
               : null,
         ),
       ))),
-      // Said once, so a row with no number reads as a choice rather than as missing data.
-      others.some((r) => !r.shown)
-        ? el("p.note-inline",
-            "Some of these show ticks only — everyone picks what the group sees of their numbers.")
-        : null,
     );
+  }
+
+  /**
+   * The exception rules this window applied, as pills rather than a sentence: the sensor gaps or
+   * unlogged periods, and the booked rest — each one set aside, never counted against you (the
+   * reassurance the old paragraph spelled out now lives in the pill's tooltip).
+   */
+  function contextPills() {
+    const pills = [];
+    if (sum.quiet) {
+      pills.push(el("span.hd-pill", { title: "Set aside — didn't count against you." },
+        "🔌 " + sum.quiet + " "
+        + (automatic ? (sum.quiet === 1 ? "sensor gap" : "sensor gaps") : (sum.quiet === 1 ? "unlogged " + label : "unlogged " + label + "s"))
+        + " excluded"));
+    }
+    if (sum.resting) {
+      pills.push(el("span.hd-pill", { title: "Booked rest — didn't count against you." },
+        "🌙 " + sum.resting + " rest " + label + (sum.resting === 1 ? "" : "s")));
+    }
+    return pills.length ? el("div.hd-pills", pills) : null;
+  }
+
+  /**
+   * The trend against the window before, framed as coaching in a speech bubble — dynamic advice,
+   * kept visually distinct from the static platform rules above. The habit knows which way is good,
+   * so the bubble says "better"/"worse", never an arrow the reader has to translate.
+   */
+  function coachBubble() {
+    if (!move) return null;
+    const text = move.flat
+      ? "About the same as the " + count(move.periods, label) + " before."
+      : (move.better ? "Better" : "Worse") + " than the " + count(move.periods, label) + " before — "
+        + unit(Math.round(move.before)) + " then, " + unit(Math.round(move.now)) + " now.";
+    return el("div.hd-coach" + (move.flat ? "" : move.better ? ".is-better" : ".is-worse"),
+      el("span.hd-coach-icon", "💬"), el("span", text));
+  }
+
+  /**
+   * The window average and the since-launch record, as stat callouts side by side — two figures to
+   * glance at rather than two sentences to read. Exact dates ride in the tooltips.
+   */
+  function statCallouts() {
+    const tiles = [];
+    if (sum.average != null) {
+      tiles.push(el("div.hd-stat",
+        el("b", unit(Math.round(sum.average))),
+        el("span", count(sum.judged, label) + " avg")));
+    }
+    if (life && life.judged > sum.judged) {
+      tiles.push(el("div.hd-stat", { title: life.since ? "Since " + fmt.dayLabel(life.since) : "" },
+        el("b", life.hits + "/" + life.judged),
+        el("span", "met since launch")));
+      if (life.best) {
+        tiles.push(el("div.hd-stat", { title: "on " + fmt.dayLabel(life.best.from) },
+          el("b", unit(life.best.value)),
+          el("span", "best " + label)));
+      }
+    }
+    return tiles.length ? el("div.hd-stats", tiles) : null;
   }
 
   function paint() {
@@ -449,65 +520,25 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         chart(),
         detail(),
 
-        // Said only when there is something to say. A window with no silence and no rest days does
-        // not need a paragraph explaining that it has neither.
-        sum.quiet || sum.resting
-          ? el("p.note-inline",
-              [
-                sum.quiet
-                  ? count(sum.quiet, label)
-                    + (automatic ? " with nothing from the sensor" : " not logged")
-                  : null,
-                sum.resting ? count(sum.resting, label) + " resting" : null,
-              ].filter(Boolean).join(", ")
-              + ". " + (sum.quiet && sum.resting ? "Neither counts" : "That does not count")
-              + " against you.")
-          : null,
+        // What was set aside and why, as tags rather than a sentence — the exception rules the
+        // engine applied, abstracted into pills a glance can take in. See contextPills.
+        contextPills(),
 
-        // How this window compares with the one before it, in words rather than an arrow.
-        //
-        // "Up 22%" means opposite things for steps and for puffs, and an arrow makes the reader do
-        // that translation every time. The habit knows which direction is good; saying so is the
-        // whole value of the line.
-        move && !move.flat
-          ? el("p.hd-trend" + (move.better ? ".is-better" : ".is-worse"),
-              (move.better ? "Better" : "Worse") + " than the "
-              + count(move.periods, label) + " before — "
-              + unit(Math.round(move.before)) + " then, " + unit(Math.round(move.now)) + " now.")
-          : move
-            ? el("p.hd-trend", "About the same as the " + count(move.periods, label) + " before.")
-            : null,
+        // The dynamic comparison, in its own voice: coaching, not a platform rule, so it gets a
+        // frame of its own to say so. The habit knows which direction is good.
+        coachBubble(),
 
-        sum.average != null
-          ? el("p.note-inline",
-              "Averaging " + unit(Math.round(sum.average)) + " a " + label
-              + ", over the " + count(sum.judged, label)
-              + (sum.judged === 1 ? " that was judged." : " that were judged."))
-          : null,
+        // The numbers as stat callouts, side by side: the window's average, and the record since
+        // launch. Was two sentences to read; now two figures to glance.
+        statCallouts(),
 
-        // ---- The longer view ----
-        //
-        // Everything above is a fortnight, which is readable and a bad answer to "is this working".
-        life && life.judged > sum.judged
-          ? el("div.hd-long",
-              el("h2.sec-title", "Since you started"),
-              el("p.hd-long-line",
-                life.hits + " of " + count(life.judged, label) + " met"
-                + (life.since ? ", since " + fmt.dayLabel(life.since) : "") + "."
-                + (life.best
-                  ? " Best " + label + ": " + unit(life.best.value)
-                    + " on " + fmt.dayLabel(life.best.from) + "."
-                  : "")),
-            )
-          : null,
-
-        // The one pattern worth naming, and only when it is real. Every day being roughly equal is
-        // the normal case and deserves silence rather than a sentence about whichever was lowest.
+        // The one weekday pattern, when it is real — kept as a flagged line, because it is a claim
+        // about behaviour, not a stat.
         worst
-          ? el("p.hd-long-line.is-flagged",
-              WEEKDAY_FULL[worst.index] + " is the hard one — met "
-              + Math.round(worst.rate * 100) + "% of them, against "
-              + Math.round(worst.restRate * 100) + "% on the rest.")
+          ? el("p.hd-flag",
+              el("span.hd-flag-k", WEEKDAY_FULL[worst.index] + "s are hardest"),
+              el("span", "met " + Math.round(worst.rate * 100) + "%, against "
+                + Math.round(worst.restRate * 100) + "% on the rest"))
           : null,
 
         programSection(),

@@ -1673,6 +1673,60 @@ button.card-open:active { transform: scale(0.99); }
 /* Whatever they chose to share, under the count everyone shares. */
 .hd-person-sub { display: block; font-size: 10px; font-weight: 600; color: var(--dim); }
 
+/* ---------- Phase 4: insights as pills, a coaching bubble, and stat callouts ---------- */
+.hd-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
+.hd-pill {
+  font-size: var(--fs-micro); font-weight: 600; color: var(--dim);
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line);
+}
+/* Dynamic coaching, framed apart from the static rules — the habit knows which way is good. */
+.hd-coach {
+  display: flex; gap: 8px; align-items: flex-start; margin: 0 0 10px; padding: 9px 12px;
+  font-size: var(--fs-small); color: var(--text);
+  background: var(--panel); border-radius: var(--r-sm); border-left: 2px solid var(--line);
+}
+.hd-coach.is-better { border-left-color: var(--teal); }
+.hd-coach.is-worse { border-left-color: var(--amber); }
+.hd-coach-icon { flex: none; opacity: 0.75; }
+/* The averages, as callouts side by side. */
+.hd-stats { display: flex; gap: 8px; margin: 0 0 12px; }
+.hd-stat { flex: 1; min-width: 0; padding: 10px 8px; text-align: center; background: var(--panel); border-radius: var(--r-sm); }
+.hd-stat b { display: block; font-size: var(--fs-body); font-weight: 800; font-variant-numeric: tabular-nums; }
+.hd-stat span { font-size: 10px; color: var(--dim); }
+/* A behavioural pattern, flagged — an observation, not a verdict. */
+.hd-flag {
+  display: flex; flex-direction: column; gap: 1px; margin: 0 0 10px; padding: 9px 12px;
+  font-size: var(--fs-small); color: var(--dim);
+  background: var(--panel); border-radius: var(--r-sm); border-left: 2px solid var(--amber);
+}
+.hd-flag-k { font-weight: 700; color: var(--text); }
+
+/* ---------- Phase 4: badge milestone track ---------- */
+.hd-rung.is-next { box-shadow: inset 0 0 0 1px var(--teal); }
+.hd-rung.is-locked { opacity: 0.5; }
+.hd-next { margin-bottom: 4px; }
+.hd-next-bar { height: 6px; background: var(--bg); border-radius: 999px; overflow: hidden; margin-bottom: 5px; }
+.hd-next-bar > i { display: block; height: 100%; background: var(--teal); border-radius: 999px; transition: width .35s ease; }
+.hd-next-label { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--fs-micro); }
+.hd-next-label b { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+.hd-next-label span { color: var(--dim); }
+
+/* ---------- Phase 4: leaderboard head, the (i) disclosure, crown and leader ---------- */
+.hd-group-head { display: flex; align-items: center; gap: 6px; }
+.hd-info > summary {
+  list-style: none; cursor: pointer; color: var(--dim); font-size: var(--fs-small);
+  width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+}
+.hd-info > summary::-webkit-details-marker { display: none; }
+.hd-info[open] > summary { color: var(--teal); }
+.hd-info > p {
+  margin: 6px 0 0; font-size: var(--fs-micro); color: var(--dim); line-height: 1.5;
+  font-weight: 400; letter-spacing: normal; text-transform: none;
+}
+.hd-person.is-leader { box-shadow: inset 0 0 0 1px var(--teal-dim); }
+.hd-crown { margin-right: 4px; }
+
 /* ---- Rhythm ----
 
    This screen is eight sections deep and every heading had the same four pixels of air as the
