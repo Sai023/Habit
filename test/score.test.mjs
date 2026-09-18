@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import {
   dayScore, categoryScores, habitScore, categoryFor, scoreOver, categoryOver, expectedBy,
-  CATEGORY, CATEGORY_WEIGHT, BONUS_CAP, rankCompare, tieBreak,
+  CATEGORY, CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES, rankCompare, tieBreak, priceHabits, splitWhole,
 } from "../js/score.js";
 import { ev, SOURCE, METRIC, AT_LEAST, AT_MOST, AGGREGATE, PERIOD } from "../js/schema.js";
 
@@ -397,6 +397,54 @@ test("a member with no measurable period ranks last, and two of them by name", (
 test("tieBreak on its own is streak then name", () => {
   assert.ok(tieBreak({ streak: 5, name: "Z" }, { streak: 1, name: "A" }) < 0, "longer streak first");
   assert.ok(tieBreak({ streak: 1, name: "Ada" }, { streak: 1, name: "Bo" }) < 0, "then name ascending");
+});
+
+// ---------------------------------------------------------------------------
+// Pricing the Today cards — the invariant that the cards sum to the hero (priceHabits / splitWhole)
+//
+// The whole screen exists so the numbers add up: three cards under a heading of 47 must total 47,
+// not 48. This was computed inline in the card, untested.
+// ---------------------------------------------------------------------------
+
+test("splitWhole is as even as whole numbers allow, larger first, and always sums to the total", () => {
+  assert.deepEqual(splitWhole(48, 2), [24, 24]);
+  assert.deepEqual(splitWhole(47, 2), [24, 23], "the leftover point goes to the first, not to rounding");
+  assert.deepEqual(splitWhole(10, 3), [4, 3, 3]);
+  assert.deepEqual(splitWhole(5, 0), [], "no habits, no split");
+  for (const [t, n] of [[47, 2], [100, 3], [7, 4], [0, 3], [5, 5], [1, 4], [83, 6]]) {
+    const parts = splitWhole(t, n);
+    assert.equal(parts.length, n, `${t}/${n} has n parts`);
+    assert.equal(parts.reduce((a, b) => a + b, 0), t, `${t}/${n} sums to the total`);
+    for (let i = 1; i < parts.length; i += 1) assert.ok(parts[i - 1] >= parts[i], `${t}/${n} non-increasing`);
+  }
+});
+
+test("priceHabits: a category's card worths sum to its rounded share, and skip ineligible habits", () => {
+  const scored = { categories: [
+    { category: CATEGORY.FITNESS, share: 47, habits: [
+      { habit: { habitId: "a" }, eligible: true, score: 1 },
+      { habit: { habitId: "b" }, eligible: true, score: 0.5 },
+      { habit: { habitId: "z" }, eligible: false, score: 1 }, // sat out today — no card
+    ] },
+  ] };
+  const p = priceHabits(scored);
+  assert.equal(p.get("a").worth + p.get("b").worth, 47, "the eligible cards sum to the rounded share");
+  assert.equal(p.get("z"), undefined, "an ineligible habit is not priced");
+  assert.equal(p.get("b").earned, p.get("b").worth * 0.5, "earned is worth × min(1, score)");
+});
+
+test("priceHabits pays bonus only in a bonus category, and never for it elsewhere", () => {
+  const bonusCat = [...BONUS_CATEGORIES][0];
+  const plainCat = Object.values(CATEGORY).find((c) => !BONUS_CATEGORIES.has(c));
+  const scored = { categories: [
+    { category: bonusCat, share: 40, habits: [{ habit: { habitId: "x" }, eligible: true, score: 1.5 }] },
+    { category: plainCat, share: 30, habits: [{ habit: { habitId: "y" }, eligible: true, score: 1.5 }] },
+  ] };
+  const p = priceHabits(scored);
+  assert.equal(p.get("x").worth, 40, "the lone eligible habit takes the whole share");
+  assert.equal(p.get("x").earned, 40, "earned caps at the worth (min(1, score))");
+  assert.ok(p.get("x").bonus > 0, "over-target in a bonus category earns bonus");
+  assert.equal(p.get("y").bonus, 0, "the same over-target earns no bonus outside a bonus category");
 });
 
 if (failures.length) {

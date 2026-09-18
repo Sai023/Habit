@@ -722,3 +722,47 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
 
   return ranked;
 }
+
+// ---------------------------------------------------------------------------
+// Pricing the day's cards — so what the Today screen shows adds up to its own total
+// ---------------------------------------------------------------------------
+
+/** n whole numbers summing to `total`, as equal as whole numbers allow, the larger ones first. */
+export function splitWhole(total, n) {
+  if (n <= 0) return [];
+  const base = Math.floor(total / n);
+  const extra = total - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+/**
+ * What each habit's card on Today is worth, and what it earned — priced off the SAME dayScore the
+ * hero shows, so the cards can never total something other than the line above them.
+ *
+ * The share of the day a category is worth is split across its live habits by largest remainder:
+ * 47 over two habits is not 24 + 24 = 48 under a heading that says 47. The rounded share divides
+ * evenly and the leftover points go one each to the biggest fractional claims — here, simply in
+ * order, which is enough for the sum to close. This is the invariant the whole screen exists to
+ * protect ("numbers that add up"), and it was computed inline in the card, untested; a test now
+ * pins that the prices sum to the category share.
+ *
+ * Returns a Map habitId → { worth, earned, bonus }.
+ */
+export function priceHabits(scored) {
+  const out = new Map();
+  for (const c of (scored && scored.categories) || []) {
+    const live = c.habits.filter((h) => h.eligible);
+    if (!live.length || !(c.share > 0)) continue;
+    const worths = splitWhole(Math.round(c.share), live.length);
+    live.forEach((h, i) => {
+      const worth = worths[i];
+      const score = Number.isFinite(h.score) ? h.score : 0;
+      out.set(h.habit.habitId, {
+        worth,
+        earned: worth * Math.min(1, score),
+        bonus: BONUS_CATEGORIES.has(c.category) ? worth * Math.max(0, Math.min(BONUS_CAP, score) - 1) : 0,
+      });
+    });
+  }
+  return out;
+}

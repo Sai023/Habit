@@ -7,7 +7,7 @@
 // REFUSES to answer.
 
 import { strict as assert } from "node:assert";
-import { replay, compareDays, MIN_COMPARE_DAYS, addDays } from "../js/habits.js";
+import { replay, compareDays, bestDailyInsight, MIN_COMPARE_DAYS, addDays } from "../js/habits.js";
 import { T, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, PERIOD, METRIC } from "../js/schema.js";
 
 let passed = 0;
@@ -217,6 +217,55 @@ test("another member's days do not leak into yours", () => {
   const theirs = compareDays(w.state, "screen", "steps", "m2", w.from, w.to);
   assert.equal(mine.met.average, 12000);
   assert.equal(theirs, null);
+});
+
+// ---------------------------------------------------------------------------
+// Which comparison the Today card shows — the choice, not just the arithmetic (bestDailyInsight)
+// ---------------------------------------------------------------------------
+
+test("bestDailyInsight gates on screen time and picks the steps subject", () => {
+  const pattern = [];
+  for (let i = 0; i < 4; i += 1) pattern.push([30, 12000]); // under the 60 ceiling (HIT), high steps
+  for (let i = 0; i < 4; i += 1) pattern.push([90, 6000]);  // over (MISS), low steps
+  const { state, from, to } = world(pattern);
+  const best = bestDailyInsight(state, "m1", from, to);
+  assert.ok(best, "an insight is chosen");
+  assert.equal(best.gate.habitId, "screen", "the gate is the screen-time habit");
+  assert.equal(best.subject.habitId, "steps");
+  assert.equal(best.weight, 8, "all eight judged days counted");
+});
+
+test("when two habits both qualify, the one with the most evidence wins", () => {
+  const events = [
+    habitDef("screen", { metric: METRIC.SCREEN_MINUTES, direction: AT_MOST, target: 60, source: SOURCE.PAUSE }),
+    habitDef("steps", {}),
+    habitDef("sleep", { metric: METRIC.SLEEP, direction: AT_LEAST, target: 420 }),
+    bind("screen", SOURCE.PAUSE), bind("steps", SOURCE.HEALTH_CONNECT), bind("sleep", SOURCE.HEALTH_CONNECT),
+  ];
+  let d = "2026-03-01";
+  const days = [];
+  for (let i = 0; i < 10; i += 1) { days.push(d); d = addDays(d, 1); }
+  days.forEach((day, i) => {
+    const hit = i < 5; // 5 HIT, 5 MISS
+    events.push(log("screen", day, hit ? 30 : 90, SOURCE.PAUSE));
+    events.push(log("steps", day, hit ? 12000 : 6000));       // steps every day → 10 days of evidence
+    if (i !== 0 && i !== 5) events.push(log("sleep", day, hit ? 480 : 360)); // sleep skips one each side → 8
+  });
+  const best = bestDailyInsight(replay(events), "m1", days[0], days[9]);
+  assert.equal(best.subject.habitId, "steps", "steps has more comparable days than sleep");
+  assert.equal(best.weight, 10);
+});
+
+test("no screen-time habit means no card at all", () => {
+  const events = [habitDef("steps", {}), bind("steps", SOURCE.HEALTH_CONNECT)];
+  let d = "2026-03-01";
+  for (let i = 0; i < 8; i += 1) { events.push(log("steps", d, 10000)); d = addDays(d, 1); }
+  assert.equal(bestDailyInsight(replay(events), "m1", "2026-03-01", addDays("2026-03-01", 7)), null);
+});
+
+test("below the evidence floor, nothing is chosen — the card simply does not appear", () => {
+  const { state, from, to } = world([[30, 12000], [90, 6000], [30, 12000]]); // 3 days, under MIN_COMPARE_DAYS a side
+  assert.equal(bestDailyInsight(state, "m1", from, to), null);
 });
 
 if (failures.length) {

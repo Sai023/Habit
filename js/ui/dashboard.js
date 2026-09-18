@@ -6,12 +6,12 @@
 
 import { el, render } from "../dom.js";
 import {
-  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, streak as habitStreak, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
+  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, bestDailyInsight, streak as habitStreak, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
   visibilityFor, travelPeriod, groupDayHabit,
 } from "../habits.js";
 import {
   leaderboard, rankCompare, tieBreak, categoryOver, dayScore, expectedBy, withoutWorstDay, categoryFor as categoryOf,
-  CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
+  priceHabits, CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
   CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES, CATEGORY_SHORT } from "../score.js";
 import { seasonTally, categoryBreakdown, seasonProgress } from "../season.js";
 import { onGoalStreak } from "../summary.js";
@@ -143,7 +143,7 @@ function todayTab(ctx) {
     ),
     // Worth noticing stays; it is the one thing on this screen that is not on a card. The
     // activity feed moved to the Board: it is about the group, and Today is about you.
-    correlationSection(habits, ctx),
+    correlationSection(ctx),
   ];
 }
 
@@ -166,27 +166,14 @@ const COMPARE_WINDOW_DAYS = 30;
  * the minimum, so a fortnight in there is simply no card, rather than a confident claim built on
  * three days.
  */
-function correlationSection(habits, ctx) {
-  const daily = habits.filter((h) => h.period === PERIOD.DAY);
-  // The gate is a screen habit, because that is the half of the story the person controls in the
-  // moment: "the days I stayed off my phone" is an action, where "the days I walked a lot" is
-  // mostly an outcome. Reading it the other way round would be true and useless.
-  const gate = daily.find((h) => PAUSE_METRICS.has(h.metric));
-  if (!gate) return null;
-
+function correlationSection(ctx) {
+  // Which comparison to show is decided in bestDailyInsight (a tested function): the screen-time
+  // gate, and the habit with the most evidence against it. Here we only phrase it.
   const from = addDays(ctx.today, -(COMPARE_WINDOW_DAYS - 1));
-  let best = null;
-  for (const subject of daily) {
-    if (subject.habitId === gate.habitId) continue;
-    const r = compareDays(ctx.state, gate.habitId, subject.habitId, ctx.me, from, ctx.today);
-    if (!r) continue;
-    // Most evidence wins, so the card does not flip between habits every time one day lands.
-    const weight = r.met.days + r.missed.days;
-    if (!best || weight > best.weight) best = { subject, r, weight };
-  }
+  const best = bestDailyInsight(ctx.state, ctx.me, from, ctx.today);
   if (!best) return null;
 
-  const { subject, r } = best;
+  const { gate, subject, r } = best;
   const better = r.delta > 0;
   const gap = fmt.value(subject.metric, Math.abs(r.met.average - r.missed.average));
   const on = fmt.value(subject.metric, r.met.average);
@@ -524,37 +511,6 @@ function travelBanner(ctx) {
  * Earned is capped at the worth, like the category is capped at its share: the bonus is banked
  * beside it, not inside it, so a habit never reads as "26 of 23".
  */
-function priceHabits(scored) {
-  const out = new Map();
-  for (const c of scored.categories || []) {
-    const live = c.habits.filter((h) => h.eligible);
-    if (!live.length || !(c.share > 0)) continue;
-    // Whole points that add up to the category as the hero shows it. 47 over two habits is 23.5
-    // each, which rounds to 24 + 24 = 48 under a heading that says 47 — exactly the kind of
-    // number that does not add up which this whole screen exists to stop. Largest remainder: the
-    // rounded share is split evenly, and the leftover points go one each to the habits with the
-    // biggest fractional claim, so the cards always sum to the line above them.
-    const worths = splitWhole(Math.round(c.share), live.length);
-    live.forEach((h, i) => {
-      const worth = worths[i];
-      const score = Number.isFinite(h.score) ? h.score : 0;
-      out.set(h.habit.habitId, {
-        worth,
-        earned: worth * Math.min(1, score),
-        bonus: BONUS_CATEGORIES.has(c.category) ? worth * Math.max(0, Math.min(BONUS_CAP, score) - 1) : 0,
-      });
-    });
-  }
-  return out;
-}
-
-/** n whole numbers summing to total, as equal as whole numbers allow, larger ones first. */
-function splitWhole(total, n) {
-  const base = Math.floor(total / n);
-  const extra = total - base * n;
-  return Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
-}
-
 function dayHero(ctx, scored) {
   const streak = onGoalStreak(ctx.state, ctx.me, ctx.today);
   const pct = Math.round(scored.pct || 0);

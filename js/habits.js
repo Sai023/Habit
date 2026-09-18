@@ -1706,6 +1706,37 @@ export function compareDays(state, gateHabitId, valueHabitId, memberId, fromDay,
 }
 
 /**
+ * The one comparison the Today screen's "Worth noticing" card shows — chosen, not just computed.
+ *
+ * The gate is a screen-time habit, because that is the half of the story a person controls in the
+ * moment ("the days I stayed off my phone" is an action; "the days I walked a lot" is an outcome).
+ * Every other daily habit they track is compared against it, and the one with the MOST evidence
+ * wins, so the card does not flip between habits every time a single day lands. Returns
+ * { gate, subject, r, weight } or null — null when there is no screen gate or nothing clears
+ * compareDays's floor, which is the card simply not appearing.
+ *
+ * Pulled out of the render layer so the choice can be tested: it used to be an inline loop in the
+ * card, and "which insight surfaces" is exactly the kind of decision that drifts unseen.
+ */
+export function bestDailyInsight(state, memberId, fromDay, toDay) {
+  const daily = [...state.habits.values()].filter(
+    (h) => (h.period || "day") === "day" && isTracking(state, h, memberId),
+  );
+  const gate = daily.find((h) => PAUSE_METRICS.has(h.metric));
+  if (!gate) return null;
+  let best = null;
+  for (const subject of daily) {
+    if (subject.habitId === gate.habitId) continue;
+    const r = compareDays(state, gate.habitId, subject.habitId, memberId, fromDay, toDay);
+    if (!r) continue;
+    // Most evidence wins, so the card holds steady instead of chasing the latest day.
+    const weight = r.met.days + r.missed.days;
+    if (!best || weight > best.weight) best = { gate, subject, r, weight };
+  }
+  return best;
+}
+
+/**
  * How much of ONE PERSON's number the group may see.
  *
  * Whose setting applies is the question worth being explicit about: it is the setting belonging to
