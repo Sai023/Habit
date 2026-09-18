@@ -83,6 +83,23 @@ export function whenLabel(ts, now = Date.now()) {
   return new Date(ts).toLocaleDateString(undefined, { weekday: "short" });
 }
 
+/**
+ * A feed row's day, relative and unambiguous: "today" / "yesterday" / "Mon" / "Sat 13".
+ *
+ * Reads off the day the thing is ABOUT (a habit-day), not when the event was written — a reading
+ * synced late is still yesterday's. And past the last week a bare weekday collides: two different
+ * Saturdays look identical, so the date is pinned on once "Sat" alone stops being enough.
+ */
+export function feedDayLabel(day, today) {
+  if (!day) return "";
+  if (today && day === today) return "today";
+  const diff = today ? daysBetweenISO(day, today) : null; // whole days day→today, positive if past
+  if (diff === 1) return "yesterday";
+  const [y, m, d] = day.split("-").map(Number);
+  const wd = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" });
+  return diff !== null && diff >= 2 && diff <= 6 ? wd : wd + " " + d;
+}
+
 /** The header's date line. */
 export function dayLabel(day) {
   const [y, m, d] = day.split("-").map(Number);

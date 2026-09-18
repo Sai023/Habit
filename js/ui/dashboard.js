@@ -21,6 +21,7 @@ import { neverMissed } from "../history.js";
 import { programFor, planFor } from "../workout.js";
 import { pendingGoal } from "../edits.js";
 import { lifetime } from "../levels.js";
+import { activityItems } from "../activity.js";
 import { levelMark } from "./levelmark.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
@@ -1447,67 +1448,26 @@ function activitySection(ctx) {
 }
 
 function recentActivity(ctx, limit) {
-  const out = [];
-  const seen = new Set();
-  // Newest first, and only one line per habit-day-person: a running total that ticked three times
-  // is one thing that happened, not three.
-  for (let i = ctx.events.length - 1; i >= 0 && out.length < limit; i -= 1) {
-    const e = ctx.events[i];
-    // Goal changes belong in the feed. They are the one thing a person can do that moves their own
-    // score without doing anything, and they were completely invisible: the number simply became
-    // easier and the board reflected it. They cannot rewrite the past any more, but "quietly" was
-    // half of what made it worth doing.
-    if (e.type === T.GOAL) {
-      const g = e.payload || {};
-      const habit = ctx.state.habits.get(g.habitId);
-      if (!habit) continue;
-      const key = "goal|" + g.habitId + "|" + g.memberId + "|" + e.eventId;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const who = g.memberId === ctx.me ? "You" : (ctx.state.members.get(g.memberId)?.name || "Someone");
-      out.push(el("div.ev",
+  // What shows and in what order is decided in activity.js — a pure function, so the ordering (which
+  // used to inherit IndexedDB's random key order and come out shuffled) is unit-tested. Here we only
+  // turn each descriptor into a row.
+  const today = ctx.today || (ctx.now ? new Date(ctx.now).toISOString().slice(0, 10) : null);
+  return activityItems(ctx, limit).map((it) => {
+    const who = it.memberId === ctx.me ? "You" : (ctx.state.members.get(it.memberId)?.name || "Someone");
+    const habit = ctx.state.habits.get(it.habitId);
+    if (it.kind === "goal") {
+      return el("div.ev",
         el("span", "🎯"),
-        el("span.ev-when", fmt.whenLabel(e.ts, ctx.now)),
-        el("span.ev-what", el("b", who), " ", goalPhrase(habit, g)),
-      ));
-      continue;
+        el("span.ev-when", fmt.feedDayLabel(it.day, today)),
+        el("span.ev-what", el("b", who), " ", goalPhrase(habit, it.payload)),
+      );
     }
-    if (e.type !== T.LOG) continue;
-    const p = e.payload || {};
-    const habit = ctx.state.habits.get(p.habitId);
-    if (!habit) continue;
-    const key = p.habitId + "|" + p.memberId + "|" + p.day;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const who = p.memberId === ctx.me ? "You" : (ctx.state.members.get(p.memberId)?.name || "Someone");
-    const src = fmt.source(p.source);
-    const status = rawDayStatus(ctx.state, habit, p.memberId, p.day);
-    const shown = publicNumber(habit, p, ctx);
-
-    out.push(el("div.ev",
-      el("span", src.icon),
-      el("span.ev-when", fmt.whenLabel(e.ts, ctx.now)),
-      el("span.ev-what",
-        el("b", who), " ", verbFor(habit, shown, p.source),
-        status === HIT ? " ✓" : "",
-      ),
-    ));
-  }
-  return out;
-}
-
-/**
- * Respect a person's own visibility before putting their number in a shared feed.
- *
- * THEIRS, not the habit's and not the viewer's — see visibilityFor. Your own numbers are always
- * shown to you, because hiding them from yourself is the one reading of "private" nobody means.
- */
-function publicNumber(habit, payload, ctx) {
-  if (payload.memberId === ctx.me) return payload.value;
-  const seen = visibilityFor(ctx.state, habit, payload.memberId);
-  if (seen === VISIBILITY.FULL) return payload.value;
-  return null;
+    return el("div.ev",
+      el("span", fmt.source(it.source).icon),
+      el("span.ev-when", fmt.feedDayLabel(it.day, today)),
+      el("span.ev-what", el("b", who), " ", verbFor(habit, it.value, it.source), it.met ? " ✓" : ""),
+    );
+  });
 }
 
 /** A goal change, in the fewest words that still say what happened. */
