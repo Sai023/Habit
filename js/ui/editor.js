@@ -10,7 +10,8 @@ import { openSheet } from "./sheet.js";
 import { confirmSheet } from "./confirmsheet.js";
 import { saveHabit, deleteHabit, bindSource, setGoals } from "../store.js";
 import { sourceFor, isTracking } from "../habits.js";
-import { goalToShow, habitFields } from "../edits.js";
+import { goalToShow, habitFields, matchRetired } from "../edits.js";
+import { countHabitLogs } from "../roster.js";
 import { uuid } from "../id.js";
 import { caps } from "../bridge.js";
 import {
@@ -177,13 +178,6 @@ function categoryMap(metric) {
       : "This one is yours alone — it sits outside all four. It shows on Today and keeps its "
         + "streak, and it counts towards nobody's score. The board is the six above."),
   );
-}
-
-/** How many readings are on a habit — the history a restore would bring back. */
-function countEntries(state, habitId) {
-  let n = 0;
-  for (const key of state.logs.keys()) if (key.split("|")[0] === habitId) n += 1;
-  return n;
 }
 
 export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
@@ -429,14 +423,14 @@ export function openEditorSheet(host, { state, habitId, me, today, onDone }) {
     // its history — the exact tangle that made a delete feel like data loss. If a new habit
     // matches a retired one by name and metric, offer to restore it (reuse its id, so its entries
     // reattach) instead of minting a fresh one. Confirmed, because a reused name can be deliberate.
-    if (form.isNew && state.retired && state.retired.size) {
+    if (form.isNew) {
       const t0 = form.type;
-      const name0 = (form.name.trim() || t0.label).toLowerCase();
-      const match = [...state.retired.entries()].find(([, r]) =>
-        r.def && r.def.metric === t0.metric && (r.def.name || "").trim().toLowerCase() === name0);
+      // Matched on the name as it will be SAVED — the placeholder label when the field is blank —
+      // so the offer appears exactly when the new habit would collide with a retired one.
+      const match = matchRetired(state, form.name.trim() || t0.label, t0.metric);
       if (match) {
         const [rid, r] = match;
-        const kept = countEntries(state, rid);
+        const kept = countHabitLogs(state, rid);
         const bring = await confirmSheet(document.body, {
           title: "Bring back \u201c" + (r.def.name || t0.label) + "\u201d?",
           body: "You deleted this habit"

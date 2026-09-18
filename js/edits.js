@@ -105,3 +105,22 @@ export function habitFields({ isNew, name, type, target, taper, days, tz, daySta
   if (isNew) fields.target = target;
   return fields;
 }
+
+/**
+ * The retired habit a brand-new one is really a re-add of — same metric and the same name (trimmed,
+ * case-insensitively) — or null.
+ *
+ * When it matches, the editor offers to restore that id so its entries reattach, rather than mint a
+ * fresh id and strand the history: the re-add-loses-history tangle that made a delete feel like
+ * data loss. The name is matched as given, so the caller passes the placeholder label for a blank
+ * field exactly as it will be saved. Returns [id, retiredRecord] so the caller can show what is
+ * waiting; null when there is nothing retired or nothing matches.
+ */
+export function matchRetired(state, name, metric) {
+  if (!state || !state.retired || !state.retired.size) return null;
+  const want = (name || "").trim().toLowerCase();
+  for (const [id, r] of state.retired.entries()) {
+    if (r && r.def && r.def.metric === metric && (r.def.name || "").trim().toLowerCase() === want) return [id, r];
+  }
+  return null;
+}

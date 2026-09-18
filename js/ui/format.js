@@ -195,6 +195,24 @@ export function clockLabel(ms) {
   return new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
+/** "07:00" from a minute of the day — the reminder-time field's display. */
+export function toClock(minute) {
+  return String(Math.floor(minute / 60)).padStart(2, "0") + ":" + String(minute % 60).padStart(2, "0");
+}
+
+/**
+ * A minute of the day from a "07:00" field, clamped to a real time, or null when it is not one.
+ *
+ * Deliberately lenient on the parse (a typed field is), strict on the range: anything that is not
+ * two numbers is null, and anything in range is clamped to [0, 1439] so a reminder is never set to
+ * a minute that does not exist.
+ */
+export function fromClock(text) {
+  const [h, m] = String(text || "").split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return Math.max(0, Math.min(1439, h * 60 + m));
+}
+
 /**
  * "23:14 \u2192 07:09" for a night; with "(phone quiet)" when it is the phone's estimate rather than
  * a watch's record, because the two are not the same claim and the history should say which.

@@ -17,7 +17,7 @@
 
 import assert from "node:assert/strict";
 import { replay, addDays, targetFor, latestGoal } from "../js/habits.js";
-import { goalToShow, habitFields, pendingGoal } from "../js/edits.js";
+import { goalToShow, habitFields, pendingGoal, matchRetired } from "../js/edits.js";
 import { ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD, VISIBILITY } from "../js/schema.js";
 
 let passed = 0;
@@ -268,6 +268,36 @@ test("a first WEEKLY goal set mid-week still waits for Monday, because the week 
   assert.deepEqual(pending(s, "w", 2), { target: 3, from: day(7) });
   assert.equal(targetFor(s, s.habits.get("w"), "me", day(6), day(0)), 2, "what the engine scores this week");
   assert.equal(targetFor(s, s.habits.get("w"), "me", day(13), day(7)), 3, "and next");
+});
+
+// ---------------------------------------------------------------------------
+// matchRetired — the re-add-loses-history guard: a new habit that is really an old one back
+// ---------------------------------------------------------------------------
+
+const retiredState = () => ({
+  retired: new Map([
+    ["old-steps", { def: { metric: METRIC.STEPS, name: "Steps" } }],
+    ["old-vape", { def: { metric: METRIC.PUFFS, name: "Vape urges" } }],
+  ]),
+});
+
+test("matchRetired finds a retired habit by metric and name, ignoring case and space", () => {
+  const s = retiredState();
+  assert.deepEqual(matchRetired(s, "Steps", METRIC.STEPS)[0], "old-steps");
+  assert.deepEqual(matchRetired(s, "  steps ", METRIC.STEPS)[0], "old-steps", "trimmed and lower-cased");
+  assert.deepEqual(matchRetired(s, "VAPE URGES", METRIC.PUFFS)[0], "old-vape");
+});
+
+test("matchRetired needs BOTH name and metric — a same name on a different metric is a new habit", () => {
+  const s = retiredState();
+  assert.equal(matchRetired(s, "Steps", METRIC.PUFFS), null, "same name, wrong metric");
+  assert.equal(matchRetired(s, "Walking", METRIC.STEPS), null, "right metric, different name");
+});
+
+test("matchRetired is null when nothing is retired, so a fresh group never gets a phantom offer", () => {
+  assert.equal(matchRetired({ retired: new Map() }, "Steps", METRIC.STEPS), null);
+  assert.equal(matchRetired({}, "Steps", METRIC.STEPS), null);
+  assert.equal(matchRetired(null, "Steps", METRIC.STEPS), null);
 });
 
 if (failures.length) {

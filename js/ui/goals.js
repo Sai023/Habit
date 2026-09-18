@@ -12,6 +12,7 @@ import { openSheet } from "./sheet.js";
 import { setGoals, bindSource } from "../store.js";
 import { targetFor, isTracking, sourceFor, latestGoal } from "../habits.js";
 import { goalToShow } from "../edits.js";
+import { toClock, fromClock } from "./format.js";
 import { caps } from "../bridge.js";
 import {
   METRIC, AT_MOST, PERIOD, AUTOMATIC_SOURCES, SOURCE, HEALTH_METRICS, PAUSE_METRICS,
@@ -20,15 +21,6 @@ import {
 
 /** ISO weekdays, Monday first, which is how a week is spoken here. */
 const WEEKDAYS = [[1, "M"], [2, "T"], [3, "W"], [4, "T"], [5, "F"], [6, "S"], [7, "S"]];
-
-/** "07:00" from a minute of the day, and back. */
-const toClock = (minute) =>
-  String(Math.floor(minute / 60)).padStart(2, "0") + ":" + String(minute % 60).padStart(2, "0");
-const fromClock = (text) => {
-  const [h, m] = String(text || "").split(":").map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return Math.max(0, Math.min(1439, h * 60 + m));
-};
 
 /** Could anything ever read this metric, and can THIS device? Two different questions. */
 const couldBeAutomatic = (metric) => HEALTH_METRICS.has(metric) || PAUSE_METRICS.has(metric);
