@@ -10,7 +10,7 @@ import {
   visibilityFor, travelPeriod, groupDayHabit,
 } from "../habits.js";
 import {
-  leaderboard, categoryOver, dayScore, expectedBy, withoutWorstDay, categoryFor as categoryOf,
+  leaderboard, rankCompare, tieBreak, categoryOver, dayScore, expectedBy, withoutWorstDay, categoryFor as categoryOf,
   CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
   CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES, CATEGORY_SHORT } from "../score.js";
 import { seasonTally, categoryBreakdown, seasonProgress } from "../season.js";
@@ -880,7 +880,7 @@ function boardTab(ctx) {
             filtered: true,
           };
         })
-        .sort((a, b) => b.points - a.points || (b.pct ?? -1) - (a.pct ?? -1))
+        .sort(rankCompare)
         .map((r, i) => ({ ...r, rank: i + 1, crown: false }))
     : rows;
 
@@ -1236,12 +1236,14 @@ function whatIfPanel(ranked, ctx) {
   // Below two people, or before anybody has two days that counted, there is nothing to compare.
   if (rows.length < 2) return null;
 
-  // Would the order change? Ties break the same way the board does, so a dead heat does not read
-  // as a reshuffle.
+  // Would the order change? Ranked on the previewed number — the average with the worst day
+  // dropped — and a dead heat settled by the board's own tie-break (tieBreak), so a tie does not
+  // read as a reshuffle. There is no alternate points to rank on: dropping a day changes the
+  // average, which is the whole preview, so the average is the key here.
   const now = rows.map((x) => x.row.memberId);
-  const then = rows.slice().sort((a, b) => b.alt.pct - a.alt.pct
-    || b.row.hits - a.row.hits
-    || a.row.name.localeCompare(b.row.name)).map((x) => x.row.memberId);
+  const then = rows.slice()
+    .sort((a, b) => b.alt.pct - a.alt.pct || tieBreak(a.row, b.row))
+    .map((x) => x.row.memberId);
   const moves = now.some((id, i) => id !== then[i]);
 
   return el("details.whatif",

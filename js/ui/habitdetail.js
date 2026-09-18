@@ -23,7 +23,7 @@ import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import {
   habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday, groupHistory,
-  companionTotal,
+  companionTotal, chartScale, barHeight, targetMoved,
 } from "../history.js";
 import { HABIT_TIERS, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { sourceFor, isTracking, HIT, MISS, NO_DATA, EXEMPT, windowOn } from "../habits.js";
@@ -61,44 +61,9 @@ function periodLabel(entry) {
   return MONTH[d.getUTCMonth()] + " " + d.getUTCFullYear();
 }
 
-/**
- * The number every bar is drawn against.
- *
- * The window's biggest value, or the target if nothing reached it — so the target line always has
- * somewhere to sit and a fortnight of near-misses does not draw as a flat wall of nothing.
- */
-function scaleOf(entries) {
-  const top = entries.reduce((m, e) => {
-    const v = Number.isFinite(e.value) ? e.value : 0;
-    // The TARGET counts towards the scale too, and per period rather than once — otherwise a
-    // fortnight spent well under a ceiling draws with the ceiling off the top of the chart.
-    return Math.max(m, v, e.target || 0);
-  }, 0);
-  return top || 1;
-}
-
-/**
- * How tall a bar is: the value itself, against the window's scale.
- *
- * NOT the fraction of the target, which was the first version and read as a wall: every met day
- * pegged at 100% and identical, so a fortnight of 10 300 steps looked exactly like a fortnight of
- * 30 000. The verdict is already carried by colour; the height is free to carry the number, which
- * is the only thing on this screen that shows a good week from a scraped-through one.
- */
-function height(entry, scale) {
-  if (!Number.isFinite(entry.value)) return 0;
-  return Math.max(3, Math.min(100, Math.round((entry.value / scale) * 100)));
-}
-
 /** "1 week", "3 weeks" — the unit pluralised with the number it belongs to. */
 function count(n, unit) {
   return n + " " + unit + (n === 1 ? "" : "s");
-}
-
-/** Has the target moved across this window? Only a taper does that, and it is worth saying. */
-function taperMoving(entries) {
-  const targets = entries.map((e) => e.target).filter(Number.isFinite);
-  return targets.length > 1 && targets[0] !== targets[targets.length - 1];
 }
 
 const TONE = {
@@ -155,7 +120,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
     : habit.period === PERIOD.WEEK ? "week" : "month";
 
   function chart() {
-    const scale = scaleOf(entries);
+    const scale = chartScale(entries);
     const now = entries[entries.length - 1];
 
     // The goal is drawn PER BAR, at that period's own target.
@@ -177,7 +142,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
           "aria-label": periodLabel(e),
         },
           el("i.hd-bar-fill." + (TONE[e.status] || "is-quiet"),
-            { style: "height:" + height(e, scale) + "%" }),
+            { style: "height:" + barHeight(e, scale) + "%" }),
           e.target
             ? el("i.hd-bar-goal" + (reduce ? ".is-ceiling" : ""), {
                 // Capped just below the top rather than at it. The bar clips its overflow so the
@@ -192,7 +157,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         el("span.hd-tick" + (e.open ? ".is-now" : ""), tick(e)))),
       el("p.hd-scale" + (reduce ? ".is-ceiling" : ""),
         (reduce ? "Ceiling " : "Goal ") + unit(now ? now.target : habit.target)
-        + (taperMoving(entries) ? " — coming down" : "")),
+        + (targetMoved(entries) ? " — coming down" : "")),
     );
   }
 

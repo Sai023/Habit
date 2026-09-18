@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { replay, addDays, HIT, MISS, NO_DATA, EXEMPT } from "../js/habits.js";
 import {
   habitHistory, historySummary, runs, trend, lifetime, byWeekday, worstWeekday,
-  groupHistory, SPAN,
+  groupHistory, SPAN, chartScale, barHeight, targetMoved,
 } from "../js/history.js";
 import {
   ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD, VISIBILITY,
@@ -502,6 +502,34 @@ test("the order is stable for two people who are level", () => {
   const a = groupHistory(s, s.habits.get("h"), "me", day(4)).map((r) => r.memberId);
   const b = groupHistory(s, s.habits.get("h"), "me", day(4)).map((r) => r.memberId);
   assert.deepEqual(a, b);
+});
+
+// ---------------------------------------------------------------------------
+// The chart's view of a history — geometry the detail sheet used to compute inline, untested
+// (chartScale / barHeight / targetMoved). habitHistory already guarantees these entries are
+// chronological with a tapered target per period; these read exactly that.
+// ---------------------------------------------------------------------------
+
+test("chartScale is the biggest of the values and the per-period targets, and never zero", () => {
+  const entries = [{ value: 8000, target: 10000 }, { value: 12000, target: 10000 }, { value: NaN, target: 9000 }];
+  assert.equal(chartScale(entries), 12000, "a value above the ceiling still sets the top");
+  assert.equal(chartScale([{ value: 3000, target: 10000 }]), 10000, "else the ceiling has somewhere to sit");
+  assert.equal(chartScale([{ value: 0, target: 0 }]), 1, "never zero — a height cannot divide by it");
+  assert.equal(chartScale([]), 1);
+});
+
+test("barHeight is the value against the scale, clamped, and nothing for a period with no value", () => {
+  assert.equal(barHeight({ value: 5000 }, 10000), 50);
+  assert.equal(barHeight({ value: 100 }, 10000), 3, "a logged day is always at least visible");
+  assert.equal(barHeight({ value: 999999 }, 10000), 100, "and never overshoots the top");
+  assert.equal(barHeight({ value: NaN }, 10000), 0, "no value, no bar");
+});
+
+test("targetMoved is true only when a taper actually moved the ceiling", () => {
+  assert.equal(targetMoved([{ target: 80 }, { target: 70 }, { target: 60 }]), true);
+  assert.equal(targetMoved([{ target: 80 }, { target: 80 }]), false, "an unchanged ceiling is not a taper");
+  assert.equal(targetMoved([{ target: 80 }]), false, "a single period cannot have moved");
+  assert.equal(targetMoved([]), false);
 });
 
 if (failures.length) {

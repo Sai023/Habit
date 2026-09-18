@@ -87,6 +87,47 @@ export function habitHistory(state, habit, memberId, today, want = null) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// The chart's view of a history — pure geometry over habitHistory entries.
+//
+// These lived inline in the detail sheet, untested, deciding a bar's height and whether the "coming
+// down" line shows. They are moved here, beside the entries they read, so they can be pinned: the
+// entries are already chronological with a tapered target per period (habitHistory), and these
+// depend on exactly that.
+// ---------------------------------------------------------------------------
+
+/**
+ * The number every bar is drawn against: the window's biggest value, or the target if nothing
+ * reached it — per period — so the target line always has somewhere to sit and a fortnight of
+ * near-misses does not draw as a flat wall of nothing. Never zero, so a height never divides by it.
+ */
+export function chartScale(entries) {
+  const top = (entries || []).reduce((m, e) => {
+    const v = Number.isFinite(e.value) ? e.value : 0;
+    return Math.max(m, v, e.target || 0);
+  }, 0);
+  return top || 1;
+}
+
+/**
+ * How tall one bar is: the value against the window's scale, clamped to [3, 100] so a logged day is
+ * always visible and a spike never overshoots. A period with no value has no bar.
+ */
+export function barHeight(entry, scale) {
+  if (!entry || !Number.isFinite(entry.value)) return 0;
+  return Math.max(3, Math.min(100, Math.round((entry.value / (scale || 1)) * 100)));
+}
+
+/**
+ * Has the target moved across this window? Only a taper does that, and it is worth saying ("—
+ * coming down"). Needs at least two finite targets that differ; a single period, or an unchanged
+ * ceiling, is not a taper.
+ */
+export function targetMoved(entries) {
+  const targets = (entries || []).map((e) => e.target).filter(Number.isFinite);
+  return targets.length > 1 && targets[0] !== targets[targets.length - 1];
+}
+
 /**
  * What the window adds up to.
  *

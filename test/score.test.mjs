@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import {
   dayScore, categoryScores, habitScore, categoryFor, scoreOver, categoryOver, expectedBy,
-  CATEGORY, CATEGORY_WEIGHT, BONUS_CAP,
+  CATEGORY, CATEGORY_WEIGHT, BONUS_CAP, rankCompare, tieBreak,
 } from "../js/score.js";
 import { ev, SOURCE, METRIC, AT_LEAST, AT_MOST, AGGREGATE, PERIOD } from "../js/schema.js";
 
@@ -348,6 +348,55 @@ test("somebody tracking nothing has no score, which is not the same as zero", ()
   const s = world([]);
   assert.equal(scoreOf(s, 0).pct, null);
   assert.equal(scoreOf(s, 0).scored, false);
+});
+
+// ---------------------------------------------------------------------------
+// One ranking, shared by every view — the comparator (rankCompare / tieBreak)
+//
+// The overall board, the category filter and the "what if" preview each ranked people, and each
+// broke ties its own way, so the same standings could read differently depending where you looked.
+// These pin the single rule they now all use.
+// ---------------------------------------------------------------------------
+
+const rrow = (name, points, pct, streak = 0) => ({ name, points, pct, streak });
+
+test("the board ranks on points, then average, then streak, then name", () => {
+  const rows = [
+    rrow("Ana", 400, 90, 3),
+    rrow("Bo", 500, 70, 0),
+    rrow("Cy", 400, 90, 9), // ties Ana on points and average, but a longer streak
+    rrow("Di", 400, 95, 1),
+  ];
+  assert.deepEqual(
+    rows.slice().sort(rankCompare).map((r) => r.name),
+    ["Bo", "Di", "Cy", "Ana"],
+    "most points, then higher average, then longer streak, then name",
+  );
+});
+
+test("a points-and-average tie is broken by streak — the case the filtered board used to drop", () => {
+  // The category filter sorted on points-then-average alone, so two people level there landed in
+  // whatever order the array held. rankCompare settles it by streak, then name — the same as the
+  // overall board, which is the entire reason there is now one comparator.
+  const shorter = rrow("Sam", 300, 80, 2);
+  const longer = rrow("Sam", 300, 80, 5);
+  assert.ok(rankCompare(shorter, longer) > 0, "the longer streak ranks ahead");
+  const zoe = rrow("Zoe", 300, 80, 2);
+  const ada = rrow("Ada", 300, 80, 2);
+  assert.ok(rankCompare(zoe, ada) > 0 && rankCompare(ada, zoe) < 0, "a total tie is settled by name, the same everywhere");
+});
+
+test("a member with no measurable period ranks last, and two of them by name", () => {
+  const has = rrow("Has", 0, 0, 0);
+  const none = { name: "None", points: 0, pct: null, streak: 0 };
+  assert.ok(rankCompare(none, has) > 0 && rankCompare(has, none) < 0, "a null average sorts last");
+  const abe = { name: "Abe", points: 0, pct: null, streak: 9 };
+  assert.ok(rankCompare(none, abe) > 0, "two null rows fall back to name, not streak");
+});
+
+test("tieBreak on its own is streak then name", () => {
+  assert.ok(tieBreak({ streak: 5, name: "Z" }, { streak: 1, name: "A" }) < 0, "longer streak first");
+  assert.ok(tieBreak({ streak: 1, name: "Ada" }, { streak: 1, name: "Bo" }) < 0, "then name ascending");
 });
 
 if (failures.length) {

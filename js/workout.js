@@ -317,6 +317,20 @@ export function personalBests(state, memberId, program) {
 }
 
 /**
+ * The record list a screen shows: the best single set per exercise, most recent first.
+ *
+ * A deterministic view over a personalBests map. The compare is a genuine three-way one — the old
+ * inline `a < b ? 1 : -1` returned a non-zero for two records set on the SAME day, so their order
+ * fell to however the Map happened to be built; here a shared day is settled by the exercise name,
+ * so the list reads the same on every device.
+ */
+export function recordList(pbs, limit = Infinity) {
+  return [...(pbs ? pbs.values() : [])]
+    .sort((a, b) => (a.set.day < b.set.day ? 1 : a.set.day > b.set.day ? -1 : (a.name || "").localeCompare(b.name || "")))
+    .slice(0, limit);
+}
+
+/**
  * Would banking `value` on this exercise be a new best set?
  *
  * Strictly greater: matching a best is not a new one. `pbs` is the map from personalBests, taken

@@ -567,6 +567,36 @@ export function categoryOver(state, memberId, from, to, category, addDaysFn) {
  *     monthly goal would contribute nothing to this week's board until the month closed, which is
  *     both useless and discouraging.
  */
+/**
+ * How the board settles a dead heat, once two rows are level on the numbers that are scored: the
+ * longer on-goal streak first, then the name, so the order is identical on every device.
+ *
+ * Exported because THREE views rank people — the overall board, the category filter, and the "what
+ * if" preview — and each broke ties its own way, so the same standings could read differently
+ * depending where you looked. One tie-break, used by all of them.
+ */
+export function tieBreak(a, b) {
+  if ((a.streak || 0) !== (b.streak || 0)) return (b.streak || 0) - (a.streak || 0);
+  return (a.name || "").localeCompare(b.name || "");
+}
+
+/**
+ * The board's ranking, in one place: most points, then the higher average, then [tieBreak]. A
+ * member with no measurable period (pct null) sorts last, on their name among themselves.
+ *
+ * THE comparator — leaderboard() ranks with it and so does the category-filtered board, so a
+ * filtered view can never order two tied people differently from the overall one (it used to,
+ * because it re-sorted inline on points-then-pct alone and dropped the streak and name tie-breaks).
+ */
+export function rankCompare(a, b) {
+  if (a.pct === null && b.pct === null) return (a.name || "").localeCompare(b.name || "");
+  if (a.pct === null) return 1;
+  if (b.pct === null) return -1;
+  if (a.points !== b.points) return b.points - a.points;
+  if (a.pct !== b.pct) return b.pct - a.pct;
+  return tieBreak(a, b);
+}
+
 export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = null) {
   const scored = [...state.habits.values()].filter((h) => h.scored);
 
@@ -667,17 +697,9 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
   // A total settles that without a tie-break at all — 200 does not beat 693 — which is the
   // actuarial reason for it. The league reason is simpler: a league scores appearances.
   //
-  // Then the average, so two people level on points are separated by who did it in fewer days;
-  // then streak; then name, so the order is deterministic across devices.
-  const ranked = rows.slice().sort((a, b) => {
-    if (a.pct === null && b.pct === null) return a.name.localeCompare(b.name);
-    if (a.pct === null) return 1;
-    if (b.pct === null) return -1;
-    if (a.points !== b.points) return b.points - a.points;
-    if (a.pct !== b.pct) return b.pct - a.pct;
-    if (a.streak !== b.streak) return b.streak - a.streak;
-    return a.name.localeCompare(b.name);
-  });
+  // Then the average, then streak, then name — the full chain, and its single definition, live in
+  // rankCompare so every view that ranks people agrees to the letter.
+  const ranked = rows.slice().sort(rankCompare);
   ranked.forEach((r, i) => { r.rank = i + 1; });
 
   const measurable = ranked.filter((r) => r.pct !== null);

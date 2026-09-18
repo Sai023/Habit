@@ -35,7 +35,7 @@ import { finishWorkout } from "../store.js";
 import { caps, openVideo } from "../bridge.js";
 import {
   planFor, intervalsFor, lastSession, prefill, prescription, unitOf, isComplete, progress,
-  sessionsOf, restDaysOf, personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS,
+  sessionsOf, restDaysOf, personalBests, beatsBest, recordList, workoutInsights, MIN_INSIGHT_SESSIONS,
 } from "../workout.js";
 import * as fmt from "./format.js";
 import { keepScreenOn } from "../bridge.js";
@@ -204,9 +204,7 @@ function trainingBlock(ins) {
   }
 
   // The records, compactly. Best single set per exercise, newest first.
-  const records = [...ins.pbs.values()]
-    .sort((a, b) => (a.set.day < b.set.day ? 1 : -1))
-    .slice(0, 6);
+  const records = recordList(ins.pbs, 6);
 
   return el("div.wo-training",
     el("h2.sec-title", "Your training"),

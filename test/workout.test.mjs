@@ -12,7 +12,7 @@ import { PROGRAMS, PROGRAM_LIST } from "../js/programs.js";
 import {
   programFor, planFor, progressionWeek, intervalsFor, lastSession, prefill, prescription,
   isComplete, progress, unitOf, exerciseHistory, sessionsOf, restDaysOf,
-  personalBests, beatsBest, workoutInsights, MIN_INSIGHT_SESSIONS, spansOf, workoutLog, exerciseLog,
+  personalBests, beatsBest, recordList, workoutInsights, MIN_INSIGHT_SESSIONS, spansOf, workoutLog, exerciseLog,
 } from "../js/workout.js";
 import { ev, T, METRIC, AT_LEAST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
@@ -832,6 +832,35 @@ test("the classes insight: minutes on the mat, the one done most, and how they h
 test("below three reports, nothing is said about how classes feel", () => {
   const s = state([E(ev.program(ME, "pilates-weekly"), at(0)), cls(0, "flow", 20, "hard"), cls(1, "core", 25, "hard")]);
   assert.equal(workoutInsights(s, ME, PIL, day(2)).classes.feeling, null);
+});
+
+// ---------------------------------------------------------------------------
+// The record list — best set per exercise, newest first (recordList)
+//
+// The sheet used to sort these with `a < b ? 1 : -1`, which returns non-zero for two records set on
+// the SAME day, leaving their order to however the Map was built. A three-way compare with a name
+// tie-break makes it the same on every device.
+// ---------------------------------------------------------------------------
+
+test("recordList lists records newest day first, a shared day settled by name not by chance", () => {
+  const pbs = new Map([
+    ["sq", { id: "sq", name: "Squat", unit: "kg", set: { value: 100, day: "2026-09-10" } }],
+    ["bp", { id: "bp", name: "Bench", unit: "kg", set: { value: 80, day: "2026-09-12" } }],
+    ["dl", { id: "dl", name: "Deadlift", unit: "kg", set: { value: 140, day: "2026-09-12" } }], // same day as Bench
+    ["oh", { id: "oh", name: "Press", unit: "kg", set: { value: 50, day: "2026-09-08" } }],
+  ]);
+  assert.deepEqual(recordList(pbs).map((r) => r.name), ["Bench", "Deadlift", "Squat", "Press"]);
+});
+
+test("recordList takes only as many as asked, and tolerates an empty or missing map", () => {
+  const pbs = new Map([
+    ["a", { name: "A", set: { day: "2026-09-10" } }],
+    ["b", { name: "B", set: { day: "2026-09-09" } }],
+    ["c", { name: "C", set: { day: "2026-09-08" } }],
+  ]);
+  assert.equal(recordList(pbs, 2).length, 2);
+  assert.deepEqual(recordList(null), []);
+  assert.deepEqual(recordList(new Map()), []);
 });
 
 if (failures.length) {
