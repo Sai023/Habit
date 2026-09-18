@@ -14,6 +14,7 @@ import {
   targetOn, sourceFor, periodKey, periodEnd, visibilityFor, travelPeriod,
 } from "../habits.js";
 import { AT_MOST, VISIBILITY, PERIOD } from "../schema.js";
+import { countMemberLogs, countHabitLogs, duplicateGroups, mergeTarget } from "../roster.js";
 import * as fmt from "./format.js";
 
 const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
@@ -30,7 +31,7 @@ export function openHabitsSheet(
   const members = [...state.members.values()].map((m) => ({
     ...m,
     // What this id has ever put into the log. The number that tells two identical names apart.
-    logged: countLogs(state, m.memberId),
+    logged: countMemberLogs(state, m.memberId),
   }));
 
   /** Hand off to another sheet: close this one first so they never stack. */
@@ -81,7 +82,7 @@ export function openHabitsSheet(
           el("h2.sec-title", "Who's in"),
           // Same name on more than one id is one person split across a rejoin or a reinstall.
           // Offer to fold them into one so their history stops being split — see mergeMember.
-          onMergeMember ? dupGroups(members).map((g) => mergeRow(g, handOffTo, onMergeMember, sheet)) : null,
+          onMergeMember ? duplicateGroups(members).map((g) => mergeRow(g, handOffTo, onMergeMember, sheet)) : null,
           el("div.board", members.map((m) => memberRow(m, me, onRemoveMember, sheet))),
         )
       : null,
@@ -156,16 +157,6 @@ function habitRow(habit, state, me, today, handOffTo, onEditHabit) {
   );
 }
 
-/** How many readings have ever been logged against this habit — the count that comes back with it. */
-function countHabitLogs(state, habitId) {
-  let n = 0;
-  for (const key of state.logs.keys()) {
-    // Keys are habitId|memberId|day — see logKey in habits.js.
-    if (key.split("|")[0] === habitId) n += 1;
-  }
-  return n;
-}
-
 /** One retired habit: what it was, how much history is waiting, and the way to bring it back. */
 function retiredRow(id, r, state, handOffTo, onRestoreHabit) {
   const def = r.def || {};
@@ -184,20 +175,9 @@ function retiredRow(id, r, state, handOffTo, onRestoreHabit) {
   );
 }
 
-/** People sharing a name across more than one id — the same person, split. */
-function dupGroups(members) {
-  const byName = new Map();
-  for (const m of members) {
-    const key = (m.name || m.memberId).trim().toLowerCase();
-    if (!byName.has(key)) byName.set(key, []);
-    byName.get(key).push(m);
-  }
-  return [...byName.values()].filter((g) => g.length > 1);
-}
-
 /** The offer to merge a duplicate-name group into its most-logged id. */
 function mergeRow(group, handOffTo, onMergeMember, sheet) {
-  const primary = [...group].sort((a, b) => b.logged - a.logged)[0];
+  const primary = mergeTarget(group);
   const others = group.filter((m) => m.memberId !== primary.memberId);
   const name = primary.name || "them";
   return el("div.merge-hint",
@@ -218,16 +198,6 @@ function mergeRow(group, handOffTo, onMergeMember, sheet) {
       },
     }, "Merge into one \u2192"),
   );
-}
-
-/** How many readings this member has ever contributed. */
-function countLogs(state, memberId) {
-  let n = 0;
-  for (const key of state.logs.keys()) {
-    // Keys are habitId|memberId|day — see logKey in habits.js.
-    if (key.split("|")[1] === memberId) n += 1;
-  }
-  return n;
 }
 
 function memberRow(member, me, onRemoveMember, sheet) {
