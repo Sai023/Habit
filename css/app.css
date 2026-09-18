@@ -451,6 +451,48 @@ html, body { overscroll-behavior-y: contain; }
 .dots > i { width: 8px; height: 8px; border-radius: 50%; background: var(--teal-dim); }
 .dots > i.spent { background: var(--danger); }
 
+/* ---- Phase 2/3 card bodies: one per behavioural archetype ---- */
+.card-body { display: flex; flex-direction: column; gap: 6px; }
+
+/* Accumulation — a charging track filling toward the floor. Teal is encouraging even mid-climb;
+   the active-day guard means a shortfall is never coloured as failure. */
+.track { height: 6px; border-radius: 999px; background: var(--surface-hi); overflow: hidden; }
+.track > i { display: block; height: 100%; border-radius: 999px; background: var(--teal); transition: width .35s ease; }
+.card.is-hit .track > i { background: var(--teal-soft); }
+
+/* Warn tint — an event tally logged but still under its cap: amber, not red. */
+.card.is-warn .card-value { color: var(--amber); }
+
+/* A ceiling stays calm while under its cap: the spent allowance reads as quietly used, not as an
+   alert. Red is reserved for an actual breach. An event tally (puffs) keeps the default red as logs
+   accumulate — for it, each spent dot IS the alert the spec wants. */
+.card-ceiling .dots > i.spent { background: var(--teal-dim); }
+.card-ceiling.over .dots > i.spent { background: var(--danger); }
+
+/* Week grid — the seven days, the done ones lit, today ringed and flashing while still to do. */
+.card-body.card-week { gap: 8px; }
+.weekgrid { display: flex; gap: 5px; }
+.wk {
+  flex: 1; min-width: 0; text-align: center; font-size: var(--fs-micro); font-weight: 700;
+  padding: 5px 0; border-radius: var(--r-sm); color: var(--dim);
+  background: var(--surface-hi); border: 1px solid transparent;
+}
+.wk.on { color: #06231F; background: var(--teal); }
+.wk.today { border-color: var(--teal); }
+.wk.flash { animation: wk-flash 1.4s ease-in-out infinite; }
+@keyframes wk-flash { 0%, 100% { border-color: var(--teal); } 50% { border-color: var(--teal-dim); } }
+@media (prefers-reduced-motion: reduce) { .wk.flash { animation: none; } }
+.week-badge { font-size: var(--fs-small); font-weight: 700; color: var(--teal); }
+
+/* Month gauge — a filled bar (money in) with a marker at the calendar's position. Bar past the
+   marker is ahead of pace (teal); short of it, behind (amber). */
+.gauge { position: relative; height: 8px; border-radius: 999px; background: var(--surface-hi); overflow: visible; }
+.gauge-fill { display: block; height: 100%; border-radius: 999px; background: var(--amber); transition: width .35s ease; }
+.gauge.on-pace .gauge-fill { background: var(--teal); }
+.gauge-mark { position: absolute; top: -3px; width: 2px; height: 14px; border-radius: 1px; background: var(--dim); transform: translateX(-1px); }
+.card-hint { font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
+.gauge.behind + .card-hint { color: var(--amber); }
+
 /* The price of the habit today. Tabular so a column of cards lines up, teal once the habit has
    taken everything it was worth — the moment the offer has been accepted. */
 .card-worth {

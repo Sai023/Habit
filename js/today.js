@@ -102,7 +102,7 @@ function monthModel(today, start, end, value, target) {
   return { dayOfMonth, daysInMonth, pacePct, filledPct, onPace: filledPct >= pacePct };
 }
 
-function cardModel(state, me, today, habit, price) {
+export function cardModel(state, me, today, habit, price) {
   const key = periodKey(today, habit.period);
   const start = periodStart(key, habit.period);
   const end = periodEnd(key, habit.period);

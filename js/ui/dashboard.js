@@ -22,7 +22,7 @@ import { programFor, planFor } from "../workout.js";
 import { pendingGoal } from "../edits.js";
 import { lifetime } from "../levels.js";
 import { activityItems } from "../activity.js";
-import { todayModel } from "../today.js";
+import { todayModel, cardModel } from "../today.js";
 import { levelMark } from "./levelmark.js";
 import {
   AT_MOST, AGGREGATE, T, VISIBILITY, PERIOD, SOURCE, METRIC, PAUSE_METRICS, AUTOMATIC_SOURCES,
@@ -211,21 +211,12 @@ function correlationSection(ctx) {
  * the other, so they must not look alike.
  */
 function habitCard(habit, ctx, price) {
-  // A weekly habit's card is about the WEEK. Showing today's number for "gym three times a week"
-  // would read as though you had failed on every rest day.
-  const key = periodKey(ctx.today, habit.period);
-  const value = valueForPeriod(ctx.state, habit, ctx.me, key);
-  // Tapered to the end of the period, but read against the goal in force at its START — the
-  // same pair the engine scores with, so the card can never show a target the verdict disagrees
-  // with.
-  const target = targetFor(
-    ctx.state, habit, ctx.me, periodEnd(key, habit.period), periodStart(key, habit.period),
-  );
-  const status = rawPeriodStatus(ctx.state, habit, ctx.me, key);
-  const cadence = CADENCE[habit.period] || "";
+  // The classified row for this habit (today.js): its layout, its guarded state, and the numbers
+  // each layout's body needs. Everything the card shows — body, tint, met badge, log button — reads
+  // from it, so the whole card agrees with one classification of the day.
+  const card = cardModel(ctx.state, ctx.me, ctx.today, habit, price);
   const source = sourceFor(ctx.state, habit, ctx.me);
   const src = fmt.source(source);
-  const reduce = habit.direction === AT_MOST;
   // A ceiling you count yourself — puffs, urges — rather than a running total something reads for
   // you. It no longer changes the card's SIZE, only how the card speaks: what the log button is
   // called, and whether the source badge is allowed to claim the number arrives on its own.
@@ -238,13 +229,13 @@ function habitCard(habit, ctx, price) {
   // intervention habit is never "auto" whatever it is bound to: nothing anywhere reads a puff.
   const auto = AUTOMATIC_SOURCES.has(source) && !intervention;
 
-  const classes = ["card"];
-  // Every card is the same size now. This one used to span the whole grid to make room for an
-  // "I want to vape" button, which left the habit somebody checks most often as a slab twice the
-  // size of everything around it — for a button that was never pressed.
-  if (status === HIT) classes.push("is-hit");
-  if (status === NO_DATA) classes.push("is-nodata");
-  if (reduce && value != null && value > target) classes.push("is-over");
+  // The tint follows the model's guarded tone, not the raw verdict: good lifts (a met floor, a
+  // clean tally, a safe ceiling), bad flags a breach, warn cautions a logged-but-under tally, and
+  // neutral — a day still climbing — stays quiet. This is the active-day guard reaching the colour.
+  const classes = ["card", "card-" + card.layout];
+  if (card.tone === "good") classes.push("is-hit");
+  else if (card.tone === "bad") classes.push("is-over");
+  else if (card.tone === "warn") classes.push("is-warn");
 
   return el("article." + classes.join("."),
     // The card's reading half opens the habit's history; the log button below it stays its own
@@ -259,45 +250,9 @@ function habitCard(habit, ctx, price) {
       el("span.card-icon", habit.icon || "◆"),
       el("span.card-name", habit.name || "Habit"),
     ),
-    el("div",
-      el("div.card-value", reduce
-        // Nothing logged against a ceiling means nothing spent — the whole budget is still there.
-        // A dash would read as "unknown" when the honest answer is "all of it".
-        ? fmt.value(habit.metric, Math.max(0, target - (value || 0)))
-        : fmt.value(habit.metric, value)),
-      // A paced habit says where the line is TONIGHT, not just where the week ends. "1 of 3" is a
-      // number you can answer; "you are 0.43 behind" is not, and a pace nobody can picture is a
-      // pace nobody runs.
-      // Paced, for a habit that can actually be paced. "Three workouts a week, two by tonight" is a
-      // sentence somebody can act on this evening.
-      habit.period === PERIOD.WEEK && !reduce
-        ? el("div.card-of",
-            (value || 0) + " of " + fmt.value(habit.metric, target) + " " + cadence
-            + " · " + expectedBy(habit, ctx.today) + " by tonight")
-        : null,
-
-      // A month is not paced, and saying it is contradicts the engine to the person's face.
-      //
-      // Money arrives as a payday lump, not a daily drip, so scoring refuses to judge a savings
-      // goal at all while the month can still be saved — no penalty, deliberately. The card was
-      // saying the opposite: "0 of 15 000 this month · 2000 by tonight", under an empty bar, on the
-      // fourth. That is a shortfall the engine does not believe in, reported to somebody who has
-      // done nothing wrong, three weeks before they get paid.
-      //
-      // What is true instead: how much is left, how long there is, and that nothing is being
-      // decided yet.
-      habit.period === PERIOD.MONTH && !reduce
-        ? monthlyLines(habit, value, target, ctx)
-        : null,
-      // The paced line above already said the target and the cadence, so this one would repeat it.
-      habit.period !== PERIOD.DAY && !reduce ? null : el("div.card-of", reduce
-        ? "left of " + fmt.value(habit.metric, target) + " " + (cadence || "today")
-        : status === NO_DATA ? "waiting for data"
-        : fmt.goal(habit, target) + (cadence ? " " + cadence : "")),
-      // A new number that is not counting yet, said beside the one that is. See pendingGoal.
-      pendingLine(habit, ctx),
-    ),
-    reduce ? budgetDots(value, target) : progressBar(value, target),
+    // The archetype body — a charging track, a draining meter, a week grid or a month gauge —
+    // plus any pending-goal note. See cardBody.
+    el("div", cardBody(card, habit, ctx), pendingLine(habit, ctx)),
     ),
     // The price. What this habit can put on today, and how much of that it has so far — so the
     // card says what the action is worth before it is taken, and the distance to a perfect day on
@@ -331,7 +286,7 @@ function habitCard(habit, ctx, price) {
           }, src.icon, " ", src.label, el("span.src-go", "↻"))
         : el("span.src", src.icon, " ", src.label),
       // The verdict, in a word rather than a glyph on its own.
-      status === HIT ? el("span.card-met", "\u2713 met") : null,
+      card.state === "met" ? el("span.card-met", "\u2713 met") : null,
       // Pushed to the right of the row, so a card with one and a card without still line up.
       // A flame before the number, so "21" in a small hexagon reads as a run and not a rank.
       habitRun(habitStreak(ctx.state, habit.habitId, ctx.me, ctx.today), habit),
@@ -348,7 +303,7 @@ function habitCard(habit, ctx, price) {
     // with a watch does not need "Enter it manually" under a number the watch just wrote — and
     // asked not to see it; the day it stops writing, the button is back. The habit's own sheet
     // still has the way in for the rarer case of a sensor that reported the wrong number.
-    typedByHand && !(auto && status !== NO_DATA)
+    typedByHand && !(auto && card.rawStatus !== NO_DATA)
       ? el("button.logbtn", { onclick: () => ctx.onLog(habit) },
           intervention ? "Enter today's count"
             : auto ? "Enter it manually"
@@ -366,6 +321,83 @@ function habitCard(habit, ctx, price) {
     // workout is. With no program chosen the card offers to choose one; on a rest day it says so
     // and offers nothing, and "Tennis" is a rest day the program names on purpose.
     habit.metric === METRIC.SESSIONS ? workoutEntry(ctx) : null,
+  );
+}
+
+/** The archetype-specific middle of a card, from its classified model row. */
+function cardBody(card, habit) {
+  switch (card.layout) {
+    case "accumulation": return accumulationBody(card, habit);
+    case "ceiling": return meterBody(card, habit, card.value || 0, card.headroom, card.over);
+    case "event": return meterBody(card, habit, card.incidents || 0, Math.max(0, card.target - (card.incidents || 0)), (card.incidents || 0) > card.target);
+    case "week": return weekBody(card);
+    case "month": return monthBody(card, habit);
+    default: return null;
+  }
+}
+
+/**
+ * Building UP to a floor: the number climbing, the space still to go named as space (not a deficit),
+ * and a track that charges toward full. A day still short reads as "in progress", never a miss.
+ */
+function accumulationBody(card, habit) {
+  return el("div.card-body.card-accumulation",
+    el("div.card-value", fmt.value(habit.metric, card.value)),
+    el("div.card-of", card.state === "met"
+      ? "of " + fmt.value(habit.metric, card.target) + " — done"
+      : fmt.value(habit.metric, card.toGo) + " to go of " + fmt.value(habit.metric, card.target)),
+    el("div.track", { role: "presentation" }, el("i", { style: "width:" + card.pct + "%" })),
+  );
+}
+
+/**
+ * Limiting DOWN under a cap: the HEADROOM is the number, and the dots drain as the allowance is
+ * spent — teal while there is room, red once the cap is punched through. Shared by the ceiling
+ * (locked apps) and the event tally (puffs), whose meter the group already reads and which stays
+ * exactly as it was; the difference is only the word "today" and, at zero, a clean full row.
+ */
+function meterBody(card, habit, consumed, headroom, over) {
+  const suffix = card.layout === "event" ? " today" : "";
+  return el("div.card-body.card-" + card.layout + (over ? ".over" : ""),
+    el("div.card-value", over
+      ? "+" + fmt.value(habit.metric, consumed - card.target)
+      : fmt.value(habit.metric, headroom)),
+    el("div.card-of", over
+      ? "over your " + fmt.value(habit.metric, card.target) + suffix
+      : "left of " + fmt.value(habit.metric, card.target) + suffix),
+    budgetDots(consumed, card.target),
+  );
+}
+
+/**
+ * A weekly frequency goal, drawn as the week: seven cells, the days done lit, today ringed and
+ * flashing while still to do. Once the count is met the grid gives way to a clean "Week complete" —
+ * no "N by tonight" pulling against a goal already won.
+ */
+function weekBody(card) {
+  const grid = el("div.weekgrid", card.days.map((d) => el(
+    "span.wk" + (d.done ? ".on" : "") + (d.isToday ? ".today" : "") + (d.isToday && !d.done ? ".flash" : ""),
+    d.label,
+  )));
+  return card.weekMet
+    ? el("div.card-body.card-week", el("div.week-badge", "✓ Week complete"), grid)
+    : el("div.card-body.card-week", el("div.card-of", card.done + " of " + card.need + " this week"), grid);
+}
+
+/**
+ * A month, drawn as a pace race: the filled bar is money in, the marker is where the calendar has
+ * reached. Bar past the marker is ahead of pace, short of it behind — the glance the card is for.
+ * No month-end-penalty text: the engine does not judge an open month, and neither does this.
+ */
+function monthBody(card, habit) {
+  return el("div.card-body.card-month",
+    el("div.card-value", fmt.value(habit.metric, card.value || 0)),
+    el("div.card-of", "of " + fmt.value(habit.metric, card.target)),
+    el("div.gauge" + (card.onPace ? ".on-pace" : ".behind"), { role: "presentation" },
+      el("i.gauge-fill", { style: "width:" + card.filledPct + "%" }),
+      el("span.gauge-mark", { style: "left:" + card.pacePct + "%" }),
+    ),
+    el("div.card-hint", (card.onPace ? "on pace" : "behind") + " · day " + card.dayOfMonth + " of " + card.daysInMonth),
   );
 }
 
@@ -606,32 +638,6 @@ function tierLine(streak) {
 
 
 /**
- * What a monthly goal can honestly say mid-month.
- *
- * Two lines and no pace: the shortfall, and the fact that the month is still open. The second one
- * is not reassurance, it is the actual scoring rule — a month still running is not judged, and a
- * month that ends short is judged on every one of its days at once.
- */
-function monthlyLines(habit, value, target, ctx) {
-  const short = Math.max(0, target - (value || 0));
-  const key = periodKey(ctx.today, habit.period);
-  const end = periodEnd(key, habit.period);
-  const left = Math.max(0, daysBetween(ctx.today, end));
-
-  return [
-    el("div.card-of",
-      short > 0
-        ? fmt.value(habit.metric, short) + " to go this month"
-        : "Done — " + fmt.value(habit.metric, value || 0) + " of " + fmt.value(habit.metric, target)),
-    el("div.card-foot.card-month",
-      left === 0 ? "Last day — counts tonight"
-        : short <= 0 ? (left === 1 ? "1 day left" : left + " days left")
-        // Said plainly, because an empty bar on the 4th otherwise reads as a fortnight of failure.
-        : (left === 1 ? "1 day left" : left + " days left") + " · counts when the month ends"),
-  ];
-}
-
-/**
  * The badge a streak has earned, or nothing.
  *
  * Drawn rather than emoji, for two reasons. A medal emoji renders as a different object on every
@@ -682,11 +688,6 @@ function tierBadge(streak, size = "") {
     // separates a struck medal from a coloured shape. See the badge rules in app.css.
     el("span.badge-face", el("span.badge-n", String(streak))),
   );
-}
-
-function progressBar(value, target) {
-  const pct = target > 0 ? Math.min(100, Math.round(((value || 0) / target) * 100)) : 0;
-  return el("div.bar", { role: "presentation" }, el("i", { style: "width:" + pct + "%" }));
 }
 
 /**
