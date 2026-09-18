@@ -77,10 +77,19 @@ export function historyList({ log, today, onOpen }) {
   // "every Push + Core" is the question a person scrolling it is usually asking.
   let only = null;
 
+  // What a chip counts by. A structured session repeats under one template id, so "Push + Core"
+  // rightly tallies every time it was done. A watch-detected workout carries its OWN id per
+  // session, so tallying by that made eight tennis matches eight chips reading "Workout 1". Group
+  // those by name instead: eight unnamed ones become one "Workout 8", "Tennis" its own "Tennis 3".
+  const chipKey = (w) => (w.external ? "ext:" + w.sessionName : w.sessionId);
+
   /** The sessions in the log, each once, most done first — the chips that narrow the list. */
   function sessionChips() {
     const counts = new Map();
-    for (const w of log) counts.set(w.sessionId, { name: w.sessionName, n: (counts.get(w.sessionId) || { n: 0 }).n + 1 });
+    for (const w of log) {
+      const k = chipKey(w);
+      counts.set(k, { name: w.sessionName, n: (counts.get(k) || { n: 0 }).n + 1 });
+    }
     if (counts.size < 2) return null;
     const chips = [...counts.entries()].sort((a, b) => b[1].n - a[1].n);
     return el("div.chips.wl-filter",
@@ -119,23 +128,60 @@ export function historyList({ log, today, onOpen }) {
     );
   }
 
+  /**
+   * A day's worth of the same un-named, un-clocked watch workouts, on one line.
+   *
+   * With no name to tell them apart and no clock to order them by, eight identical rows are eight
+   * screenfuls of nothing. They are already in the count on the card; here they are one honest line
+   * — "3 workouts · from your watch" — that says as much as eight rows did and asks for no scroll.
+   * There is nothing to open, so it is not a button. The moment one carries a name or a clock it is
+   * its own thing again and never lands here.
+   */
+  function foldedRow(items) {
+    const w = items[0];
+    const what = w.source === "health_connect" ? "from your watch" : "counted, no session";
+    return el("div.wl-row.is-folded",
+      dateBadge(w.day, today),
+      el("span.wl-row-main",
+        el("span.wl-row-name", w.sessionName),
+        el("span.wl-row-sub", items.length + " workouts · " + what),
+      ),
+      el("span.wl-row-count", "×" + items.length),
+    );
+  }
+
+  /** True for a workout with nothing to set it apart from the next — a candidate to fold. */
+  const foldable = (w) => w.external && !w.timed && !w.empty;
+
   /** The rows, under month eyebrows, so a year of workouts still has landmarks in it. */
   function rows() {
-    const shown = log.filter((w) => only === null || w.sessionId === only);
+    const shown = log.filter((w) => only === null || chipKey(w) === only);
+    // Fold a run of same-day, same-name, featureless watch workouts into one line. They sort
+    // together (day then time), so a plain adjacent-run fold catches them without reordering the
+    // list; a structured session between two of them simply starts a new run, which is correct.
+    const groups = [];
+    for (const w of shown) {
+      const last = groups[groups.length - 1];
+      if (foldable(w) && last && last.fold && last.day === w.day && last.name === w.sessionName) {
+        last.items.push(w);
+      } else {
+        groups.push({ day: w.day, name: w.sessionName, fold: foldable(w), items: [w] });
+      }
+    }
     const out = [];
     let month = null;
-    for (const w of shown) {
-      const m = w.day.slice(0, 7);
+    for (const g of groups) {
+      const m = g.day.slice(0, 7);
       if (m !== month) {
         month = m;
         const inMonth = shown.filter((x) => x.day.slice(0, 7) === m);
         const minutes = inMonth.reduce((n, x) => n + (x.minutes || 0), 0);
         out.push(el("div.wl-month",
-          el("span", monthLabel(w.day)),
+          el("span", monthLabel(g.day)),
           el("span.wl-month-n", inMonth.length + (inMonth.length === 1 ? " workout" : " workouts") + (minutes ? " · " + minutes + " min" : "")),
         ));
       }
-      out.push(row(w));
+      out.push(g.items.length > 1 ? foldedRow(g.items) : row(g.items[0]));
     }
     return el("div.wl-list", out);
   }

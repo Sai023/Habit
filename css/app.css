@@ -2292,6 +2292,14 @@ button.card-open:active { transform: scale(0.99); }
 .wl-row-pb { font-size: var(--fs-small); color: var(--amber); font-weight: 600; }
 .wl-row-vitals { font-size: var(--fs-small); color: var(--teal); font-variant-numeric: tabular-nums; }
 .wl-row-go { color: var(--dim); font-weight: 700; flex: none; }
+/* A folded run of featureless watch workouts: informational, nothing to open. */
+.wl-row.is-folded { cursor: default; }
+.wl-row.is-folded:active { transform: none; }
+.wl-row.is-folded .wl-row-name { color: var(--dim); }
+.wl-row-count {
+  flex: none; font-size: var(--fs-small); font-weight: 700; color: var(--dim);
+  font-variant-numeric: tabular-nums; padding: 2px 8px; border-radius: 999px; background: var(--surface);
+}
 
 /* Open: the exercises, each with its sets beside last time's. */
 .wl-back { align-self: flex-start; }
