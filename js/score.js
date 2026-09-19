@@ -32,7 +32,7 @@
 // here, in code, the same for everyone.
 
 import {
-  valueForPeriod, targetFor, isTracking, rawPeriodStatus, walk, progressFor, periodsBetween,
+  valueForPeriod, targetFor, rawPeriodStatus, walk, progressFor, periodsBetween,
   periodKey, periodStart, periodEnd, isoDayOfWeek, daysInPeriod, addDays, bonusForfeited,
   HIT, MISS, NO_DATA, EXEMPT,
 } from "./habits.js";
@@ -204,8 +204,11 @@ export function habitScore(state, habit, memberId, day, today = null, memo = nul
   // Only periods that had already ended are skipped.
   if (periodEnd(key, habit.period, habit.monthStart) < habit.createdDay) return remember(memo, memoKey, out);
 
-  if (!isTracking(state, habit, memberId, opensOn)) return remember(memo, memoKey, out);
-
+  // Opting out is not a bail here any more — rawPeriodStatus owns that verdict, so the two screens
+  // cannot disagree. It returns EXEMPT for a period you declined (skipped just below), and it
+  // deliberately does NOT rescue an at-most breach already on the board on the day you walked out,
+  // returning MISS instead — so the board scores that day rather than a redundant isTracking check
+  // here quietly dropping it before the status is even asked for.
   const status = rawPeriodStatus(state, habit, memberId, key);
   if (status === EXEMPT) return remember(memo, memoKey, out);
 

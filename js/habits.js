@@ -1548,19 +1548,41 @@ export function valueForPeriod(state, habit, memberId, key) {
  * missing measurement means different things depending on who was supposed to take it.
  */
 export function rawPeriodStatus(state, habit, memberId, key) {
-  // Not signed up for this one. Different from failing it, and must not cost them anything.
-  //
   // Asked as of the period's START. A week you began committed to is a week you are judged on,
   // whatever you decided about it on the Saturday.
   const opensOn = periodStart(key, habit.period, habit.monthStart);
-  if (!isTracking(state, habit, memberId, opensOn)) return EXEMPT;
+  // Not signed up for this one. Different from failing it, and normally costs nothing — but the
+  // "normally" is load-bearing, and handled below rather than here so a rest day still wins over it.
+  const optedOut = !isTracking(state, habit, memberId, opensOn);
 
   const days = daysInPeriod(key, habit.period, habit.monthStart);
   // A period is exempt only when EVERY day in it is. Three days away does not excuse a whole week
-  // of a weekly goal — you had four other days to do it in.
+  // of a weekly goal — you had four other days to do it in. This beats an opt-out, too: a booked
+  // rest day is exempt whether or not you are signed up, so it is asked first.
   if (days.every((d) => exemptReason(state, habit, memberId, d))) return EXEMPT;
   // Weekday scheduling is a daily-habit idea. "Mon/Wed/Fri" says nothing about a monthly target.
   if (habit.period === PERIOD.DAY && !habit.days.includes(isoDayOfWeek(key))) return EXEMPT;
+
+  if (optedOut) {
+    // Opting out excuses the period — EXCEPT it must not RESCUE a ceiling you had already blown on
+    // the very day you opted out. A member's first goal counts from the day it was authored (the
+    // joiner concession, so a newcomer who declines a habit is free from day one), and that
+    // concession was the loophole: go nine puffs over a cap of five at 6pm, decline the habit at
+    // 8pm, and the day flipped from miss to exempt — the breach un-happened. So on the ONE period
+    // the opt-out took effect in, an at-most breach that was already recorded still stands. Every
+    // LATER period is plainly exempt (a genuine decline stays free, and stale sensor data on a day
+    // you are no longer signed up for never becomes a miss), and a clean or empty transition period
+    // is exempt too — only a real, logged breach on the day you walked out is kept.
+    const goal = goalOn(state, habit.habitId, memberId, opensOn);
+    if (habit.direction === AT_MOST && goal && goal.from === opensOn) {
+      const v = valueForPeriod(state, habit, memberId, key);
+      if (v !== null) {
+        const t = targetFor(state, habit, memberId, periodEnd(key, habit.period, habit.monthStart), opensOn);
+        if (v > t) return MISS;
+      }
+    }
+    return EXEMPT;
+  }
 
   const value = valueForPeriod(state, habit, memberId, key);
   if (value === null) {

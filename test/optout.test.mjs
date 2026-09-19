@@ -21,7 +21,7 @@
 // Without the second, opting out of every Discipline habit would cap your day at 70.
 
 import assert from "node:assert/strict";
-import { replay, addDays } from "../js/habits.js";
+import { replay, addDays, rawDayStatus, MISS, EXEMPT } from "../js/habits.js";
 import { dayScore, categoryScores, leaderboard, CATEGORY, CATEGORY_WEIGHT } from "../js/score.js";
 import { ev, METRIC, AT_LEAST, AT_MOST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
@@ -209,6 +209,56 @@ test("a habit you ARE tracking and did not log is still a miss", () => {
     dayScore(s, "b", day(10), day(DAYS - 1)).pct < dayScore(s, "a", day(10), day(DAYS - 1)).pct,
     "and an unlogged at-most habit costs something",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Opting out cannot rescue a day already spent
+// ---------------------------------------------------------------------------
+//
+// A member's FIRST goal counts from the day it was authored — the joiner concession, so a newcomer
+// who declines a habit is free from day one. The loophole: that concession also let someone go over
+// a ceiling and THEN decline the habit to erase the miss. The rule is now narrower — a decline is
+// free forever EXCEPT it cannot un-happen an at-most breach already recorded on the very day it took
+// effect. Everything else about opting out (the tests above) is unchanged.
+
+// A ceiling of five puffs a day, and a member who only ever touches this one habit.
+function ceiling({ log = null, declineAt = null } = {}) {
+  const events = [
+    E(ev.member("z", "Z"), at(0)),
+    E(ev.habit("puffs", {
+      name: "puffs", metric: METRIC.PUFFS, direction: AT_MOST, aggregate: AGGREGATE.SUM,
+      period: PERIOD.DAY, target: 5, source: SOURCE.MANUAL, tz: TZ, dayStartHour: 4,
+      grace: { earnEvery: 0, cap: 0 },
+    }), at(0)),
+  ];
+  // A log at noon and a decline at 6pm, both on day 0, so the breach is on the board before the
+  // opt-out lands — the shape of the exploit.
+  if (log !== null) events.push(E(ev.log("puffs", "z", day(0), log, SOURCE.MANUAL), Date.parse(day(0) + "T12:00:00Z")));
+  if (declineAt !== null) events.push(E(ev.goal("z", "puffs", { active: false }), Date.parse(day(0) + "T" + declineAt + ":00:00Z")));
+  return replay(events);
+}
+
+const statusOf = (s, d) => rawDayStatus(s, s.habits.get("puffs"), "z", d);
+
+test("declining after blowing the cap that same day does not erase the miss", () => {
+  // Nine puffs at noon (cap is five), decline at six. The breach stands.
+  const s = ceiling({ log: 9, declineAt: "18" });
+  assert.equal(statusOf(s, day(0)), MISS, "the day you blew is still a miss");
+  assert.equal(dayScore(s, "z", day(0), day(0)).pct, 0, "and it costs the day on the board, not a free 100");
+});
+
+test("but declining on a clean day is still free", () => {
+  // Three puffs — under the cap — then decline. Nothing was blown, so nothing is kept: exempt.
+  const s = ceiling({ log: 3, declineAt: "18" });
+  assert.equal(statusOf(s, day(0)), EXEMPT, "a decline on a day you kept under the cap is free");
+});
+
+test("and declining a habit you never logged is free from day one", () => {
+  // The joiner concession the rule protects: decline at signup, never log, and day one is exempt —
+  // not a no-data miss.
+  const s = ceiling({ declineAt: "06" });
+  assert.equal(statusOf(s, day(0)), EXEMPT, "the day you opted out is exempt");
+  assert.equal(statusOf(s, day(1)), EXEMPT, "and every day after");
 });
 
 if (failures.length) {
