@@ -669,7 +669,7 @@ function attributeBars(attributes) {
         // from a perfect day" line, per category, so the reader can see where the gap is. These
         // add up to that line: the model rounds the parts to the whole (apportion).
         el("span.hero-cat-gap", left > 0 ? left + " to go" : ""),
-        el("span.hero-cat-num" + tone, a.points + " of " + a.offered),
+        el("span.hero-cat-num.num-" + a.category + tone, a.points + " of " + a.offered),
       );
     }),
   );

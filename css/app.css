@@ -30,6 +30,17 @@
   --danger:      #FF6B6B;
   --amber:       #F0B429;
 
+  /* The four categories, each a hue that stays luminous on the night ground and is nobody else's:
+     never the red a miss wears or the amber a warning does. Teal is the brand and Core fitness
+     keeps it; the other three are chosen to be told apart at a glance and at eight pixels wide.
+     Amber and the dim green used to sit here and read as mud against navy — a bar that was
+     half brown was the complaint. One definition: the day hero, its legend, and the scoring
+     sheet's key all draw from these. */
+  --cat-fitness:    #3EE0C4;
+  --cat-discipline: #B18CFF;
+  --cat-rest:       #5DB0FF;
+  --cat-money:      #FF7EB6;
+
   --r:    14px;
   --r-sm: 9px;
   --pad:  16px;
@@ -223,10 +234,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
   border-radius: 999px; overflow: hidden;
 }
 .scoring-seg { display: block; }
-.seg-fitness    { background: var(--teal); }
-.seg-discipline { background: var(--amber); }
-.seg-rest       { background: var(--teal-dim); }
-.seg-money      { background: var(--dim); }
+.seg-fitness    { background: var(--cat-fitness); }
+.seg-discipline { background: var(--cat-discipline); }
+.seg-rest       { background: var(--cat-rest); }
+.seg-money      { background: var(--cat-money); }
 
 .scoring-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .scoring-key {
@@ -440,25 +451,29 @@ html, body { overscroll-behavior-y: contain; }
   color: var(--danger);
 }
 
-/* The day, split. Segments sized by each category's share of the hundred (flex, set inline), each
-   filled to what it has earned, in the category's own colour — the same keys the scoring sheet
-   uses. Taller than the plain bar because it carries the split as well as the total. */
-.hero-split {
-  display: flex; gap: 2px; height: 9px;
+/* The day, split: four pills, one per category, each as wide as that category's share of the
+   hundred (flex, set inline) and filled to what it has earned.
+
+   Pills, not blocks on a strip. The first version clipped one strip into segments and drew each
+   track the same dark as the gap beside it, so at half fill the bar read as six floating blocks
+   — the four categories it exists to show were the one thing it did not. Now each segment is its
+   own rounded track in its category's colour, faint, so a category's whole width is visible
+   whether it is at nothing or at everything, and the fill sits inside it in the same hue, bright.
+   Empty and full look like the same object in two states, which is what they are. */
+.hero-split { display: flex; gap: 4px; height: 10px; }
+.hero-seg {
+  display: block; min-width: 0; position: relative;
   border-radius: 999px; overflow: hidden;
+  background: var(--surface-hi);
 }
-/* The track of a segment is its category's colour, faint — so a category's whole extent is
-   visible whether it is empty or full, and the fill sits INSIDE something. A track the colour of
-   the gaps read, at half fill, as six floating blocks instead of four categories partly earned:
-   the split the bar exists to show was the one thing it did not. */
-.hero-seg { display: block; min-width: 0; background: var(--surface-hi); }
-.hero-seg.track-fitness    { background: rgba(62, 224, 196, 0.22); }
-.hero-seg.track-discipline { background: rgba(240, 180, 41, 0.22); }
-.hero-seg.track-rest       { background: rgba(62, 224, 196, 0.12); }
-.hero-seg.track-money      { background: rgba(154, 166, 201, 0.22); }
-.hero-seg > i { display: block; height: 100%; border-radius: 0 2px 2px 0; }
-/* A category with nothing left to earn glows a shade brighter than one still filling. */
-.hero-seg.is-hit > i.seg-fitness { background: var(--teal-soft); }
+.hero-seg.track-fitness    { background: rgba(62, 224, 196, 0.24); }
+.hero-seg.track-discipline { background: rgba(177, 140, 255, 0.24); }
+.hero-seg.track-rest       { background: rgba(93, 176, 255, 0.24); }
+.hero-seg.track-money      { background: rgba(255, 126, 182, 0.24); }
+.hero-seg > i { display: block; height: 100%; border-radius: 999px; }
+/* Locked in: a full segment carries a thin light rim, so "done" is a state the eye can find
+   without reading the legend — and a fill that stops short of the rim is visibly not there yet. */
+.hero-seg.is-hit { box-shadow: inset 0 0 0 1px rgba(234, 240, 255, 0.55); }
 
 /* Secondary to the streak above it, and separated rather than merely spaced: this is the day
    broken down, not another headline. */
@@ -476,7 +491,11 @@ html, body { overscroll-behavior-y: contain; }
 .hero-cat-name { min-width: 0; color: var(--dim); font-size: var(--fs-small); }
 .hero-cat-gap { font-size: var(--fs-micro); color: var(--dim); text-align: right; white-space: nowrap; }
 .hero-cat-num { font-size: var(--fs-small); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+/* A complete category's number takes the category's own colour, matching the pill above it. */
 .hero-cat-num.is-hit { color: var(--teal-soft); }
+.hero-cat-num.is-hit.num-discipline { color: var(--cat-discipline); }
+.hero-cat-num.is-hit.num-rest { color: var(--cat-rest); }
+.hero-cat-num.is-hit.num-money { color: var(--cat-money); }
 /* The countdown, lifted from the section heading to a quiet anchor above the widgets. */
 .day-anchor {
   margin: 0 0 10px; font-size: var(--fs-small); color: var(--dim);
