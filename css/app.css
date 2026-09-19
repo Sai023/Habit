@@ -444,13 +444,6 @@ html, body { overscroll-behavior-y: contain; }
 .hero-pct { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .hero-pct.is-hit { color: var(--teal-soft); }
 
-.hero-penalty {
-  margin: 0;
-  font-size: var(--fs-small);
-  line-height: 1.45;
-  color: var(--danger);
-}
-
 /* The day, split: four pills, one per category, each as wide as that category's share of the
    hundred (flex, set inline) and filled to what it has earned.
 
@@ -471,9 +464,8 @@ html, body { overscroll-behavior-y: contain; }
 .hero-seg.track-rest       { background: rgba(93, 176, 255, 0.24); }
 .hero-seg.track-money      { background: rgba(255, 126, 182, 0.24); }
 .hero-seg > i { display: block; height: 100%; border-radius: 999px; }
-/* Locked in: a full segment carries a thin light rim, so "done" is a state the eye can find
-   without reading the legend — and a fill that stops short of the rim is visibly not there yet. */
-.hero-seg.is-hit { box-shadow: inset 0 0 0 1px rgba(234, 240, 255, 0.55); }
+/* Done is the fill reaching the end of its track, and the legend number taking the colour. A rim
+   was tried and could not be seen over a bright fill at phone scale. */
 
 /* Secondary to the streak above it, and separated rather than merely spaced: this is the day
    broken down, not another headline. */
@@ -501,7 +493,6 @@ html, body { overscroll-behavior-y: contain; }
   margin: 0 0 10px; font-size: var(--fs-small); color: var(--dim);
   font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
 }
-.bar.is-poor > i { background: var(--danger); }
 .bar.is-hit > i { background: var(--teal-soft); }
 
 .bar { height: 5px; border-radius: 999px; background: var(--surface-hi); overflow: hidden; }
@@ -1474,19 +1465,6 @@ html, body { overscroll-behavior-y: contain; }
 }
 .travel-list li { margin: 4px 0; }
 
-/* A category that is not being judged today. Present, quiet, and carrying its reason instead of
-   its numbers — the alternative was dropping the row, which is what made the surviving weights
-   look like an arithmetic error rather than the rule they are. */
-.hero-cat.is-quiet { opacity: 0.55; }
-.hero-cat.is-quiet .hero-cat-num {
-  font-size: var(--fs-micro); font-weight: 600; color: var(--dim);
-}
-/* Above the list, because it explains the numbers in it rather than following from them. */
-.hero-cat-note {
-  font-size: var(--fs-micro); color: var(--dim);
-  margin: 0 0 8px; line-height: 1.45;
-}
-
 /* ---------- the season list ---------- */
 
 /* The card is a button. It has to keep reading as a status card rather than a control, so it
@@ -1783,33 +1761,7 @@ button.card-open:active { transform: scale(0.99); }
 .hd-extra-icon { font-size: var(--fs-body); line-height: 1; }
 .hd-detail-num span { color: var(--dim); font-size: var(--fs-small); }
 
-/* Better or worse, said rather than arrowed. An arrow makes the reader translate "up" into good or
-   bad every time, and it means the opposite for steps and for puffs. */
-.hd-trend {
-  margin: 0 0 8px; padding: 9px 12px;
-  font-size: var(--fs-small); color: var(--dim);
-  background: var(--panel); border-radius: var(--r-sm);
-  border-left: 2px solid var(--line);
-}
-.hd-trend.is-better { border-left-color: var(--teal); color: var(--text); }
-.hd-trend.is-worse { border-left-color: var(--danger); color: var(--text); }
-
 .hd-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-
-/* ---------- a habit's longer view ---------- */
-
-.hd-long { margin-top: 6px; }
-.hd-long-line {
-  margin: 0 0 10px; font-size: var(--fs-small); color: var(--dim);
-  line-height: var(--lh-small, 1.5);
-}
-/* The one pattern worth naming. A left rule rather than a colour, because it is an observation
-   and not a verdict — nobody failed by having a bad Sunday. */
-.hd-long-line.is-flagged {
-  padding: 9px 12px; color: var(--text);
-  background: var(--panel); border-radius: var(--r-sm);
-  border-left: 2px solid var(--amber);
-}
 
 .hd-ladder { margin-top: 4px; }
 .hd-rungs { display: flex; gap: 6px; margin-bottom: 8px; }

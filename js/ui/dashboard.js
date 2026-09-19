@@ -395,7 +395,7 @@ function weekBody(card) {
 function monthBody(card, habit) {
   return el("div.card-body.card-month",
     el("div.card-value", fmt.value(habit.metric, card.value || 0)),
-    el("div.card-of", "of " + fmt.value(habit.metric, card.target)),
+    el("div.card-of", "of " + fmt.value(habit.metric, card.target) + (card.state === "met" ? " \u2014 done" : "")),
     el("div.bar" + (card.filledPct >= 100 ? ".is-hit" : ""), { role: "presentation" },
       el("i", { style: "width:" + card.filledPct + "%" })),
     // Where in the month, and — only while it is true — that nothing has been logged, because that
