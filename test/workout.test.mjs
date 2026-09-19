@@ -604,6 +604,31 @@ test("a re-synced watch workout is one row, not many", () => {
   assert.equal(workoutLog(s, ME, day(1)).length, 1, "deduped by externalId, like the count");
 });
 
+test("a watch session over the same window as an app workout is one row, not a duplicate", () => {
+  // The reported bug: finish a session in the app AND wear a watch, and the watch auto-detects that
+  // same session and writes its own gym log. Different id, so it slipped past the "workout:" skip
+  // and showed a second time ("Metabolic Circuit" and, beside it, "Workout · from your watch", the
+  // same 24 minutes). Recognised now by the overlapping window and dropped — the watch's numbers are
+  // already laid over the structured row.
+  const start = Date.parse(day(0) + "T17:00:00Z");
+  const end = Date.parse(day(0) + "T17:24:00Z");
+  const s = state([
+    E(ev.habit("gym", { name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST, target: 3, period: PERIOD.WEEK, tz: TZ }), at(0)),
+    // the app session: a timed WORKOUT + its paired gym log
+    E(ev.workout(ME, "match-fit", "push-core", day(0), { exercises: [{ id: "pushup", sets: [10, 10, 10] }], startedAt: start, endedAt: end }), start),
+    E(ev.log("gym", ME, day(0), 1, SOURCE.MANUAL, "workout:" + day(0) + ":push-core"), start),
+    // the watch's own recording of that SAME session, over the same window (a minute's drift)
+    E(ev.log("gym", ME, day(0), 1, SOURCE.HEALTH_CONNECT, "hc-dup", null, { start: start + 60000, end: end + 60000 }), start),
+    // a genuinely separate watch activity earlier the same day — must NOT be dropped
+    E(ev.log("gym", ME, day(0), 1, SOURCE.HEALTH_CONNECT, "hc-run", null, { start: Date.parse(day(0) + "T06:00:00Z"), end: Date.parse(day(0) + "T06:40:00Z") }, null, "Run"), at(0)),
+  ]);
+  const log = workoutLog(s, ME, day(0));
+  assert.equal(log.filter((w) => !w.external).length, 1, "the app session appears once");
+  assert.ok(!log.some((w) => w.external && w.startedAt === start + 60000), "the overlapping watch copy is dropped");
+  assert.ok(log.some((w) => w.external && w.sessionName === "Run"), "the separate morning run still shows");
+  assert.equal(log.length, 2, "one app workout + one real watch activity, not three");
+});
+
 test("a rope day is one row, in rounds", () => {
   const s = state([
     E(ev.program(ME, "rope-protocol"), at(0)),

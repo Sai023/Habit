@@ -687,6 +687,20 @@ export function workoutLog(state, memberId, today = null) {
   // card. Surface each gym log that ISN'T an app session (its externalId does not start "workout:")
   // as a light row, so the list matches the count. The activity's real name needs the shell to pass
   // Health Connect's exercise type through as `title`; until it does, the row reads simply "Workout".
+  // The time windows of the app's own structured workouts, so a watch session that RAN AT THE SAME
+  // TIME can be recognised as the same workout rather than surfaced a second time. When you finish
+  // a session in the app AND wear a watch, the watch also auto-detects that session and writes its
+  // own gym log — a different id, so it slipped past the "workout:" skip below and showed as a
+  // duplicate ("Metabolic Circuit" and, beside it, "Workout · from your watch", same 24 minutes).
+  // The watch's numbers are already laid over the structured row (that overlay reads the raw
+  // heart-rate samples by window, not this log), so dropping the duplicate loses nothing.
+  const appWindows = structured
+    .filter((w) => Number.isFinite(w.startedAt) && Number.isFinite(w.endedAt) && w.endedAt > w.startedAt)
+    .map((w) => ({ day: w.day, start: w.startedAt, end: w.endedAt }));
+  const isAppWorkout = (day, start, end) =>
+    Number.isFinite(start) && Number.isFinite(end)
+    && appWindows.some((a) => a.day === day && start < a.end && a.start < end);
+
   const gym = [...state.habits.values()].find((h) => h.metric === METRIC.SESSIONS);
   const external = [];
   if (gym) {
@@ -701,6 +715,9 @@ export function workoutLog(state, memberId, today = null) {
         if (ext && seen.has(ext)) continue;          // one row per activity, even if it re-synced
         if (ext) seen.add(ext);
         const timed = Number.isFinite(e.start) && Number.isFinite(e.end) && e.end > e.start;
+        // The watch's own recording of a session you also ran in the app — same workout, not a
+        // second one. Skipped here, kept in the log; its vitals are already on the structured row.
+        if (timed && isAppWorkout(day, e.start, e.end)) continue;
         external.push({
           day,
           external: true,
