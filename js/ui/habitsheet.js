@@ -120,7 +120,7 @@ export function openHabitsSheet(
 function habitRow(habit, state, me, today, handOffTo, onEditHabit) {
   const seen = visibilityFor(state, habit, me);
   const src = fmt.source(sourceFor(state, habit, me));
-  const target = targetOn(habit, periodEnd(periodKey(today, habit.period), habit.period));
+  const target = targetOn(habit, periodEnd(periodKey(today, habit.period, habit.monthStart), habit.period, habit.monthStart));
 
   return el("article.row.tappable", {
     style: "grid-template-columns: 26px minmax(0,1fr)",

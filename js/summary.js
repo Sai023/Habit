@@ -51,11 +51,11 @@ export const SUMMARY_VERSION = 7;
  * is two different numbers to the person holding the phone.
  */
 function habitSummary(state, habit, me, today) {
-  const key = periodKey(today, habit.period);
+  const key = periodKey(today, habit.period, habit.monthStart);
   const status = rawPeriodStatus(state, habit, me, key);
   const value = valueForPeriod(state, habit, me, key);
   const target = targetFor(
-    state, habit, me, periodEnd(key, habit.period), periodStart(key, habit.period),
+    state, habit, me, periodEnd(key, habit.period, habit.monthStart), periodStart(key, habit.period, habit.monthStart),
   );
   const w = walk(state, habit.habitId, me, today);
   const reduce = habit.direction === AT_MOST;
@@ -410,8 +410,9 @@ function trainingSummary(state, me, today) {
  * here. "Nothing logged yet" and "6,200 of 8,000" are facts about data, true whatever the engine
  * would go on to conclude.
  *
- * Daily habits only. "Three times a week" cannot be outstanding on a Tuesday, and a monthly
- * savings goal is deliberately not judged until the month closes.
+ * Daily habits only. "Three times a week" cannot be outstanding on a Tuesday, and a month's
+ * savings is one number logged once — a nudge about it belongs to the monthly reminder, not to
+ * tonight.
  */
 function riskContract(state, me, today) {
   const out = [];

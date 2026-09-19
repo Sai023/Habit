@@ -149,10 +149,10 @@ export function expectedBy(habit, day) {
   if (target <= 0) return 0;
   const days = habit.period === PERIOD.WEEK
     ? 7
-    : daysInPeriod(periodKey(day, habit.period), habit.period).length;
+    : daysInPeriod(periodKey(day, habit.period, habit.monthStart), habit.period, habit.monthStart).length;
   const index = habit.period === PERIOD.WEEK
     ? isoDayOfWeek(day)
-    : daysInPeriod(periodKey(day, habit.period), habit.period).indexOf(day) + 1;
+    : daysInPeriod(periodKey(day, habit.period, habit.monthStart), habit.period, habit.monthStart).indexOf(day) + 1;
   const through = Math.max(1, index) / days;
   return Math.min(target, Math.ceil(target * through));
 }
@@ -170,7 +170,7 @@ function remember(memo, key, value) {
 }
 
 export function habitScore(state, habit, memberId, day, today = null, memo = null) {
-  const key = periodKey(day, habit.period);
+  const key = periodKey(day, habit.period, habit.monthStart);
 
   // A habit's score is a fact about its PERIOD, not about the day you asked on. Every day of a
   // month returns the same answer for a monthly habit — same key, same target, same value, same
@@ -186,7 +186,7 @@ export function habitScore(state, habit, memberId, day, today = null, memo = nul
   // which is the other half of why the key does not need to mention it.
   const memoKey = memo && habit.habitId + "|" + memberId + "|" + key;
   if (memo && memo.has(memoKey)) return memo.get(memoKey);
-  const opensOn = periodStart(key, habit.period);
+  const opensOn = periodStart(key, habit.period, habit.monthStart);
   const out = { habitId: habit.habitId, eligible: false, score: 0, value: null, target: 0, expected: null };
 
   if (!habit.scored) return remember(memo, memoKey, out);
@@ -202,14 +202,14 @@ export function habitScore(state, habit, memberId, day, today = null, memo = nul
   // Scored from the period the habit was BORN in rather than from the day, which is the same rule
   // walk() already uses for streaks — a weekly habit created on a Wednesday still owns that week.
   // Only periods that had already ended are skipped.
-  if (periodEnd(key, habit.period) < habit.createdDay) return remember(memo, memoKey, out);
+  if (periodEnd(key, habit.period, habit.monthStart) < habit.createdDay) return remember(memo, memoKey, out);
 
   if (!isTracking(state, habit, memberId, opensOn)) return remember(memo, memoKey, out);
 
   const status = rawPeriodStatus(state, habit, memberId, key);
   if (status === EXEMPT) return remember(memo, memoKey, out);
 
-  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period), opensOn);
+  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period, habit.monthStart), opensOn);
   const value = valueForPeriod(state, habit, memberId, key);
   out.value = value;
   out.target = target;
@@ -263,50 +263,39 @@ export function habitScore(state, habit, memberId, day, today = null, memo = nul
     return remember(memo, memoKey, out);
   }
 
-  // Finished the period early? Hold the maximum for the rest of it. Three workouts done by
+  // Monthly: one number, judged once, and every day of the month wears it.
+  //
+  // Not a pace. Money is a payday lump, not a daily drip, and a straight line parked it at zero
+  // for the three weeks before anybody was paid. Not "unjudged until settled" either, which was
+  // this branch's previous answer: it hid the category from the day until the month closed, so a
+  // day read as five habits worth a hundred and the sixth looked like it never counted.
+  //
+  // Instead the month is judged on what has been logged in it, from its first day: nothing yet is
+  // 0 of the share, and logging can only add. Because a habit's score is a fact about its PERIOD
+  // (the memo key above), the answer is the same for every day of the month — so the moment the
+  // amount is logged it colours the days before the log as well as the days after, which is what
+  // a once-a-month input means. The month runs with the season (habit.monthStart), so "this
+  // month" is the same stretch on the board and on the card.
+  //
+  // Proportional past the target, like a daily floor: saving the target is a pass, saving fifteen
+  // per cent more is the full bonus. "Hit it, hold the maximum" stays a weekly rule, where the
+  // maximum is what an early finish is being held AT.
+  if (habit.period === PERIOD.MONTH) {
+    out.expected = target;
+    out.score = Math.min(BONUS_CAP, got / target);
+    return remember(memo, memoKey, out);
+  }
+
+  // Finished the week early? Hold the maximum for the rest of it. Three workouts done by
   // Wednesday is three workouts, and being asked to keep proving it until Sunday would make an
   // early finish worth less than a late one.
   if (got >= target) { out.score = BONUS_CAP; return out; }
 
-  if (habit.period === PERIOD.WEEK) {
-    // Linear pace in whole units, penalised from Monday. Deliberate: the week is a race you can
-    // fall behind in, and being told so on Tuesday is the whole point of running one.
-    const expected = expectedBy(habit, day);
-    out.expected = expected;
-    out.score = expected <= 0 ? 1 : Math.min(BONUS_CAP, got / expected);
-    return remember(memo, memoKey, out);
-  }
-
-  // Monthly: judged on whether the target is still REACHABLE, not on a straight line.
-  //
-  // The money category is a payday lump, not a daily drip. Straight-line pace would park it at zero
-  // for the three weeks before anybody gets paid — fifteen per cent of the day gone for everyone,
-  // every month, for a habit nobody could yet have performed. So there is no penalty while the
-  // month can still be saved.
-  //
-  // But only while. Once the month is OVER the benefit of the doubt was wrong, and history has to
-  // say so: a month you never saved a penny in scored full marks on twenty-seven of its days and
-  // zero on the last, so missing the whole target cost a single day. The month is judged on what
-  // happened, and colours all of its days, the moment it can no longer be argued with.
-  const days = daysInPeriod(key, habit.period);
-  const lastDay = days[days.length - 1];
-  const settled = day === lastDay || (today !== null && today > lastDay);
-  out.expected = target;
-
-  // The month is still running: NOT JUDGED AT ALL, rather than judged on progress so far.
-  //
-  // Judging progress created a cliff that punished honesty. A month with nothing saved was not
-  // eligible and cost nothing, but logging the first 500 of a 2000 target made it eligible at 25%
-  // and dropped the day from 100 to 80 — so the cheapest thing to do with an early deposit was to
-  // not report it until the total looked respectable. A tracker that pays you to withhold data is
-  // worse than one that ignores the category.
-  //
-  // Nothing is lost by waiting. Once the month closes, [settled] is true for EVERY day in it, so
-  // the outcome colours the whole month at once — which is what a monthly goal always meant. And
-  // hitting the target early is still paid immediately, by the early-finish branch above.
-  if (!settled) { out.eligible = false; return out; }
-
-  out.score = Math.min(BONUS_CAP, got / target);
+  // Linear pace in whole units, penalised from Monday. Deliberate: the week is a race you can
+  // fall behind in, and being told so on Tuesday is the whole point of running one.
+  const expected = expectedBy(habit, day);
+  out.expected = expected;
+  out.score = expected <= 0 ? 1 : Math.min(BONUS_CAP, got / expected);
   return remember(memo, memoKey, out);
 }
 
@@ -611,7 +600,7 @@ export function leaderboard(state, memberIds, from, to, today = to, addDaysFn = 
       // days of everything, and it was nine days of sleep.
       if (w.streak > bestStreak) { bestStreak = w.streak; streakHabit = habit.name; }
 
-      const keys = periodsBetween(from, to, habit.period);
+      const keys = periodsBetween(from, to, habit.period, habit.monthStart);
       const spent = w.spent.filter((k) => keys.includes(k)).length;
       spentTokens += spent;
 

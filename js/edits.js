@@ -51,8 +51,8 @@ export function goalToShow(state, habit, memberId, day) {
 export function pendingGoal(state, habit, memberId, today) {
   const set = latestGoal(state, habit.habitId, memberId);
   if (!set || !Number.isFinite(set.target) || set.target <= 0) return null;
-  const key = periodKey(today, habit.period);
-  const start = periodStart(key, habit.period);
+  const key = periodKey(today, habit.period, habit.monthStart);
+  const start = periodStart(key, habit.period, habit.monthStart);
   if (set.from <= start) return null;
   const inForce = goalOn(state, habit.habitId, memberId, start);
   const current = inForce && Number.isFinite(inForce.target) && inForce.target > 0
@@ -60,10 +60,10 @@ export function pendingGoal(state, habit, memberId, today) {
     : targetFor(state, habit, memberId, start, start);
   if (current === set.target) return null;
   // The first period that opens on or after the day the change counts from.
-  const fromKey = periodKey(set.from, habit.period);
-  const from = periodStart(fromKey, habit.period) === set.from
+  const fromKey = periodKey(set.from, habit.period, habit.monthStart);
+  const from = periodStart(fromKey, habit.period, habit.monthStart) === set.from
     ? set.from
-    : addDays(periodEnd(fromKey, habit.period), 1);
+    : addDays(periodEnd(fromKey, habit.period, habit.monthStart), 1);
   return { target: set.target, from };
 }
 

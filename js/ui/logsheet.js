@@ -126,9 +126,9 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   /** Everything the sheet says depends on which day it is about. */
   function aim(d) {
     day = d;
-    const key = periodKey(day, habit.period);
+    const key = periodKey(day, habit.period, habit.monthStart);
     current = valueForPeriod(state, habit, me, key);
-    target = targetFor(state, habit, me, periodEnd(key, habit.period));
+    target = targetFor(state, habit, me, periodEnd(key, habit.period, habit.monthStart));
     // Adding starts at one thing; setting starts from where you already are, so a small
     // correction is a small edit rather than a retype.
     amount = isSum ? 1 : (current == null ? "" : (scale ? scale.to(current) : current));

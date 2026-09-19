@@ -61,7 +61,9 @@ function periodLabel(entry) {
   if (entry.period === PERIOD.DAY) {
     return WEEKDAY[(d.getUTCDay() + 6) % 7] + " " + d.getUTCDate() + " " + MONTH[d.getUTCMonth()];
   }
-  if (entry.period === PERIOD.WEEK) {
+  // A month that starts on the season's day is two dates, not a name: "Sep 2026" would be a lie
+  // about a stretch that runs from the 20th of one month to the 19th of the next.
+  if (entry.period === PERIOD.WEEK || (entry.period === PERIOD.MONTH && !entry.from.endsWith("-01"))) {
     const to = new Date(entry.to + "T12:00:00Z");
     return d.getUTCDate() + " " + MONTH[d.getUTCMonth()]
       + " – " + to.getUTCDate() + " " + MONTH[to.getUTCMonth()];
@@ -122,7 +124,7 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
   let rangeOpen = false;
 
   function load() {
-    win = chartWindow(today, view, span, offset);
+    win = chartWindow(today, view, span, offset, view === native ? habit.monthStart : 1);
     base = historyBetween(state, habit, me, today, win.from, win.to, native);
     entries = view === native ? base : rollup(base, view, habit);
     sum = historySummary(base);

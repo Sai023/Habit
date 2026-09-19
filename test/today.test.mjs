@@ -73,7 +73,7 @@ test("an event tally: zero is the clean perfect day; a log warns; over the ceili
 // ---------------------------------------------------------------------------
 
 const TODAY = "2026-09-16"; // a Wednesday, in a 30-day month
-function world() {
+function world({ noSavings = false } = {}) {
   seq = 0;
   const h = (id, o) => E(ev.habit(id, { name: id, tz: TZ, scored: true, period: PERIOD.DAY, ...o }), at("2026-09-01", 6));
   const evs = [
@@ -91,7 +91,7 @@ function world() {
     E(ev.log("gym", "me", "2026-09-14", 1, SOURCE.HEALTH_CONNECT, "s1"), at("2026-09-14")),
     E(ev.log("gym", "me", TODAY, 1, SOURCE.HEALTH_CONNECT, "s2"), at(TODAY)),
     // a third of the monthly savings, on the 16th
-    E(ev.log("save", "me", TODAY, 5000, SOURCE.MANUAL), at(TODAY)),
+    ...(noSavings ? [] : [E(ev.log("save", "me", TODAY, 5000, SOURCE.MANUAL), at(TODAY))]),
   ];
   return replay(evs);
 }
@@ -152,14 +152,25 @@ test("week card: once the goal is met the pace prompt is suppressed", () => {
   assert.equal(c.paceBy, null, "no conflicting 'N by tonight' once the week is won");
 });
 
-test("month card: a filled bar and a pace marker say if saving keeps up with the calendar", () => {
+test("month card: how much of the target is in, where in the month we are, and whether anything is logged", () => {
   const c = card(todayModel(world(), "me", TODAY), "save");
   assert.equal(c.layout, "month");
   assert.equal(c.dayOfMonth, 16);
   assert.equal(c.daysInMonth, 30);
   assert.equal(c.filledPct, 33, "5000 of 15000");
-  assert.equal(c.pacePct, 53, "day 16 of 30");
-  assert.equal(c.onPace, false, "behind the calendar");
+  assert.equal(c.logged, true);
+  assert.equal("pacePct" in c, false, "a month is not a pace any more, so the card carries none");
+});
+
+test("month card: an unlogged month says so, and the category still counts at zero", () => {
+  const m = todayModel(world({ noSavings: true }), "me", TODAY);
+  const c = card(m, "save");
+  assert.equal(c.logged, false);
+  assert.equal(c.filledPct, 0);
+  const money = m.attributes.find((a) => a.category === "money");
+  assert.ok(money, "Money is one of the day's categories from day one");
+  assert.equal(money.points, 0);
+  assert.ok(money.offered > 0);
 });
 
 test("hero: the away-XP micro-copy is the gap to a perfect day", () => {

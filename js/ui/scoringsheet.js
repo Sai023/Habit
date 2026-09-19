@@ -32,12 +32,20 @@ import {
   dayScore, CATEGORY_WEIGHT, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER, BONUS_CAP,
 } from "../score.js";
 import { TAPER_MISS_LIMIT } from "../habits.js";
-import { XP, XP_LONG } from "./format.js";
+import { XP, XP_LONG, ordinal } from "./format.js";
 
 /** Joins names the way a person would say them. */
 function nameList(names) {
   if (names.length <= 1) return names[0] || "";
   return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+}
+
+/** "— from the 20th to the 19th —", or "by the calendar month" when seasons are not on a schedule. */
+function monthSpan(state) {
+  const rules = state && state.meta && Array.isArray(state.meta.seasonRules) ? state.meta.seasonRules : [];
+  const every = [...rules].reverse().map((r) => r && r.every).find((d) => Number.isInteger(d) && d >= 2);
+  if (!every) return "by the calendar month";
+  return "\u2014 from the " + ordinal(every) + " to the " + ordinal(every - 1) + " \u2014";
 }
 
 export function openScoringSheet(host, { state, me, today, onDone }) {
@@ -84,12 +92,17 @@ export function openScoringSheet(host, { state, me, today, onDone }) {
         + "Adding a habit does not add " + XP + " — it splits what is already there."),
 
       // ---- 3. the 47 -----------------------------------------------------
+      el("h2.sec-title", "Savings is one number, judged once, worn all month"),
+      el("p.scoring-line",
+        "Savings runs with the season " + monthSpan(state) + " and is not a pace. Log what you "
+        + "saved and every day of that month scores on it \u2014 the days before you logged as well as "
+        + "the days after. Until you log, those days sit at 0 of " + CATEGORY_WEIGHT.money + "."),
+
       el("h2.sec-title", "A category with nothing to judge hands its " + XP + " over"),
       el("p.scoring-line",
-        "Savings is monthly, so on most days there is nothing to say about it. Rather than scoring "
-        + "you out of " + (total - CATEGORY_WEIGHT.money) + ", its "
-        + CATEGORY_WEIGHT.money + " is shared among the rest \— so the day is still worth exactly "
-        + "a hundred. That is why a category can be worth more than its usual number."),
+        "A category nobody is tracking, or one that is away today, is not scored out of. Its share "
+        + "is spread among the rest \u2014 so the day is still worth exactly a hundred, and a category "
+        + "can be worth more than its usual number."),
 
       // Their own day, which is the whole point of doing this here rather than in a help article.
       quiet.length && quiet.length < cats.length

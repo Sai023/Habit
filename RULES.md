@@ -108,6 +108,8 @@ on the wrong one.
 | A finished season stops counting | `js/season.js` — `seasonTally` | `test/season-lifecycle.test.mjs` |
 | A week is the total of its days out of 700; the average is shown, never ranked | `js/score.js` — `scoreOver` | `test/habits.test.mjs` |
 | Silence is only silence once the period has closed; an empty weekly habit is behind pace, not unreported | `js/score.js` — `leaderboard` (per-habit bookkeeping) | `test/habits.test.mjs` |
+| A month is one number, judged once from its first day: 0 of its share until logged, then every day of the month wears the amount — before and after the log; never a pace | `js/score.js` — `habitScore` (monthly branch) | `test/score.test.mjs`, `test/periods.test.mjs` |
+| A monthly habit's month runs with the season: from the schedule's cycle day to the day before the next; the calendar month when seasons are by hand | `js/habits.js` — `monthStartOf` on replay, `periodKey/Start/End(…, monthStart)` | `test/habits.test.mjs`, `test/periods.test.mjs` |
 | A weekly or monthly period with nothing reported is a MISS whoever was to report it; only a daily sensor day is excused | `js/habits.js` — `rawPeriodStatus` | `test/habits.test.mjs` |
 | A record stands from the day it was first set; matching it later does not move it | `js/workout.js` — `exerciseLog`; `js/ui/habitdetail.js` (the lit bar) | `test/workout.test.mjs` |
 | A session cut short is listed and has no trend and no minus; a stopped day is not a weaker one | `js/workout.js` — `exerciseHistory` (`full`, `trend`) | `test/workout.test.mjs` |

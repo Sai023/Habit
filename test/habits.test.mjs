@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import {
   replay, walk, streak, dayKey, addDays, daysBetween, isoDayOfWeek, rawDayStatus, rawPeriodStatus, periodKey, valueOn, targetOn, publicValue, HIT, MISS, NO_DATA, EXEMPT,
-  groupDayHabit, windowOn,
+  groupDayHabit, windowOn, periodStart, periodEnd, daysInPeriod, periodsBetween, monthStartOf,
 } from "../js/habits.js";
 import { leaderboard } from "../js/score.js";
 import { ev, T, SOURCE, VISIBILITY, AT_MOST, AT_LEAST, AGGREGATE, METRIC, SCORED_METRICS, PERIOD } from "../js/schema.js";
@@ -657,6 +657,41 @@ test("re-adding under a fresh id is a NEW habit and does not resurrect the old h
   ]);
   assert.equal(valueOn(s, s.habits.get("new"), "m1", D0), null, "the new habit starts empty");
   assert.equal(s.retired.has("old"), true, "the old one is still recoverable, with its entry");
+});
+
+// ---- a month that starts on the season's day ----
+
+test("periodKey/Start/End with a month start: the 20th opens a month that runs to the 19th", () => {
+  assert.equal(periodKey("2026-09-20", PERIOD.MONTH, 20), "2026-09");
+  assert.equal(periodKey("2026-10-19", PERIOD.MONTH, 20), "2026-09", "the 19th is still September's month");
+  assert.equal(periodKey("2026-10-20", PERIOD.MONTH, 20), "2026-10");
+  assert.equal(periodKey("2026-01-05", PERIOD.MONTH, 20), "2025-12", "across the year");
+  assert.equal(periodStart("2026-09", PERIOD.MONTH, 20), "2026-09-20");
+  assert.equal(periodEnd("2026-09", PERIOD.MONTH, 20), "2026-10-19");
+  assert.equal(periodEnd("2026-12", PERIOD.MONTH, 20), "2027-01-19", "across the year");
+  assert.equal(daysInPeriod("2026-09", PERIOD.MONTH, 20).length, 30, "20 Sep – 19 Oct");
+  assert.equal(daysInPeriod("2026-01", PERIOD.MONTH, 20).length, 31, "20 Jan – 19 Feb");
+  assert.deepEqual(periodsBetween("2026-09-18", "2026-09-21", PERIOD.MONTH, 20), ["2026-08", "2026-09"]);
+});
+
+test("a month start of 1, or none, is exactly the calendar month — every existing caller", () => {
+  for (const a of [undefined, null, 1, 0, 29, 40, "20"]) {
+    assert.equal(periodKey("2026-09-19", PERIOD.MONTH, a), "2026-09");
+    assert.equal(periodStart("2026-09", PERIOD.MONTH, a), "2026-09-01");
+    assert.equal(periodEnd("2026-09", PERIOD.MONTH, a), "2026-09-30");
+  }
+  assert.equal(periodEnd("2026-02", PERIOD.MONTH), "2026-02-28");
+  assert.equal(periodKey("2026-09-19", PERIOD.WEEK, 20), "2026-W38", "weeks and days ignore it");
+  assert.equal(periodKey("2026-09-19", PERIOD.DAY, 20), "2026-09-19");
+});
+
+test("replay stamps monthStart on monthly habits from the schedule in force, and on nothing else", () => {
+  assert.equal(monthStartOf({ seasonRules: [{ from: "2026-02-20", every: 20 }] }), 20);
+  assert.equal(monthStartOf({ seasonRules: [{ from: "2026-01-01", weeks: 4 }] }), 1, "hand-started seasons: the calendar");
+  assert.equal(monthStartOf({ seasonRules: [{ from: "2026-01-01", every: 5 }, { from: "2026-03-01", weeks: 2 }] }), 5,
+    "the last SCHEDULED rule, even under a later hand-started one");
+  assert.equal(monthStartOf({}), 1);
+  assert.equal(monthStartOf(null), 1);
 });
 
 if (failures.length) {

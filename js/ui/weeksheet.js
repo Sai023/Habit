@@ -44,7 +44,10 @@ export function openWeekSheet(host, { row, ctx, onDone }) {
   const parts = categoryBreakdown(ctx.state, row.memberId, monday, ctx.today);
 
   sheet.paint(
-    el("div.form.wk",
+    // .wk-sheet, not .wk: the Today tab's weekly card names its seven day-chips `.wk`, and a root
+    // sharing that class name inherited the chip — centred, dim, micro type on a rounded panel —
+    // so the whole sheet drew as one enormous day-chip.
+    el("div.form.wk-sheet",
       el("div.sheet-head",
         el("span.sheet-title", me ? "Your week" : name + "’s week"),
       ),

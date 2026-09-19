@@ -385,19 +385,25 @@ function weekBody(card) {
 }
 
 /**
- * A month, drawn as a pace race: the filled bar is money in, the marker is where the calendar has
- * reached. Bar past the marker is ahead of pace, short of it behind — the glance the card is for.
- * No month-end-penalty text: the engine does not judge an open month, and neither does this.
+ * A month: the amount logged against the target, and where in the month we are.
+ *
+ * It was a pace race — a calendar marker the bar had to keep up with — but the month is not
+ * scored on pace any more (see habitScore): it is one number, logged once, that every day of the
+ * month then wears. So the marker went, and the hint says the one thing that changes what the
+ * day is worth: whether the amount has been logged yet.
  */
 function monthBody(card, habit) {
   return el("div.card-body.card-month",
     el("div.card-value", fmt.value(habit.metric, card.value || 0)),
     el("div.card-of", "of " + fmt.value(habit.metric, card.target)),
-    el("div.gauge" + (card.onPace ? ".on-pace" : ".behind"), { role: "presentation" },
-      el("i.gauge-fill", { style: "width:" + card.filledPct + "%" }),
-      el("span.gauge-mark", { style: "left:" + card.pacePct + "%" }),
-    ),
-    el("div.card-hint", (card.onPace ? "on pace" : "behind") + " · day " + card.dayOfMonth + " of " + card.daysInMonth),
+    el("div.bar" + (card.filledPct >= 100 ? ".is-hit" : ""), { role: "presentation" },
+      el("i", { style: "width:" + card.filledPct + "%" })),
+    // Where in the month, and — only while it is true — that nothing has been logged, because that
+    // is the one state in which the category is earning nothing. A logged amount needs no caption:
+    // the number above is it.
+    el("div.card-hint" + (card.logged ? "" : ".is-unlogged"),
+      "day " + card.dayOfMonth + " of " + card.daysInMonth
+      + (card.logged ? "" : " \u00b7 nothing logged yet")),
   );
 }
 

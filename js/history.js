@@ -82,12 +82,12 @@ export function shiftPeriod(key, period, n) {
  * ends on its last period's last day. Whole periods either way, so the bars are always the same
  * shapes and paging never lands mid-week.
  */
-export function chartWindow(today, view, span, offset = 0) {
-  const lastKey = shiftPeriod(periodKey(today, view), view, -(offset * span));
+export function chartWindow(today, view, span, offset = 0, monthStart = 1) {
+  const lastKey = shiftPeriod(periodKey(today, view, monthStart), view, -(offset * span));
   const firstKey = shiftPeriod(lastKey, view, -(span - 1));
   return {
-    from: periodStart(firstKey, view),
-    to: offset > 0 ? periodEnd(lastKey, view) : today,
+    from: periodStart(firstKey, view, monthStart),
+    to: offset > 0 ? periodEnd(lastKey, view, monthStart) : today,
     firstKey,
     lastKey,
   };
@@ -107,15 +107,18 @@ export function chartWindow(today, view, span, offset = 0) {
  */
 export function historyBetween(state, habit, memberId, today, fromDay, toDay, period = null) {
   const p = period || habit.period || PERIOD.DAY;
-  const currentKey = periodKey(today, p);
+  // The habit's own month starts where its season does; a coarser VIEW of a finer habit is the
+  // calendar's month, because that is what its ticks say.
+  const anchor = p === (habit.period || PERIOD.DAY) ? habit.monthStart : 1;
+  const currentKey = periodKey(today, p, anchor);
   const born = habit.createdDay;
   const start = fromDay > born ? fromDay : born;
   const last = daysBetween(toDay, today) > 0 ? toDay : today;
   if (!start || daysBetween(start, last) < 0) return [];
 
-  return periodsBetween(start, last, p).map((key) => {
-    const end = periodEnd(key, p);
-    const begin = periodStart(key, p);
+  return periodsBetween(start, last, p, anchor).map((key) => {
+    const end = periodEnd(key, p, anchor);
+    const begin = periodStart(key, p, anchor);
     return {
       key,
       period: p,
@@ -142,7 +145,7 @@ export function historyBetween(state, habit, memberId, today, fromDay, toDay, pe
 export function habitHistory(state, habit, memberId, today, want = null) {
   const period = habit.period || PERIOD.DAY;
   const span = want || SPAN[period] || SPAN[PERIOD.DAY];
-  const w = chartWindow(today, period, span, 0);
+  const w = chartWindow(today, period, span, 0, habit.monthStart);
   return historyBetween(state, habit, memberId, today, w.from, w.to, period);
 }
 

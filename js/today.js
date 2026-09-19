@@ -94,18 +94,23 @@ function weekModel(state, me, today, habit, start, target, value) {
   };
 }
 
+/**
+ * A month is not a pace. It is one number logged once, and the card says how much of the target
+ * that number is, where in the month we are, and — the state that matters — whether anything has
+ * been logged yet: an unlogged month is 0 of its share every day until it is, and the card should
+ * say so rather than paint a calendar marker nobody is racing.
+ */
 function monthModel(today, start, end, value, target) {
   const daysInMonth = daysBetween(start, end) + 1;
   const dayOfMonth = daysBetween(start, today) + 1;
-  const pacePct = clampPct((dayOfMonth / daysInMonth) * 100);
   const filledPct = pctOf(value, target);
-  return { dayOfMonth, daysInMonth, pacePct, filledPct, onPace: filledPct >= pacePct };
+  return { dayOfMonth, daysInMonth, filledPct, logged: value != null, monthFrom: start, monthTo: end };
 }
 
 export function cardModel(state, me, today, habit, price) {
-  const key = periodKey(today, habit.period);
-  const start = periodStart(key, habit.period);
-  const end = periodEnd(key, habit.period);
+  const key = periodKey(today, habit.period, habit.monthStart);
+  const start = periodStart(key, habit.period, habit.monthStart);
+  const end = periodEnd(key, habit.period, habit.monthStart);
   const target = targetFor(state, habit, me, end, start);
   const value = valueForPeriod(state, habit, me, key);
   const layout = layoutOf(habit);
@@ -165,8 +170,9 @@ export function todayModel(state, me, today, now = Date.now()) {
     hoursLeft: hoursLeft(state, now),
   };
 
-  // Only the categories that actually calculate today — a monthly Savings goal contributes nothing
-  // on a mid-month day, so its row is hidden rather than shown empty (the clutter rule).
+  // Only the categories that count today — one nobody in the group tracks, or one away on a trip,
+  // has no row rather than an empty one (the clutter rule). Savings counts from the first day of
+  // its month, at 0 of its share until an amount is logged, so it is a row like the others.
   //
   // Rounded TOGETHER, not each on its own: the shares to the hundred the day is worth, the points
   // to the headline (which is the rounded sum of them), each category's points never past its

@@ -249,7 +249,7 @@ function dailyTotals(state, memberId, habits, from, to) {
     const seen = new Set();
     for (let d = from; d <= to; d = addDays(d, 1)) {
       if (d < habit.createdDay) continue;
-      const key = periodKey(d, period);
+      const key = periodKey(d, period, habit.monthStart);
       if (seen.has(key)) continue;
       seen.add(key);
       const value = valueForPeriod(state, habit, memberId, key);

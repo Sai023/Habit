@@ -487,10 +487,10 @@ export function categoryBreakdown(state, memberId, from, to) {
   // where nobody tracks money is a permanent blank asking a question with no answer. Those stay
   // filtered out, which is what they have always done.
   //
-  // A category that exists but has nothing to judge YET is the opposite: it is a rule working.
-  // Savings is monthly, so on the tenth there is nothing to say about it and its points are being
-  // carried by the others. Removing it left one row showing three chips beside another showing
-  // four, with nothing anywhere saying why. Those are drawn, and the board greys them.
+  // A category that exists but has nothing to judge YET is the opposite: it is a rule working —
+  // a habit too young for this window, or a member away for all of it. Removing it left one row
+  // showing three chips beside another showing four, with nothing anywhere saying why. Those are
+  // drawn, and the board greys them.
   //
   // The Today screen has separated these two for a while, for exactly this reason; this is the
   // same fix one screen later.

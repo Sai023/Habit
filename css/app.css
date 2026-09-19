@@ -520,12 +520,9 @@ html, body { overscroll-behavior-y: contain; }
 
 /* Month gauge — a filled bar (money in) with a marker at the calendar's position. Bar past the
    marker is ahead of pace (teal); short of it, behind (amber). */
-.gauge { position: relative; height: 8px; border-radius: 999px; background: var(--surface-hi); overflow: visible; }
-.gauge-fill { display: block; height: 100%; border-radius: 999px; background: var(--amber); transition: width .35s ease; }
-.gauge.on-pace .gauge-fill { background: var(--teal); }
-.gauge-mark { position: absolute; top: -3px; width: 2px; height: 14px; border-radius: 1px; background: var(--dim); transform: translateX(-1px); }
+/* A month's hint: quiet while logged, amber while the month is still waiting for its number. */
+.card-hint.is-unlogged { color: var(--amber); }
 .card-hint { font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
-.gauge.behind + .card-hint { color: var(--amber); }
 
 /* The price of the habit today. Tabular so a column of cards lines up, teal once the habit has
    taken everything it was worth — the moment the offer has been accepted. */

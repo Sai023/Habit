@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   replay, walk, addDays, isoWeekKey, periodKey, periodStart, periodEnd, daysInPeriod, periodsBetween, rawPeriodStatus, valueForPeriod, progressFor, HIT, MISS, NO_DATA, EXEMPT,
 } from "../js/habits.js";
-import { leaderboard, categoryOver, CATEGORY } from "../js/score.js";
+import { leaderboard, categoryOver, CATEGORY, habitScore } from "../js/score.js";
 import { ev, SOURCE, AT_LEAST, AT_MOST, AGGREGATE, METRIC, PERIOD } from "../js/schema.js";
 
 let passed = 0;
@@ -238,20 +238,11 @@ test("each habit's own ratio is reported, so the board can be broken down", () =
   assert.equal(byHabit.save, 0);
 });
 
-test("a month still running is not judged, and colours its days once it closes", () => {
-  // This used to score a month in progress on how far through it you were, and that punished
-  // honesty. A month with NOTHING saved was not eligible and cost nothing; logging the first 3000
-  // of a 5000 target made it eligible at 60% and dragged every day down — so the cheapest thing to
-  // do with an early deposit was to sit on it until the total looked respectable. A tracker that
-  // pays you to withhold data is worse than one that ignores the category.
-  //
-  // So a monthly goal is invisible until it settles, and then colours the whole month at once.
-  // Two consequences worth having written down:
-  //
-  //   - Its 15 points move to the other categories while the month runs, so nobody is scored out
-  //     of a hundred that includes something they cannot yet have done.
-  //   - A closed month re-scores the weeks inside it. That is the "in retrospect" half, and it is
-  //     the price of not judging early. Weekly habits are unaffected: they still pace live.
+test("a month running is judged on what is logged in it, and the log colours every day of it", () => {
+  // It used to be unjudged until it closed, which hid Savings from the day for a month at a time.
+  // Now the month is scored from its first day on whatever has been logged: nothing is 0 of the
+  // share, and one deposit colours the whole month — the weeks before it as well as after. Weekly
+  // habits are unaffected: they still pace live.
   const s = replay([
     E(ev.member("m1", "Alice"), at("2026-03-01", 7)),
     E(ev.habit("save", {
@@ -265,27 +256,36 @@ test("a month still running is not judged, and colours its days once it closes",
   // The raw progress figure is unchanged — the card still shows how far along you are.
   assert.equal(progressFor(s, s.habits.get("save"), "m1", "2026-03"), 0.6);
 
+  const before = leaderboard(s, ["m1"], "2026-03-02", "2026-03-08", "2026-03-11");
+  assert.equal(before[0].pct, 60, "the week BEFORE the deposit wears it too");
   const during = leaderboard(s, ["m1"], "2026-03-09", "2026-03-15", "2026-03-11");
-  assert.equal(during[0].pct, null, "nothing to score while the month can still be saved");
-
+  assert.equal(during[0].pct, 60, "sixty per cent saved is sixty per cent of the credit, mid-month");
   const after = leaderboard(s, ["m1"], "2026-03-09", "2026-03-15", "2026-04-02");
-  assert.equal(after[0].pct, 60, "and once April arrives, March is judged on what happened");
+  assert.equal(after[0].pct, 60, "and April changes nothing about March");
 });
 
-test("hitting a monthly target early is paid straight away", () => {
-  // The one exception to not judging mid-month, and it has to exist: waiting to be paid for
-  // something already finished would make an early payday worth less than a late one.
+test("a monthly habit's month runs with the season: from the schedule's day to the day before the next", () => {
+  // Seasons every month from the 20th. Savings is judged 20th → 19th too, so "this month" is
+  // the same stretch on the board and on the card — and a deposit on the 25th belongs to the
+  // month that began on the 20th, not to the calendar month it was typed in.
   const s = replay([
-    E(ev.member("m1", "Alice"), at("2026-03-01", 7)),
+    E(ev.meta({ name: "G", seasonCycle: { from: "2026-02-20", day: 20 } }), at("2026-02-20", 7)),
+    E(ev.member("m1", "Alice"), at("2026-02-20", 7)),
     E(ev.habit("save", {
       name: "Savings", metric: METRIC.AMOUNT, direction: AT_LEAST, target: 5000,
       period: PERIOD.MONTH, aggregate: AGGREGATE.LAST, source: SOURCE.MANUAL,
       tz: TZ, dayStartHour: 4, scored: true,
-    }), at("2026-03-01", 7)),
-    E(ev.log("save", "m1", "2026-03-05", 5000, SOURCE.MANUAL), at("2026-03-05")),
+    }), at("2026-02-20", 7)),
+    E(ev.log("save", "m1", "2026-03-25", 5000, SOURCE.MANUAL), at("2026-03-25")),
   ]);
-  const rows = leaderboard(s, ["m1"], "2026-03-09", "2026-03-15", "2026-03-11");
-  assert.equal(rows[0].pct, 100, "done is done, on the day it is done");
+  const habit = s.habits.get("save");
+  assert.equal(habit.monthStart, 20, "stamped from the schedule on replay");
+
+  const on = (d) => habitScore(s, habit, "m1", d).score;
+  assert.equal(on("2026-03-20"), 1, "the month the deposit is in starts on the 20th");
+  assert.equal(on("2026-04-19"), 1, "and runs to the 19th");
+  assert.equal(on("2026-03-19"), 0, "the day before belongs to the month before, which saved nothing");
+  assert.equal(on("2026-04-20"), 0, "and the next month starts again");
 });
 
 test("an untouched ceiling is a perfect score, not a zero", () => {

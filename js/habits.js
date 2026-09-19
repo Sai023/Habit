@@ -138,16 +138,46 @@ export function isoWeekKey(day) {
   return isoYear + "-W" + String(week).padStart(2, "0");
 }
 
-/** Which period a day falls in, for a habit on that cadence. */
-export function periodKey(day, period) {
-  if (period === PERIOD.MONTH) return day.slice(0, 7);
+/**
+ * Which day of the month a "month" begins on.
+ *
+ * A monthly habit's month is the season's: when the group runs seasons from the 20th, a savings
+ * goal is judged from the 20th to the 19th too, so "this month" means one thing on the board and
+ * on the card. Anything that is not a sensible cycle day — including nothing at all — is the 1st,
+ * which is every existing caller and every existing test. Capped at 28 like the schedule itself,
+ * so no month has to be asked how long February is.
+ */
+function anchorOf(monthStart) {
+  return Number.isInteger(monthStart) && monthStart >= 2 && monthStart <= 28 ? monthStart : 1;
+}
+
+/** "YYYY-MM" moved by n months, either way across a year end. */
+function shiftMonthKey(key, n) {
+  const [y, m] = key.split("-").map(Number);
+  const total = y * 12 + (m - 1) + n;
+  return Math.floor(total / 12) + "-" + String((((total % 12) + 12) % 12) + 1).padStart(2, "0");
+}
+
+/**
+ * Which period a day falls in, for a habit on that cadence.
+ *
+ * A month key is "YYYY-MM" whatever day it starts on: with a start of 20 it names the month that
+ * BEGINS on the 20th of YYYY-MM, so the 19th belongs to the key before. The key stays what every
+ * reader already parses; only where it starts and ends moves.
+ */
+export function periodKey(day, period, monthStart = 1) {
+  if (period === PERIOD.MONTH) {
+    const a = anchorOf(monthStart);
+    if (a === 1 || Number(day.slice(8, 10)) >= a) return day.slice(0, 7);
+    return shiftMonthKey(day.slice(0, 7), -1);
+  }
   if (period === PERIOD.WEEK) return isoWeekKey(day);
   return day;
 }
 
 /** The first day of a period. */
-export function periodStart(key, period) {
-  if (period === PERIOD.MONTH) return key + "-01";
+export function periodStart(key, period, monthStart = 1) {
+  if (period === PERIOD.MONTH) return key + "-" + String(anchorOf(monthStart)).padStart(2, "0");
   if (period === PERIOD.WEEK) {
     const [y, w] = key.split("-W").map(Number);
     const jan4 = Date.UTC(y, 0, 4);
@@ -158,8 +188,10 @@ export function periodStart(key, period) {
 }
 
 /** The last day of a period. */
-export function periodEnd(key, period) {
+export function periodEnd(key, period, monthStart = 1) {
   if (period === PERIOD.MONTH) {
+    const a = anchorOf(monthStart);
+    if (a !== 1) return addDays(periodStart(shiftMonthKey(key, 1), period, a), -1);
     const [y, m] = key.split("-").map(Number);
     return dayOf(Date.UTC(y, m, 1) - MS_DAY); // the day before the first of next month
   }
@@ -168,20 +200,20 @@ export function periodEnd(key, period) {
 }
 
 /** Every day in a period, in order. */
-export function daysInPeriod(key, period) {
+export function daysInPeriod(key, period, monthStart = 1) {
   if (period === PERIOD.DAY) return [key];
   const out = [];
-  const last = periodEnd(key, period);
-  for (let d = periodStart(key, period); daysBetween(d, last) >= 0; d = addDays(d, 1)) out.push(d);
+  const last = periodEnd(key, period, monthStart);
+  for (let d = periodStart(key, period, monthStart); daysBetween(d, last) >= 0; d = addDays(d, 1)) out.push(d);
   return out;
 }
 
 /** The distinct periods a range of days touches, in order. */
-export function periodsBetween(fromDay, toDay, period) {
+export function periodsBetween(fromDay, toDay, period, monthStart = 1) {
   const out = [];
   let previous = null;
   for (let d = fromDay; daysBetween(d, toDay) >= 0; d = addDays(d, 1)) {
-    const key = periodKey(d, period);
+    const key = periodKey(d, period, monthStart);
     if (key !== previous) { out.push(key); previous = key; }
   }
   return out;
@@ -870,7 +902,29 @@ export function replay(events) {
     }
   }
 
+  // A monthly habit's month is the season's month. Stamped here, on every replay, from the
+  // schedule in force — never written to the log — so every device draws the same boundary and
+  // moves it together the day the schedule changes. Nothing scheduled means the calendar month.
+  const monthStart = monthStartOf(meta);
+  for (const h of habits.values()) {
+    if (h.period === PERIOD.MONTH) h.monthStart = monthStart;
+  }
+
   return { meta, habits, retired, members, logs, exemptions, bindings, goals, programs, workouts, aliases, excluded, engaged };
+}
+
+/**
+ * The day of the month the group's month begins on: the season schedule's cycle day, or the 1st
+ * when seasons are started by hand or not at all. Read off the LAST scheduled rule, the same one
+ * season.js treats as the schedule in force.
+ */
+export function monthStartOf(meta) {
+  const rules = meta && Array.isArray(meta.seasonRules) ? meta.seasonRules : [];
+  for (let i = rules.length - 1; i >= 0; i -= 1) {
+    const r = rules[i];
+    if (r && Number.isInteger(r.every) && r.every >= 1 && r.every <= 28) return r.every;
+  }
+  return 1;
 }
 
 // ============================================================================
@@ -1478,7 +1532,7 @@ function exemptReason(state, habit, memberId, day) {
 export function valueForPeriod(state, habit, memberId, key) {
   if (habit.period === PERIOD.DAY) return valueOn(state, habit, memberId, key);
   let total = null;
-  for (const day of daysInPeriod(key, habit.period)) {
+  for (const day of daysInPeriod(key, habit.period, habit.monthStart)) {
     const value = valueOn(state, habit, memberId, day);
     if (value === null) continue;
     total = habit.aggregate === AGGREGATE.SUM ? (total || 0) + value : value;
@@ -1498,10 +1552,10 @@ export function rawPeriodStatus(state, habit, memberId, key) {
   //
   // Asked as of the period's START. A week you began committed to is a week you are judged on,
   // whatever you decided about it on the Saturday.
-  const opensOn = periodStart(key, habit.period);
+  const opensOn = periodStart(key, habit.period, habit.monthStart);
   if (!isTracking(state, habit, memberId, opensOn)) return EXEMPT;
 
-  const days = daysInPeriod(key, habit.period);
+  const days = daysInPeriod(key, habit.period, habit.monthStart);
   // A period is exempt only when EVERY day in it is. Three days away does not excuse a whole week
   // of a weekly goal — you had four other days to do it in.
   if (days.every((d) => exemptReason(state, habit, memberId, d))) return EXEMPT;
@@ -1531,7 +1585,7 @@ export function rawPeriodStatus(state, habit, memberId, key) {
     if (habit.period !== PERIOD.DAY) return MISS;
     return AUTOMATIC_SOURCES.has(sourceFor(state, habit, memberId)) ? NO_DATA : MISS;
   }
-  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period), opensOn);
+  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period, habit.monthStart), opensOn);
   const met = habit.direction === AT_MOST ? value <= target : value >= target;
   return met ? HIT : MISS;
 }
@@ -1544,7 +1598,7 @@ export function rawPeriodStatus(state, habit, memberId, key) {
  * discouraging, since the whole point of showing up on the board is seeing the effort land.
  */
 export function progressFor(state, habit, memberId, key) {
-  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period));
+  const target = targetFor(state, habit, memberId, periodEnd(key, habit.period, habit.monthStart));
   const value = valueForPeriod(state, habit, memberId, key);
   if (target <= 0) return 1;
   if (habit.direction === AT_MOST) {
@@ -1558,7 +1612,7 @@ export function progressFor(state, habit, memberId, key) {
 
 /** Daily convenience wrapper, and what most of the UI actually asks for. */
 export function rawDayStatus(state, habit, memberId, day) {
-  return rawPeriodStatus(state, habit, memberId, periodKey(day, habit.period));
+  return rawPeriodStatus(state, habit, memberId, periodKey(day, habit.period, habit.monthStart));
 }
 
 // ============================================================================
@@ -1586,14 +1640,14 @@ export function walk(state, habitId, memberId, today, through = null) {
   let startDay = habit.createdDay;
   if (daysBetween(startDay, endDay) > MAX_WALK_DAYS) startDay = addDays(endDay, -MAX_WALK_DAYS);
 
-  const currentKey = periodKey(today, habit.period);
+  const currentKey = periodKey(today, habit.period, habit.monthStart);
   const statuses = new Map();
   const spent = [];
   let tokens = 0, cleanRun = 0, length = 0;
   let todayStatus = null;
   const { earnEvery, cap } = habit.grace;
 
-  for (const key of periodsBetween(startDay, endDay, habit.period)) {
+  for (const key of periodsBetween(startDay, endDay, habit.period, habit.monthStart)) {
     const raw = rawPeriodStatus(state, habit, memberId, key);
 
     // The period still running is never a miss — it has not finished yet. This is the difference

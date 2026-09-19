@@ -216,45 +216,44 @@ test("the week resets, so last week's three do not pay for this week", () => {
   assert.equal(habitIn(s, "gym", 8).score, 0, "next Tuesday starts again at nothing");
 });
 
-test("an untouched month in progress is NOT JUDGED, rather than judged generously", () => {
-  // The honest version of "no penalty before payday". Handing out full marks for a goal nobody has
-  // started is a free fifteen per cent: a month with nothing saved would score perfectly on
-  // twenty-seven days and fail on one, so missing the target entirely cost a single day.
-  //
-  // Not eligible is the neutral state this design already has everywhere else, and it is what
-  // "you cannot be behind on something you have not been paid for yet" actually means.
+test("a month is judged from its first day: nothing logged is 0 of its share, never unjudged", () => {
+  // The previous rule hid an unlogged month from the day entirely — its fifteen went to the other
+  // categories — so a day read as five habits worth a hundred and Savings looked like it never
+  // counted. It counts, from day one, at zero until something is logged. Logging can only add.
   const nothing = world(["savings"]);
-  assert.equal(habitIn(nothing, "savings", 0).eligible, false);
-  assert.equal(scoreOf(nothing, 0).pct, null, "nothing else tracked, so nothing to score");
-});
-
-test("part-way through a month is still not judged, however much is in it", () => {
-  // Judging progress mid-month punished honesty: nothing saved was not eligible and cost nothing,
-  // while logging the first half of the target made it eligible at 50% and dragged the day down.
-  // The cheapest move was to sit on an early deposit, which is the opposite of what a savings
-  // tracker is for. Nothing is lost by waiting — a closed month colours all of its days.
-  const part = world(["savings"], [["savings", 3, 1000]]);
-  assert.equal(habitIn(part, "savings", 5).eligible, false, "half saved, still not judged");
-
-  const none = world(["savings"], []);
-  assert.equal(habitIn(none, "savings", 5).eligible, false, "and nothing saved is the same");
-});
-
-test("but hitting the monthly target is paid on the day it happens", () => {
-  // The exception, and it has to exist: waiting to be paid for something already finished would
-  // make an early payday worth less than a late one.
-  const paid = world(["savings"], [["savings", 20, 2000]]);
-  assert.equal(habitIn(paid, "savings", 22).score, BONUS_CAP, "hit the target, hold the maximum");
-});
-
-test("but the month is judged when it can no longer be saved", () => {
-  // 2026-03-31 is the last day of the month.
-  const missed = world(["savings"], [["savings", 20, 500]]);
-  const last = addDays(MONDAY, 29); // 2026-03-31
-  const h = habitScore(missed, missed.habits.get("savings"), "m1", last);
-  assert.equal(last, "2026-03-31");
+  const h = habitIn(nothing, "savings", 0);
   assert.equal(h.eligible, true);
-  assert.equal(h.score, 0.25, "a quarter saved is a quarter of the credit");
+  assert.equal(h.score, 0);
+  assert.equal(scoreOf(nothing, 0).pct, 0, "the only category, at nothing");
+});
+
+test("a month is one number, judged once, and every day of the month wears it — before and after the log", () => {
+  // Logged on the 21st (day 19 of the fixture's March): every day of March scores on it, the
+  // ones before the log included. That is what a once-a-month input means.
+  const paid = world(["savings"], [["savings", 19, 1000]]);
+  assert.equal(habitIn(paid, "savings", 2).score, 0.5, "half the target, on a day BEFORE the log");
+  assert.equal(habitIn(paid, "savings", 19).score, 0.5, "on the day");
+  assert.equal(habitIn(paid, "savings", 25).score, 0.5, "and after");
+  assert.equal(habitIn(paid, "savings", 2).eligible, true);
+});
+
+test("a month is not a pace: the same amount is worth the same on the 3rd as on the 30th", () => {
+  const early = world(["savings"], [["savings", 1, 1000]]);
+  const late = world(["savings"], [["savings", 28, 1000]]);
+  assert.equal(habitIn(early, "savings", 1).score, habitIn(late, "savings", 28).score);
+  assert.equal(habitIn(early, "savings", 1).expected, 2000, "the whole target, whatever the date");
+});
+
+test("saving the target is a pass; saving past it earns the bonus in proportion, capped", () => {
+  assert.equal(habitIn(world(["savings"], [["savings", 5, 2000]]), "savings", 10).score, 1);
+  assert.equal(habitIn(world(["savings"], [["savings", 5, 2200]]), "savings", 10).score, 1.1);
+  assert.equal(habitIn(world(["savings"], [["savings", 5, 9000]]), "savings", 10).score, BONUS_CAP);
+});
+
+test("the month resets: last month's savings do not pay for this one", () => {
+  const s = world(["savings"], [["savings", 5, 2000]]);
+  assert.equal(habitIn(s, "savings", 10).score, 1, "March");
+  assert.equal(habitIn(s, "savings", 35).score, 0, "April starts again at nothing");
 });
 
 // ===========================================================================
