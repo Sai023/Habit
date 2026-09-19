@@ -195,6 +195,48 @@ test("attributes: the rows add up to the hero, and the to-go on each row adds up
   assert.ok(m.attributes.every((a) => Number.isInteger(a.points) && Number.isInteger(a.offered)));
 });
 
+test("bonus: what a habit over-delivers is spent lifting a short sibling first, and the hero says so", () => {
+  // Steps short, Workouts over: Core fitness = mean(0.33, 1.15) → the overshoot lifts Steps and
+  // is spent, not banked. The cards would say "+N"; the hero must account for where it went.
+  const evs = [
+    E(ev.member("me", "Sam"), at("2026-09-01", 6)),
+    E(ev.habit("steps", { name: "Steps", tz: TZ, scored: true, period: PERIOD.DAY, metric: METRIC.STEPS, direction: AT_LEAST, target: 6000 }), at("2026-09-01", 6)),
+    E(ev.habit("gym", { name: "Workouts", tz: TZ, scored: true, metric: METRIC.SESSIONS, direction: AT_LEAST, target: 4, period: PERIOD.WEEK, aggregate: AGGREGATE.SUM }), at("2026-09-01", 6)),
+    E(ev.log("steps", "me", TODAY, 2000, SOURCE.HEALTH_CONNECT), at(TODAY)),
+    ...["2026-09-14", "2026-09-15", TODAY, TODAY].map((d, i) => E(ev.log("gym", "me", d, 1, SOURCE.HEALTH_CONNECT, "g" + i), at(d))),
+  ];
+  const m = todayModel(replay(evs), "me", TODAY);
+  const fit = m.attributes.find((a) => a.category === "fitness");
+  assert.ok(fit.buffer > 0, "part of the category's points came from Workouts' overshoot");
+  assert.equal(m.hero.bonus.spent, fit.buffer);
+  assert.equal(m.hero.bonus.banked, m.hero.dayBonus);
+  assert.equal(m.hero.bonus.earned, m.hero.bonus.spent + m.hero.bonus.banked + m.hero.bonus.withheld,
+    "earned is the sum of where it went — an identity, not an estimate");
+  assert.deepEqual(m.hero.bonus.lifted, ["Steps"], "and it names the habit that was lifted");
+  assert.ok(fit.buffer <= fit.points, "buffer is part of the points, never beyond them");
+});
+
+test("bonus: with every habit in the category full, nothing is spent and the overshoot is banked", () => {
+  const evs = [
+    E(ev.member("me", "Sam"), at("2026-09-01", 6)),
+    E(ev.habit("steps", { name: "Steps", tz: TZ, scored: true, period: PERIOD.DAY, metric: METRIC.STEPS, direction: AT_LEAST, target: 6000 }), at("2026-09-01", 6)),
+    E(ev.log("steps", "me", TODAY, 9000, SOURCE.HEALTH_CONNECT), at(TODAY)),
+  ];
+  const m = todayModel(replay(evs), "me", TODAY);
+  const fit = m.attributes.find((a) => a.category === "fitness");
+  assert.equal(fit.buffer, 0);
+  assert.equal(m.hero.bonus.spent, 0);
+  assert.ok(m.hero.bonus.banked > 0, "150% of a floor banks the capped bonus");
+  assert.equal(m.hero.bonus.earned, m.hero.bonus.banked);
+  assert.deepEqual(m.hero.bonus.lifted, []);
+});
+
+test("bonus: a day with no over-delivery has nothing to account for", () => {
+  const m = todayModel(world(), "me", TODAY);
+  assert.equal(m.hero.bonus.earned, m.hero.bonus.spent + m.hero.bonus.banked + m.hero.bonus.withheld);
+  assert.ok(m.attributes.every((a) => a.buffer >= 0 && a.buffer <= a.points));
+});
+
 if (failures.length) {
   for (const { name, err } of failures) {
     console.error("\n✗ " + name);

@@ -452,8 +452,13 @@ html, body { overscroll-behavior-y: contain; }
   border-radius: 999px; overflow: hidden;
   background: var(--surface-hi);
 }
-.hero-stack-seg { display: block; flex: none; height: 100%; }
+.hero-stack-seg { display: block; flex: none; height: 100%; position: relative; }
 .hero-stack-seg + .hero-stack-seg { box-shadow: inset 1px 0 0 var(--surface); }
+/* The part of a segment paid for by a sibling's overshoot: hatched, same hue underneath. */
+.hero-stack-buf {
+  position: absolute; top: 0; right: 0; bottom: 0; display: block;
+  background-image: repeating-linear-gradient(-45deg, rgba(11, 16, 33, 0.55) 0 2px, transparent 2px 5px);
+}
 
 /* Secondary to the streak above it, and separated rather than merely spaced: this is the day
    broken down, not another headline. */
@@ -470,6 +475,10 @@ html, body { overscroll-behavior-y: contain; }
 .hero-cat-icon { font-size: var(--fs-small); }
 .hero-cat-name { min-width: 0; color: var(--dim); font-size: var(--fs-small); }
 .hero-cat-gap { font-size: var(--fs-micro); color: var(--dim); text-align: right; white-space: nowrap; }
+.hero-cat-buf { font-weight: 700; }
+/* One line for the day's bonus account, under the legend it explains. */
+.hero-bonus { margin: 2px 0 0; font-size: var(--fs-micro); color: var(--dim); line-height: 1.45; }
+.hero-bonus-k { color: var(--text); font-weight: 700; }
 .hero-cat-num { font-size: var(--fs-small); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 /* A row's number is in its category's colour — the same colour as its dot and its stretch of the
    bar — done or not. Done is the "to go" cell being empty; one rule for the column, not two. */

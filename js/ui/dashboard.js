@@ -615,6 +615,7 @@ function dayHero(ctx, scored, model) {
       // The category bars, compressed to one row each — see attributeBars. Only the categories that
       // actually count today; an empty one is dropped in the model, not explained away in a sentence.
       attributeBars(model.attributes),
+      bonusLine(model.hero.bonus),
     ),
   );
 }
@@ -646,8 +647,15 @@ function daySplit(attributes, pct) {
   return el("div.hero-stack", { role: "presentation" },
     attributes.filter((a) => a.points > 0).map((a) => el("i.hero-stack-seg.seg-" + a.category, {
       style: "width:" + a.points + "%",
-      title: CATEGORY_LABEL[a.category] + " " + a.points + " of " + a.offered,
-    })),
+      title: CATEGORY_LABEL[a.category] + " " + a.points + " of " + a.offered
+        + (a.buffer ? " \u00b7 " + a.buffer + " from bonus" : ""),
+    },
+      // The tail of a segment that a sibling's over-delivery paid for, hatched in the same hue:
+      // part of the category's points, visibly not earned by the habit that was short.
+      a.buffer > 0
+        ? el("b.hero-stack-buf", { style: "width:" + Math.round((a.buffer / a.points) * 100) + "%" })
+        : null,
+    )),
   );
 }
 
@@ -671,11 +679,42 @@ function attributeBars(attributes) {
         // What is left in this category, said as a number to close — the same logic as the "away
         // from a perfect day" line, per category, so the reader can see where the gap is. These
         // add up to that line: the model rounds the parts to the whole (apportion).
-        el("span.hero-cat-gap", left > 0 ? left + " to go" : ""),
+        el("span.hero-cat-gap",
+          // Bonus spent inside this category, in its colour, before the gap — so "24 of 40" can be
+          // read as "21 from the habits and 3 from a sibling's overshoot" without opening a card.
+          a.buffer > 0 ? el("span.hero-cat-buf.num-" + a.category, "\u26A1" + a.buffer) : null,
+          a.buffer > 0 && left > 0 ? " \u00b7 " : "",
+          left > 0 ? left + " to go" : ""),
         el("span.hero-cat-num.num-" + a.category + tone, a.points + " of " + a.offered),
       );
     }),
   );
+}
+
+/**
+ * The bonus account for the day, in one line — earned, and where it went.
+ *
+ * "+3" on a card and nothing on the hero read as a bonus that vanished. It did not: it was spent
+ * lifting a short sibling, which is the rule (bonus stays inside its category and pays for a
+ * shortfall there first) and is worth saying once, in the words the scoring sheet uses. Banked
+ * bonus is already beside the total; withheld bonus is the taper hold. Silent on a day with none.
+ */
+function bonusLine(bonus) {
+  if (!bonus || !bonus.earned) return null;
+  const parts = [];
+  if (bonus.spent) {
+    const who = [...new Set(bonus.lifted)];
+    const names = who.length === 1 ? who[0]
+      : who.length === 2 ? who[0] + " and " + who[1]
+      : who.length ? who.slice(0, 2).join(", ") + " and " + (who.length - 2) + " more"
+      : "short habits";
+    parts.push((bonus.spent === bonus.earned ? "all " : bonus.spent + " ") + "lifting " + names);
+  }
+  if (bonus.banked) parts.push(bonus.banked + " banked");
+  if (bonus.withheld) parts.push(bonus.withheld + " withheld, taper held");
+  return el("p.hero-bonus",
+    el("span.hero-bonus-k", "\u26A1 +" + bonus.earned + " bonus earned"),
+    parts.length ? " \u00b7 " + parts.join(" \u00b7 ") : "");
 }
 
 /**

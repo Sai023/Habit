@@ -181,9 +181,40 @@ export function todayModel(state, me, today, now = Date.now()) {
   const live = (scored.categories || []).filter((c) => c.eligible && c.share > 0);
   const offered = apportion(live.map((c) => c.share), live.reduce((sum, c) => sum + c.share, 0));
   const points = apportion(live.map((c) => c.points), pct, offered);
-  const attributes = live.map((c, i) => ({
-    category: c.category, points: points[i], offered: offered[i], pct: pctOf(points[i], offered[i]),
-  }));
+
+  // ---- Where a category's points came from: its habits, or a sibling's over-delivery ----
+  //
+  // A habit that beats its goal is paid inside its category first — the buffer rule: Workouts at
+  // 115% lifts a short Steps day before a single point is banked as bonus. The cards say "+3" and
+  // the hero said nothing, because the three were spent, not banked. So each category also carries
+  // the part of its points that no habit earned directly (`buffer`), and the hero carries the
+  // whole account: bonus EARNED today = spent lifting siblings + banked beside the day + withheld
+  // while a taper holds. Habit scores are capped at BONUS_CAP in the engine, which is what makes
+  // that an identity rather than an estimate.
+  const lifted = [];
+  const attributes = live.map((c, i) => {
+    const direct = c.habits.reduce((sum, h) => {
+      const p = prices.get(h.habit.habitId);
+      return sum + (p ? p.earned : 0);
+    }, 0);
+    const buffer = Math.max(0, Math.min(points[i], points[i] - Math.round(direct)));
+    if (buffer > 0) {
+      for (const h of c.habits) if (h.eligible && h.score < 1) lifted.push(h.habit.name || "a habit");
+    }
+    return {
+      category: c.category, points: points[i], offered: offered[i], pct: pctOf(points[i], offered[i]),
+      buffer,
+    };
+  });
+  const spent = attributes.reduce((sum, a) => sum + a.buffer, 0);
+  const withheld = Math.round(scored.bonusWithheld || 0);
+  hero.bonus = {
+    earned: spent + hero.dayBonus + withheld,
+    spent,
+    banked: hero.dayBonus,
+    withheld,
+    lifted,
+  };
 
   const cards = [...state.habits.values()]
     .filter((h) => isTracking(state, h, me))
