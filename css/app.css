@@ -447,8 +447,16 @@ html, body { overscroll-behavior-y: contain; }
   display: flex; gap: 2px; height: 9px;
   border-radius: 999px; overflow: hidden;
 }
+/* The track of a segment is its category's colour, faint — so a category's whole extent is
+   visible whether it is empty or full, and the fill sits INSIDE something. A track the colour of
+   the gaps read, at half fill, as six floating blocks instead of four categories partly earned:
+   the split the bar exists to show was the one thing it did not. */
 .hero-seg { display: block; min-width: 0; background: var(--surface-hi); }
-.hero-seg > i { display: block; height: 100%; }
+.hero-seg.track-fitness    { background: rgba(62, 224, 196, 0.22); }
+.hero-seg.track-discipline { background: rgba(240, 180, 41, 0.22); }
+.hero-seg.track-rest       { background: rgba(62, 224, 196, 0.12); }
+.hero-seg.track-money      { background: rgba(154, 166, 201, 0.22); }
+.hero-seg > i { display: block; height: 100%; border-radius: 0 2px 2px 0; }
 /* A category with nothing left to earn glows a shade brighter than one still filling. */
 .hero-seg.is-hit > i.seg-fitness { background: var(--teal-soft); }
 

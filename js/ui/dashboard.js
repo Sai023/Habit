@@ -639,7 +639,7 @@ function daySplit(attributes, pct) {
     return el("div.bar", { role: "presentation" }, el("i", { style: "width:" + Math.min(100, pct) + "%" }));
   }
   return el("div.hero-split", { role: "presentation" },
-    attributes.map((a) => el("span.hero-seg" + (a.pct >= 100 ? ".is-hit" : ""), {
+    attributes.map((a) => el("span.hero-seg.track-" + a.category + (a.pct >= 100 ? ".is-hit" : ""), {
       style: "flex:" + a.offered,
       title: CATEGORY_LABEL[a.category] + " " + a.points + " of " + a.offered,
     },
