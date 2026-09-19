@@ -43,16 +43,16 @@ export function openHabitsSheet(
     ),
     el("p.sheet-now",
       habits.length
-        ? "What the group is tracking. Tap one to change it."
+        ? "What the group is tracking. Tap one to set your goal or opt out."
         : "Nothing tracked yet. Add the first one and the group can start showing up for it.",
     ),
 
     habits.length
-      ? el("div.board", habits.map((habit) => habitRow(habit, state, me, today, handOffTo, onEditHabit)))
+      ? el("div.board", habits.map((habit) => habitRow(habit, state, me, today, handOffTo, onEditGoals)))
       : null,
 
     el("div.sheet-actions",
-      el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "My goals"),
+      el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "All my goals"),
       el("button.tap", { onclick: () => handOffTo(() => onEditHabit(null)) }, "＋ New habit"),
     ),
 
@@ -117,19 +117,20 @@ export function openHabitsSheet(
   return sheet;
 }
 
-function habitRow(habit, state, me, today, handOffTo, onEditHabit) {
+function habitRow(habit, state, me, today, handOffTo, onEditGoals) {
   const seen = visibilityFor(state, habit, me);
   const src = fmt.source(sourceFor(state, habit, me));
   const target = targetOn(habit, periodEnd(periodKey(today, habit.period, habit.monthStart), habit.period, habit.monthStart));
 
+  // A tap opens YOUR panel for this habit — your goal, opting in or out — not the shared editor.
+  // Editing the group's definition is a link inside that panel now (see goals.js focus mode).
+  const open = () => handOffTo(() => onEditGoals(habit.habitId));
   return el("article.row.tappable", {
     style: "grid-template-columns: 26px minmax(0,1fr)",
     role: "button",
     tabindex: "0",
-    onclick: () => handOffTo(() => onEditHabit(habit.habitId)),
-    onkeydown: (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handOffTo(() => onEditHabit(habit.habitId)); }
-    },
+    onclick: open,
+    onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } },
   },
     el("div.row-rank", habit.icon || "◆"),
     el("div.row-main",

@@ -386,7 +386,7 @@ async function onLog(habit) {
  * They mount on <body> rather than the app root, because a sync landing mid-edit repaints the root
  * and would take the form with it — the bug already found and fixed once in the log sheet.
  */
-async function showGoals(firstRun = false) {
+async function showGoals(firstRun = false, focus = null) {
   const [{ getState, identity }, { openGoalsSheet }] = await Promise.all([
     import("./store.js"), import("./ui/goals.js"),
   ]);
@@ -396,14 +396,19 @@ async function showGoals(firstRun = false) {
   if (!state.habits.size) return refresh();
   const { memberId } = await identity();
   openGoalsSheet(document.body, {
-    state, me: memberId, firstRun,
+    state, me: memberId, firstRun, focus,
+    // Given so the focused panel can offer "Edit the shared habit →" — the demoted, group-affecting
+    // way in that a habit tap used to land on directly.
+    onEditHabit,
     onDone: () => refresh(),
   });
 }
 
-function onEditGoals() {
+// `focus` is a habitId when the person tapped one habit (its personal panel), or absent for the
+// whole "your goals" list. Guarded because some callers wire it straight to an onclick.
+function onEditGoals(focus = null) {
   if (demoBlocked()) return;
-  showGoals(false);
+  showGoals(false, typeof focus === "string" ? focus : null);
 }
 
 async function onEditHabit(habitId) {
@@ -446,7 +451,7 @@ const onHabitDetail = guard("habit detail", async (habitId) => {
   const { openHabitDetail } = await import("./ui/habitdetail.js");
   openHabitDetail(document.body, {
     state: ctx.state, habit, me: ctx.me, today: ctx.today,
-    onLog, onEdit: onEditHabit,
+    onLog, onEdit: onEditHabit, onGoals: onEditGoals,
     // The Workouts habit's detail carries the program: today's session, and the log under a button.
     onWorkout: isDemo ? null : onWorkout, onChooseProgram: isDemo ? null : onChooseProgram,
     onOpenWorkout,

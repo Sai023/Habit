@@ -765,6 +765,10 @@ html, body { overscroll-behavior-y: contain; }
 .starters { display: flex; flex-direction: column; gap: 8px; }
 .starter { background: var(--surface); border-radius: var(--r); border: 1px solid transparent; overflow: hidden; }
 .starter.on { border-color: var(--teal-dim); }
+/* The demoted, group-affecting way in on the focused goal panel: set apart, and its warning quiet. */
+.goal-shared { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.goal-shared .link { color: var(--dim); }
+.goal-shared .note-inline { margin-top: 2px; }
 .starter-head {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 13px 14px; text-align: left;

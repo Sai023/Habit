@@ -40,13 +40,19 @@ const unitFor = (habit) => SCALE[habit.metric]?.unit
         [METRIC.ACTIVE_CALORIES]: "kcal", [METRIC.SCREEN_MINUTES]: "minutes",
         [METRIC.APP_OPENS]: "opens" }[habit.metric] || "");
 
-export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
+export function openGoalsSheet(host, { state, me, firstRun = false, focus = null, onEditHabit = null, onDone }) {
   let saved = false;
   // onDone fires once however this went away — saved or dismissed — so the caller can refresh on
   // the way out without having to work out which happened.
   const sheet = openSheet(host, { onClose: () => onDone({ saved }) });
 
-  const habits = [...state.habits.values()];
+  // `focus` narrows the sheet to ONE habit — the personal panel you land on when you tap a habit,
+  // where opting in/out and setting your own number is the whole point. Editing the shared habit
+  // (and deleting it, which lives inside that editor) is demoted to a link at the bottom, because
+  // it changes the habit for the whole group. With no focus it is the full "your goals" list.
+  const all = [...state.habits.values()];
+  const habits = focus ? all.filter((h) => h.habitId === focus) : all;
+  const focused = focus ? habits[0] : null;
 
   const rows = habits.map((habit) => {
     const scale = SCALE[habit.metric];
@@ -83,10 +89,13 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
   function paint() {
     sheet.paint(
       el("div.form",
-        el("h1", firstRun ? "What are you in for?" : "Your goals"),
+        el("h1", firstRun ? "What are you in for?"
+          : focused ? (focused.name || "Your goal") : "Your goals"),
         el("p.lede", firstRun
           ? "Your friends are tracking these. Pick the ones you're doing and set your own goals."
-          : "Your own goals. Everyone's are separate — the group only agrees on what's tracked."),
+          : focused
+            ? "Yours alone — opt in or out, and set your own number. It changes nothing for anyone else."
+            : "Your own goals. Everyone's are separate — the group only agrees on what's tracked."),
 
         el("div.starters", rows.map(row)),
 
@@ -102,7 +111,18 @@ export function openGoalsSheet(host, { state, me, firstRun = false, onDone }) {
 
         error ? el("p.err", error) : null,
         el("button.tap", { onclick: submit, disabled: busy },
-          busy ? "Saving…" : firstRun ? "Start tracking" : "Save my goals"),
+          busy ? "Saving…" : firstRun ? "Start tracking" : focused ? "Save" : "Save my goals"),
+
+        // The group-affecting way in, demoted to a quiet link and clearly labelled — editing the
+        // shared habit (its name, target, cadence, taper) and, inside that, deleting it change the
+        // habit for everyone. It used to be the FIRST thing a tap landed on; now it is behind your
+        // own goal, where it belongs.
+        focused && onEditHabit
+          ? el("div.goal-shared",
+              el("button.link", { onclick: () => { sheet.close(); onEditHabit(focus); } },
+                "Edit the shared habit →"),
+              el("p.note-inline", "Changes its name, target or schedule for the whole group — and delete lives in there too."))
+          : null,
       ),
     );
   }

@@ -98,7 +98,7 @@ function barTone(e) {
   return TONE[e.status] || "is-quiet";
 }
 
-export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onDone, onWorkout, onChooseProgram, onOpenWorkout = null }) {
+export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, onGoals = null, onDone, onWorkout, onChooseProgram, onOpenWorkout = null }) {
   const sheet = openSheet(host, { onClose: () => onDone && onDone() });
 
   const reduce = habit.direction === AT_MOST;
@@ -715,8 +715,12 @@ export function openHabitDetail(host, { state, habit, me, today, onLog, onEdit, 
         el("div.hd-actions",
           onLog ? el("button.tap", { onclick: () => { sheet.close(); onLog(habit.habitId); } },
             automatic ? "Enter it manually" : "Log " + (habit.name || "it").toLowerCase()) : null,
-          onEdit ? el("button.ghost", { onclick: () => { sheet.close(); onEdit(habit.habitId); } },
-            "Edit this habit") : null,
+          // Your own relationship to the habit — goal, opt in/out — before the shared editor.
+          onGoals ? el("button.ghost", { onclick: () => { sheet.close(); onGoals(habit.habitId); } },
+            "My goal · opt out") : null,
+          // Demoted to a quiet link: this edits (and can delete) the habit for the whole group.
+          onEdit ? el("button.link.hd-edit-shared", { onclick: () => { sheet.close(); onEdit(habit.habitId); } },
+            "Edit the shared habit") : null,
         ),
       ),
     );
