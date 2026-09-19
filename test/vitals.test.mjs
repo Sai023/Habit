@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import { workoutLog, spansOf } from "../js/workout.js";
 import { vitalsInsights, windowsToRead, MIN_VITALS_SESSIONS } from "../js/vitals.js";
-import { ev, T, MAX_BACKFILL_DAYS } from "../js/schema.js";
+import { leaderboard, dayScore } from "../js/score.js";
+import { ev, T, MAX_BACKFILL_DAYS, SOURCE, METRIC, AT_LEAST, AGGREGATE, PERIOD } from "../js/schema.js";
 
 let passed = 0;
 const failures = [];
@@ -175,6 +176,90 @@ test("a workout that kept no clock contributes nothing to the ranking, even with
   assert.equal(ins.sessions, 3, "it is a workout with a watch on");
   assert.equal(ins.exercises[0].minutes, 12, "but only the stamped twelve minutes rank");
   assert.equal(ins.dearest.day, day(4), "and it can still be the dearest day");
+});
+
+// ---------------------------------------------------------------------------
+// A watch never buys rank — vitals are recognition, not currency
+// ---------------------------------------------------------------------------
+//
+// HR and calories are laid over a workout so you can SEE how hard it was; they are deliberately
+// never scored. This is the fairness line the whole feature rests on: the friend with a watch and
+// the friend without must be judged on the same thing — the workout happened — so a furnace of a
+// heart rate cannot climb the board. Easy to hold and easy to break by accident (one scorer that
+// reaches for kcal), so it is pinned by replaying the same season with the vitals stripped out and
+// asserting not one number moved.
+
+// Two members with byte-identical scorable records — the same two workouts, the same steps every
+// day — but Ann's sessions are logged with a blazing watch (900 kcal at 175bpm) and Bo's carry no
+// vitals at all. If either figure leaked into the score, Ann would pull ahead.
+function fairnessSeason({ withVitals }) {
+  const events = [E(ev.meta({ tz: TZ }), at(0))];
+  for (const [id, name] of [["ann", "Ann"], ["bo", "Bo"]]) {
+    events.push(E(ev.member(id, name), at(0)));
+    events.push(E(ev.program(id, "prog"), at(0)));
+  }
+  events.push(E(ev.habit("gym", {
+    name: "Workouts", metric: METRIC.SESSIONS, direction: AT_LEAST,
+    aggregate: AGGREGATE.SUM, target: 3, period: PERIOD.WEEK, tz: TZ,
+  }), at(0)));
+  events.push(E(ev.habit("steps", {
+    name: "Steps", metric: METRIC.STEPS, direction: AT_LEAST, aggregate: AGGREGATE.LAST,
+    target: 10000, period: PERIOD.DAY, source: SOURCE.HEALTH_CONNECT, tz: TZ,
+  }), at(0)));
+
+  for (const id of ["ann", "bo"]) {
+    // Two workouts in a week that wants three, so the week is a real, partial score — not a
+    // trivial 100 that would tie no matter what. Both members do exactly the same two.
+    for (const n of [0, 2]) {
+      const t0 = at(n);
+      const sid = "s" + n;
+      events.push(E(ev.workout(id, "prog", sid, day(n), {
+        startedAt: t0, endedAt: m(t0, 30),
+        exercises: [{ id: "pushup", sets: [10, 10, 10], at: [m(t0, 2), m(t0, 4), m(t0, 6)] }],
+      }), m(t0, 30)));
+      events.push(E(ev.log("gym", id, day(n), 1, SOURCE.MANUAL, "workout:" + day(n) + ":" + sid), m(t0, 30)));
+      if (withVitals) {
+        const hot = id === "ann";
+        events.push(E(ev.vitals(id, sid, day(n), {
+          kcal: hot ? 900 : 40, hrAvg: hot ? 175 : 95, hrMax: hot ? 190 : 110, samples: 200,
+        }), m(t0, 40)));
+      }
+    }
+    for (let n = 0; n < 7; n += 1) {
+      events.push(E(ev.log("steps", id, day(n), 11000, SOURCE.HEALTH_CONNECT), at(n)));
+    }
+  }
+  return events;
+}
+
+test("a watch never buys rank: stripping every vitals event changes no score", () => {
+  const withV = replay(fairnessSeason({ withVitals: true }));
+  const without = replay(fairnessSeason({ withVitals: false }));
+
+  // The vitals really are present in one run and gone in the other, or the test proves nothing.
+  assert.equal(withV.workouts.get("ann")[0].vitals.kcal, 900, "Ann's watch data is there to leak");
+  assert.equal(without.workouts.get("ann")[0].vitals, null, "and truly absent in the stripped run");
+
+  const from = day(0), to = day(6), today = day(6);
+  const boardV = leaderboard(withV, ["ann", "bo"], from, to, today);
+  const boardN = leaderboard(without, ["ann", "bo"], from, to, today);
+  const rank = (board) => Object.fromEntries(board.map((r) => [r.memberId, { pct: r.pct, points: r.points }]));
+
+  // Ann's blazing heart buys her nothing: identical records, identical standing.
+  assert.deepEqual(rank(boardV).ann, rank(boardV).bo, "the harder-breathing member does not outrank the calmer one");
+  // And the board is the same whether or not a single vital was ever written.
+  assert.deepEqual(rank(boardV), rank(boardN), "vitals move nothing on the board");
+
+  // Belt and braces: every day scores the same for each member, with and without.
+  for (const id of ["ann", "bo"]) {
+    for (let n = 0; n < 7; n += 1) {
+      assert.equal(
+        dayScore(withV, id, day(n), today).pct,
+        dayScore(without, id, day(n), today).pct,
+        id + " day " + n + " must not depend on the watch",
+      );
+    }
+  }
 });
 
 if (failures.length) {
