@@ -627,24 +627,27 @@ function dayHero(ctx, scored, model) {
  * is just the live ones, each on a single line.
  */
 /**
- * The day as one bar, split by category share and filled by what each earned.
+ * The day as one bar, filled to what it has earned, the fill made of the four categories in turn.
  *
- * Widths are the model's `offered` (they sum to the hundred the day is worth), fills its `pct`.
- * Colours are the category's own — the same four "How scoring works" keys its split with — so a
- * reader who has seen that screen recognises this one without a legend. Falls back to a plain bar
- * when nothing counts today, which the model signals by handing over no attributes.
+ * One pill rather than four: "84 of 100" is one quantity and the bar is that quantity, filling
+ * left to right — with the fill coloured by where the points came from, so the legend's dots can
+ * be found in it. Each category's width is its POINTS (the model's, apportioned, so they sum to
+ * the headline exactly), laid end to end; what is left of the hundred is track. A category at
+ * nothing has no width here and says so in the legend instead — where the gap is, is the
+ * legend's job ("16 to go"), and the bar's job is how much of the day is banked.
+ *
+ * Falls back to a plain bar when nothing counts today, which the model signals by handing over no
+ * attributes.
  */
 function daySplit(attributes, pct) {
   if (!attributes || !attributes.length) {
     return el("div.bar", { role: "presentation" }, el("i", { style: "width:" + Math.min(100, pct) + "%" }));
   }
-  return el("div.hero-split", { role: "presentation" },
-    attributes.map((a) => el("span.hero-seg.track-" + a.category + (a.pct >= 100 ? ".is-hit" : ""), {
-      style: "flex:" + a.offered,
+  return el("div.hero-stack", { role: "presentation" },
+    attributes.filter((a) => a.points > 0).map((a) => el("i.hero-stack-seg.seg-" + a.category, {
+      style: "width:" + a.points + "%",
       title: CATEGORY_LABEL[a.category] + " " + a.points + " of " + a.offered,
-    },
-      el("i.seg-" + a.category, { style: "width:" + Math.min(100, a.pct) + "%" }),
-    )),
+    })),
   );
 }
 
@@ -1106,10 +1109,14 @@ function awardsSection(ctx) {
     boardTabs(ctx),
 
     el("div.case-now",
+      // Before a badge, the same ring the day hero wears: how far the run is to the first one. An
+      // empty grey disc was a placeholder pretending to be a medal.
       held
         ? el("span.badge.badge-lg.badge-" + held.key,
             el("span.badge-face", el("span.badge-n", String(streak))))
-        : el("div.hero-mark", "·"),
+        : el("div.hero-mark.hero-ring" + (streak > 0 ? ".is-lit" : ""),
+            { style: "--pct:" + (next ? Math.min(100, Math.round((streak / next.tier.at) * 100)) : 100) + "%" },
+            el("span.hero-mark-face", "\uD83D\uDD25")),
       el("div.case-now-text",
         el("div.case-held", held ? held.name : "No badge yet"),
         el("div.case-sub",
@@ -1127,24 +1134,31 @@ function awardsSection(ctx) {
       : null,
 
     el("h2.sec-title", "Every habit, on goal"),
-    el("div.case-major", major.map((t) => el("div.case-slot" + (t.times ? "" : ".is-locked"),
+    // The one coming up is ringed, and the bar under the row says how close it is — a badge is a
+    // target, and a target the reader can see themselves approaching is the point of showing it.
+    el("div.case-major", major.map((t) => el("div.case-slot"
+      + (t.times ? "" : ".is-locked") + (next && t.at === next.tier.at ? ".is-next" : ""),
       el("span.badge.badge-" + t.key, { title: t.name + " — " + t.earned },
         el("span.badge-face", el("span.badge-n", String(t.at)))),
       el("span.case-name", t.name),
       t.times > 1 ? el("span.case-times", "×" + t.times) : null,
     ))),
+    next ? nextBar(streak, next.tier.at, streak + " / " + runLabel(next.tier.at, "day"), "to " + next.tier.name) : null,
     el("p.note-inline",
       "Won by meeting every category you were asked about, every day. The group is told when you "
       + "reach one."),
 
     habits.length ? el("h2.sec-title", "One habit at a time") : null,
-    habits.map((h) => el("div.case-habit",
+    habits.map((h) => {
+      const up = h.levels.find((l) => h.streak < l.at) || null;
+      return el("div.case-habit",
       el("div.case-habit-head",
         el("span.case-habit-icon", h.icon),
         el("span.case-habit-name", h.name),
         el("span.case-habit-run", h.streak ? runLabel(h.streak, h.period) : "no run"),
       ),
-      el("div.case-pips", h.levels.map((l) => el("div.case-slot" + (l.times ? "" : ".is-locked"),
+      el("div.case-pips", h.levels.map((l) => el("div.case-slot"
+        + (l.times ? "" : ".is-locked") + (up && l.at === up.at ? ".is-next" : ""),
         // The same medal the majors are struck from, not a ring with a number in it.
         //
         // These were `.pip`: a small outlined circle. Asked directly — "is the 14 30 60 120 the
@@ -1158,10 +1172,26 @@ function awardsSection(ctx) {
         el("span.case-name", l.span),
         l.times > 1 ? el("span.case-times", "×" + l.times) : null,
       ))),
-    )),
+      up
+        ? nextBar(h.streak, up.at, h.streak + " / " + runLabel(up.at, h.period), "to " + up.span)
+        : el("p.case-done", "Every badge for this habit is won."),
+      );
+    }),
     habits.length
       ? el("p.note-inline", "Yours alone — these are never announced to the group.")
       : null,
+  );
+}
+
+/**
+ * A run against the next badge, as a bar with the two numbers on it — the same drawing the habit
+ * detail puts under its ladder, so a run reads the same on both screens.
+ */
+function nextBar(have, need, left, right) {
+  return el("div.hd-next",
+    el("div.hd-next-bar", { role: "presentation" },
+      el("i", { style: "width:" + Math.min(100, Math.round((have / need) * 100)) + "%" })),
+    el("div.hd-next-label", el("b", left), el("span", right)),
   );
 }
 

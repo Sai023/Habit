@@ -444,28 +444,16 @@ html, body { overscroll-behavior-y: contain; }
 .hero-pct { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .hero-pct.is-hit { color: var(--teal-soft); }
 
-/* The day, split: four pills, one per category, each as wide as that category's share of the
-   hundred (flex, set inline) and filled to what it has earned.
-
-   Pills, not blocks on a strip. The first version clipped one strip into segments and drew each
-   track the same dark as the gap beside it, so at half fill the bar read as six floating blocks
-   — the four categories it exists to show were the one thing it did not. Now each segment is its
-   own rounded track in its category's colour, faint, so a category's whole width is visible
-   whether it is at nothing or at everything, and the fill sits inside it in the same hue, bright.
-   Empty and full look like the same object in two states, which is what they are. */
-.hero-split { display: flex; gap: 4px; height: 10px; }
-.hero-seg {
-  display: block; min-width: 0; position: relative;
+/* The day as one pill, filled to what it has earned, the fill made of the four categories in
+   turn (widths set inline: each category's points). A hairline between neighbours keeps two
+   fills from merging into one colour; what is left of the hundred is the track. */
+.hero-stack {
+  display: flex; height: 10px;
   border-radius: 999px; overflow: hidden;
   background: var(--surface-hi);
 }
-.hero-seg.track-fitness    { background: rgba(62, 224, 196, 0.24); }
-.hero-seg.track-discipline { background: rgba(177, 140, 255, 0.24); }
-.hero-seg.track-rest       { background: rgba(93, 176, 255, 0.24); }
-.hero-seg.track-money      { background: rgba(255, 126, 182, 0.24); }
-.hero-seg > i { display: block; height: 100%; border-radius: 999px; }
-/* Done is the fill reaching the end of its track, and the legend number taking the colour. A rim
-   was tried and could not be seen over a bright fill at phone scale. */
+.hero-stack-seg { display: block; flex: none; height: 100%; }
+.hero-stack-seg + .hero-stack-seg { box-shadow: inset 1px 0 0 var(--surface); }
 
 /* Secondary to the streak above it, and separated rather than merely spaced: this is the day
    broken down, not another headline. */
@@ -483,11 +471,12 @@ html, body { overscroll-behavior-y: contain; }
 .hero-cat-name { min-width: 0; color: var(--dim); font-size: var(--fs-small); }
 .hero-cat-gap { font-size: var(--fs-micro); color: var(--dim); text-align: right; white-space: nowrap; }
 .hero-cat-num { font-size: var(--fs-small); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-/* A complete category's number takes the category's own colour, matching the pill above it. */
-.hero-cat-num.is-hit { color: var(--teal-soft); }
-.hero-cat-num.is-hit.num-discipline { color: var(--cat-discipline); }
-.hero-cat-num.is-hit.num-rest { color: var(--cat-rest); }
-.hero-cat-num.is-hit.num-money { color: var(--cat-money); }
+/* A row's number is in its category's colour — the same colour as its dot and its stretch of the
+   bar — done or not. Done is the "to go" cell being empty; one rule for the column, not two. */
+.hero-cat-num.num-fitness { color: var(--cat-fitness); }
+.hero-cat-num.num-discipline { color: var(--cat-discipline); }
+.hero-cat-num.num-rest { color: var(--cat-rest); }
+.hero-cat-num.num-money { color: var(--cat-money); }
 /* The countdown, lifted from the section heading to a quiet anchor above the widgets. */
 .day-anchor {
   margin: 0 0 10px; font-size: var(--fs-small); color: var(--dim);
@@ -1217,6 +1206,12 @@ html, body { overscroll-behavior-y: contain; }
 /* Readable, not shouting. The span under a locked badge says what the number MEANS — "two months"
    — which is the half that makes it a target rather than a digit. */
 .case-slot.is-locked .case-name { opacity: 0.8; }
+/* The one coming up: the socket's rim takes the accent, and its name comes forward. */
+.case-slot.is-next .badge { --rim: var(--teal); }
+.case-slot.is-next .case-name { color: var(--text); opacity: 1; }
+.case-done { margin: 0; font-size: var(--fs-micro); color: var(--dim); }
+/* The next-badge bar under a row of badges sits inside the row's rhythm, not the ladder's. */
+.case-major + .hd-next, .case-pips + .hd-next { margin-top: 2px; }
 
 .case-habit { display: flex; flex-direction: column; gap: 9px; }
 .case-habit-head { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-small); }
