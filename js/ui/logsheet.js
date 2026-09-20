@@ -33,7 +33,7 @@ import { openSheet } from "./sheet.js";
 import { logValue, logMeter, clearManual } from "../store.js";
 import {
   valueForPeriod, targetFor, periodKey, periodEnd, manualOn, sourceFor, keptByHandAllWeek,
-  addDays, isoDayOfWeek, lastReading, meterEntry,
+  addDays, isoDayOfWeek, lastReading, meterEntry, looksLikeCounterReading,
 } from "../habits.js";
 import * as fmt from "./format.js";
 import { AGGREGATE, AT_MOST, AUTOMATIC_SOURCES, METRIC, PERIOD, SOURCE } from "../schema.js";
@@ -98,6 +98,9 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
   let amount;
   let busy = false;
   let error = "";
+  // A directly-typed number that looks like the vape's counter, held for a confirm rather than
+  // saved. Cleared the moment the field changes or the mode switches, so a fresh number is re-judged.
+  let suspect = null;
 
   // A night typed as two clock times rather than a number of hours. Off by default: the hours
   // field is one number and most people know it; the times are for the person who would rather
@@ -175,6 +178,7 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     const n = Number(amount) || 0;
     const step = scale ? scale.step * by : by;
     amount = Math.max(0, Math.round((n + step) * 100) / 100);
+    suspect = null;
     paint();
   }
 
@@ -203,6 +207,22 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
             + (scale ? scale.to(target) : target),
       ),
 
+      // Two doors, named and shown rather than a default with a link hidden under the field. Typing
+      // the vape's counter (thousands) into "puffs today" was landing as one ruinous day nobody
+      // could correct, so the choice is made explicit and the guard below backs it up.
+      isMeter
+        ? el("div.log-mode", { role: "tablist", "aria-label": "How to enter it" },
+            el("button.log-mode-btn" + (meter ? ".on" : ""), {
+              type: "button", role: "tab", "aria-selected": meter ? "true" : "false",
+              onclick: () => { if (!meter) { meter = true; suspect = null; error = ""; paint(); } },
+            }, "Counter reading"),
+            el("button.log-mode-btn" + (!meter ? ".on" : ""), {
+              type: "button", role: "tab", "aria-selected": !meter ? "true" : "false",
+              onclick: () => { if (meter) { meter = false; suspect = null; error = ""; paint(); } },
+            }, "Puffs today"),
+          )
+        : null,
+
       meter
         ? meterField()
         : byClock
@@ -225,16 +245,12 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
                 type: "number", min: "0", inputmode: "decimal",
                 step: scale ? scale.step : 1,
                 value: amount,
-                oninput: (e) => { amount = e.target.value; },
+                oninput: (e) => { amount = e.target.value; suspect = null; },
               }),
               el("button.step", { onclick: () => bump(1), "aria-label": "More" }, "+"),
             ),
           ),
       meter || byClock ? null : unit ? el("p.note-inline", unit) : null,
-      isMeter
-        ? el("button.link", { onclick: () => { meter = !meter; paint(); } },
-            meter ? "No counter? Enter the puffs directly" : "Enter the counter reading instead")
-        : null,
       habit.metric === METRIC.SLEEP
         ? el("button.link", { onclick: () => { byClock = !byClock; paint(); } },
             byClock ? "Enter the hours instead" : "Enter bedtime and wake time instead")
@@ -276,11 +292,26 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
 
       error ? el("p.err", error) : null,
 
-      el("div.sheet-actions",
-        el("button.ghost", { onclick: () => sheet.close() }, "Cancel"),
-        el("button.tap", { onclick: () => save(), disabled: busy },
-          busy ? "Saving…" : isSum && !meter ? "Add it" : day === today ? "Save" : "Save for " + fmt.dayLabel(day).split(",")[0]),
-      ),
+      // The counter-vs-count catch. A number that dwarfs the day's ceiling is held here, not saved:
+      // switch to the counter (its real home, pre-filled) or, if it truly was that kind of day, log
+      // it anyway. Replaces the normal actions so the choice cannot be skipped past.
+      suspect != null
+        ? el("div.log-guard",
+            el("p.log-guard-text",
+              Number(suspect).toLocaleString() + " looks like your vape’s counter, not today’s puffs."),
+            el("div.sheet-actions",
+              el("button.tap", {
+                onclick: () => { meter = true; reading = String(suspect); suspect = null; error = ""; paint(); },
+              }, "Read the counter"),
+              el("button.ghost", { onclick: () => save(suspect), disabled: busy },
+                "Log " + Number(suspect).toLocaleString() + " anyway"),
+            ),
+          )
+        : el("div.sheet-actions",
+            el("button.ghost", { onclick: () => sheet.close() }, "Cancel"),
+            el("button.tap", { onclick: () => save(), disabled: busy },
+              busy ? "Saving…" : isSum && !meter ? "Add it" : day === today ? "Save" : "Save for " + fmt.dayLabel(day).split(",")[0]),
+          ),
     );
   }
 
@@ -389,6 +420,12 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
     }
     const n = exact != null ? exact : Number(amount);
     if (!Number.isFinite(n) || n < 0) { error = "Give it a number."; return paint(); }
+    // A number that looks like the vape's counter, typed into "puffs today". Hold it for a confirm
+    // rather than save a 3,000-puff day the sum can never undo. `exact` is a value chosen by a
+    // button ("None", or "Log it anyway" below), which has already decided — so it skips the guard.
+    if (isMeter && !meter && exact == null && looksLikeCounterReading(n, target)) {
+      suspect = n; error = ""; return paint();
+    }
     // Adding nothing to SOMETHING is just cancelling. Adding nothing to nothing is the day's
     // answer, and it has to be written down or the day reads as never reported.
     if (isSum && n === 0 && current != null) { sheet.close(); return; }

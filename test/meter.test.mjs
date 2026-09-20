@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import {
   replay, addDays, rawDayStatus, valueOn, lastReading, meterEntry, HIT, MISS,
+  looksLikeCounterReading, COUNTER_SUSPECT_FLOOR, COUNTER_SUSPECT_MULT,
 } from "../js/habits.js";
 import { ev, METRIC, AT_MOST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
 
@@ -147,6 +148,43 @@ test("a corrected reading replaces the day's puffs, even on a habit that adds", 
 test("an over-ceiling difference is still a miss — the counter does not soften the rule", () => {
   const s = world([entry(0, 1002, 1002), entry(1, 150, 1152)]);
   assert.equal(rawDayStatus(s, habitOf(s), ME, day(1)), MISS);
+});
+
+// ---------------------------------------------------------------------------
+// The counter-vs-count guard: a counter number typed as a day's puffs is caught
+// ---------------------------------------------------------------------------
+//
+// The trap a real friend hit: the vape counter reads 3,174, that number gets typed into "puffs
+// today", and because puffs SUM it lands as one 3,174-puff day that re-entering cannot pull back
+// down. looksLikeCounterReading is the pure tripwire the log sheet consults before saving a direct
+// entry — a soft check for a confirm, so it must catch a counter and leave a real bad day alone.
+
+test("a counter-sized number typed as today's puffs is flagged", () => {
+  assert.equal(looksLikeCounterReading(3174, 80), true, "3,174 against a goal of 80 is the counter");
+  assert.equal(looksLikeCounterReading(3348, 80), true);
+});
+
+test("a plausible day — even a bad one — is not flagged", () => {
+  assert.equal(looksLikeCounterReading(8, 80), false, "a normal day");
+  assert.equal(looksLikeCounterReading(200, 80), false, "a wretched day is still dozens, not thousands");
+  assert.equal(looksLikeCounterReading(80, 80), false, "exactly on the ceiling");
+});
+
+test("the threshold is fifteen times the goal, with a floor for a tiny or unset goal", () => {
+  const t = 80;
+  assert.equal(looksLikeCounterReading(t * COUNTER_SUSPECT_MULT - 1, t), false, "just under trips nothing");
+  assert.equal(looksLikeCounterReading(t * COUNTER_SUSPECT_MULT, t), true, "at the multiple it does");
+  // A goal of zero/unset falls back to the absolute floor, so a lone counter still gets caught.
+  assert.equal(looksLikeCounterReading(COUNTER_SUSPECT_FLOOR - 1, 0), false);
+  assert.equal(looksLikeCounterReading(COUNTER_SUSPECT_FLOOR, 0), true);
+  assert.equal(looksLikeCounterReading(COUNTER_SUSPECT_FLOOR, undefined), true, "unset goal uses the floor");
+});
+
+test("junk and nothing never flag", () => {
+  assert.equal(looksLikeCounterReading(0, 80), false);
+  assert.equal(looksLikeCounterReading(-5, 80), false);
+  assert.equal(looksLikeCounterReading(NaN, 80), false);
+  assert.equal(looksLikeCounterReading("", 80), false);
 });
 
 if (failures.length) {

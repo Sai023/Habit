@@ -1023,6 +1023,33 @@ export function lastReading(state, habit, memberId, beforeDay) {
 }
 
 /**
+ * How far past a day's plausible ceiling a directly-typed puff count has to be before it reads as
+ * the vape's lifetime counter entered by mistake. Fifteen times the goal, never below the floor for
+ * a goal that is tiny or unset. A counter shows hundreds to thousands (a friend logged 3,174); even
+ * a wretched day is dozens — so this leaves a bad Tuesday alone and catches the number off the
+ * device.
+ */
+export const COUNTER_SUSPECT_MULT = 15;
+export const COUNTER_SUSPECT_FLOOR = 500;
+
+/**
+ * Does a directly-typed puff count look like the vape's counter reading, entered by mistake?
+ *
+ * The meter habit offers two doors: read the counter (thousands, worked into a day by its delta) or
+ * type the day's puffs (dozens). Type the counter into the SECOND and it lands as one catastrophic
+ * day — and because puffs SUM, re-entering the real number cannot pull it back down, only the undo
+ * can. This is the tripwire that stops that before it is saved. A soft check for a confirmation, not
+ * a block: [target] is the day's ceiling (0 when unset), and only a number far past any believable
+ * day trips it. Caller gates on the habit actually being the puff meter.
+ */
+export function looksLikeCounterReading(value, target) {
+  const v = Number(value);
+  if (!Number.isFinite(v) || v <= 0) return false;
+  const t = Number(target) > 0 ? Number(target) : 0;
+  return v >= Math.max(COUNTER_SUSPECT_FLOOR, t * COUNTER_SUSPECT_MULT);
+}
+
+/**
  * What a counter reading means for a day: the puffs, and over how many days they were smoked.
  *
  * Reading minus the last reading, over the days since it. One day is the ordinary case. More
