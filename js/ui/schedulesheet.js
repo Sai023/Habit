@@ -63,17 +63,28 @@ export function scheduleSheet(host, { today, after, every, running }) {
       return out;
     }
 
+    /**
+     * The start days on offer for a given cycle day. Depends on the day (the "On the Nth" option
+     * moves with it), so it is a function rather than a paint-time snapshot: the day chips consult
+     * it for the NEW day when one is picked, or the check "is my start still offered?" would read a
+     * list built for the day just left and leave the start pointing at a date no longer shown.
+     */
+    function startsFor(day) {
+      const list = [];
+      if (after && after !== today) {
+        list.push([after, running ? "When this season ends" : "After this one"]);
+      }
+      list.push([today, "Today"]);
+      // The next cycle day itself, for a group that would rather wait than play a short one.
+      const onDay = nextCycleDay(fmt.addDaysISO(today, -1), day);
+      if (!list.some(([d]) => d === onDay)) list.push([onDay, "On the " + fmt.ordinal(day)]);
+      return list;
+    }
+
     function paint() {
       const [runIn, month] = preview();
       const short = runIn.from.slice(8) !== String(form.day).padStart(2, "0");
-      const starts = [];
-      if (after && after !== today) {
-        starts.push([after, running ? "When this season ends" : "After this one"]);
-      }
-      starts.push([today, "Today"]);
-      // The next cycle day itself, for a group that would rather wait than play a short one.
-      const onDay = nextCycleDay(fmt.addDaysISO(today, -1), form.day);
-      if (!starts.some(([d]) => d === onDay)) starts.push([onDay, "On the " + fmt.ordinal(form.day)]);
+      const starts = startsFor(form.day);
 
       sheet.paint(
         el("div.sheet-head", el("span.sheet-title", every ? "Change the schedule" : "Seasons on a schedule")),
@@ -87,7 +98,9 @@ export function scheduleSheet(host, { today, after, every, running }) {
         el("div.chips.chips-days.chips-cal",
           Array.from({ length: CYCLE_DAY_MAX - CYCLE_DAY_MIN + 1 }, (_, i) => CYCLE_DAY_MIN + i)
             .map((d) => el("button.chip.chip-day" + (form.day === d ? ".on" : ""), {
-              onclick: () => { form.day = d; if (!starts.some(([x]) => x === form.from)) form.from = today; paint(); },
+              // Consult the offer for the NEW day, not the stale list this chip was drawn beside, so
+              // a start that the new day no longer offers falls back to today instead of vanishing.
+              onclick: () => { form.day = d; if (!startsFor(d).some(([x]) => x === form.from)) form.from = today; paint(); },
               "aria-label": fmt.ordinal(d) + " of the month",
             }, String(d)))),
         el("p.note-inline",
