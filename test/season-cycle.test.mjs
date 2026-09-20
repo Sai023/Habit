@@ -13,8 +13,9 @@ import assert from "node:assert/strict";
 import { replay, addDays } from "../js/habits.js";
 import {
   seasonWindows, seasonHistory, seasonProgress, seasonStart, pendingSeason, seasonTally,
-  seasonSchedule, nextCycleDay, seasonLength, seasonEnd, CYCLE_DAY_MAX,
+  seasonSchedule, nextCycleDay, seasonLength, seasonEnd, boardStart, CYCLE_DAY_MAX,
 } from "../js/season.js";
+import { leaderboard } from "../js/score.js";
 import { buildSummary } from "../js/summary.js";
 import { ev, SOURCE, METRIC, AT_LEAST, AGGREGATE, PERIOD } from "../js/schema.js";
 
@@ -343,6 +344,39 @@ test("the summary carries the season's dates, what is left, and when the next be
   assert.ok(eve.season.next.startsWith("Season 2 starts"), eve.season.next);
   assert.ok(eve.season.next.includes("a short one"), eve.season.next);
   assert.ok(eve.season.next.includes("then a month, every month from the 20th"), eve.season.next);
+});
+
+// ---------------------------------------------------------------------------
+// The board never carries the old season's XP into the new one
+// ---------------------------------------------------------------------------
+//
+// The weekly board opens on Monday; a season opens whenever the rule says — the 20th, which in 2026
+// is a Sunday. So on the new season's FIRST day the board's "this week" reaches back to Monday the
+// 14th, six days of the run-in it just replaced, and everyone opens the fresh contest already
+// holding last season's points instead of zero. boardStart clamps the week to the season.
+
+test("boardStart clamps this week to the season's first day", () => {
+  const s = group("2026-09-20", ARRANGED);
+  // Season 3 (the first full month) begins Sunday the 20th — the last day of the ISO week that
+  // opened Monday the 14th. The board must open on the 20th, not the 14th.
+  assert.equal(seasonStart(s, "2026-09-20"), "2026-09-20", "the season opens on the 20th");
+  assert.equal(boardStart(s, "2026-09-20"), "2026-09-20", "and so does the board, not Monday the 14th");
+  // A day squarely inside a month season is an ordinary week: the board opens on its Monday.
+  assert.equal(boardStart(s, "2026-09-24"), "2026-09-21", "Thursday's board opens on Monday the 21st");
+});
+
+test("nobody carries the run-in's XP into the new season's board", () => {
+  const s = group("2026-09-20", ARRANGED);
+  const members = ["a", "b"];
+  const today = "2026-09-20";
+  // The bug: the week from Monday the 14th sweeps in the run-in (Alice hit six straight days).
+  const leaky = leaderboard(s, members, "2026-09-14", today, today);
+  assert.ok(leaky.find((r) => r.memberId === "a").scoredDays >= 6, "the unclamped week counts the run-in");
+  // The fix: opened on boardStart, the board sees only the new season — its first day, nothing carried.
+  const clean = leaderboard(s, members, boardStart(s, today), today, today);
+  for (const r of clean) {
+    assert.equal(r.scoredDays, 1, r.memberId + " starts the season with a single day, not a week");
+  }
 });
 
 if (failures.length) {

@@ -228,6 +228,22 @@ export function seasonStart(state, today = null) {
 }
 
 /**
+ * The day the weekly BOARD opens on: this week's Monday, but never before the season it belongs to.
+ *
+ * The board resets on Mondays; a season resets it too. A season that begins mid-week — the 20th on
+ * a Sunday — would otherwise let the board carry the Monday-to-Saturday tail of the season it
+ * replaced into the new one, so a fresh contest opens with everybody already holding last season's
+ * points instead of zero. Clamping the week to the season's own first day is what makes a new season
+ * start everyone at zero, the same window the season view has always used. Pure, so the board's "from
+ * here" and the season's "from here" cannot drift.
+ */
+export function boardStart(state, today) {
+  const weekMonday = periodStart(isoWeekKey(today), PERIOD.WEEK);
+  const start = seasonStart(state, today);
+  return start && start > weekMonday ? start : weekMonday;
+}
+
+/**
  * The season that is coming but has not started, or null.
  *
  * Under a schedule there is always one — the next month's — and the board says so, because a

@@ -6,14 +6,14 @@
 
 import { el, render } from "../dom.js";
 import {
-  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, isoDayOfWeek, compareDays, bestDailyInsight, streak as habitStreak, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
+  valueOn, valueForPeriod, targetOn, targetFor, isTracking, rawDayStatus, rawPeriodStatus, walk, sourceFor, periodKey, periodEnd, periodStart, addDays, daysBetween, compareDays, bestDailyInsight, streak as habitStreak, TAPER_MISS_LIMIT, HIT, MISS, NO_DATA, EXEMPT,
   visibilityFor, travelPeriod, groupDayHabit,
 } from "../habits.js";
 import {
   leaderboard, rankCompare, tieBreak, categoryOver, dayScore, expectedBy, withoutWorstDay, categoryFor as categoryOf,
   priceHabits, CATEGORY, CATEGORY_LABEL, CATEGORY_ICON, CATEGORY_ORDER,
   CATEGORY_WEIGHT, BONUS_CAP, BONUS_CATEGORIES, CATEGORY_SHORT } from "../score.js";
-import { seasonTally, categoryBreakdown, seasonProgress } from "../season.js";
+import { seasonTally, categoryBreakdown, seasonProgress, boardStart } from "../season.js";
 import { onGoalStreak } from "../summary.js";
 import { tierFor, nextTier, habitLevel, LEVEL_KEY } from "../milestones.js";
 import { awards } from "../awards.js";
@@ -814,7 +814,10 @@ function boardTab(ctx) {
   const members = [...ctx.state.members.keys()];
   if (!members.length) return emptyState(ctx);
 
-  const from = addDays(ctx.today, -(isoDayOfWeek(ctx.today) - 1)); // Monday of this week
+  // This week's board — but never reaching back past the season it belongs to, so a season that
+  // begins mid-week starts everyone at zero rather than carrying in the tail of the one it replaced.
+  // See boardStart: the week is clamped to the season's own first day.
+  const from = boardStart(ctx.state, ctx.today);
   const rows = leaderboard(ctx.state, members, from, ctx.today, ctx.today);
   const filter = ctx.boardCategory || null;
 
@@ -1304,7 +1307,10 @@ function whatIfPanel(ranked, ctx) {
  */
 function weekShare(row, ctx) {
   if (row.pct == null) return 0;
-  const daysSoFar = Math.max(1, isoDayOfWeek(ctx.today));
+  // Days in the board's window so far — this week, clamped to the season (see boardStart). Equals
+  // the day-of-week on an ordinary week; on the week a new season opens it counts only the season's
+  // days, so the bar's denominator matches the points above it instead of dividing by seven.
+  const daysSoFar = Math.max(1, daysBetween(boardStart(ctx.state, ctx.today), ctx.today) + 1);
   return Math.min(100, Math.round((row.points / (100 * daysSoFar)) * 100));
 }
 
@@ -1323,7 +1329,9 @@ function boardRow(row, ctx, unbrokenAll) {
     : unbrokenAll;
   if (row.memberId === ctx.me) classes.push("is-me");
   if (row.crown) classes.push("is-crown");
-  const daysSoFar = Math.max(1, isoDayOfWeek(ctx.today));
+  // The board window's days so far — clamped to the season, so "of N days" and "of 100×N" never
+  // count days from the season this one replaced. See boardStart and weekShare.
+  const daysSoFar = Math.max(1, daysBetween(boardStart(ctx.state, ctx.today), ctx.today) + 1);
   const open = () => ctx.onWeekRow && ctx.onWeekRow(row);
 
   // ---- The line under the bar ----
@@ -1408,7 +1416,9 @@ function boardRow(row, ctx, unbrokenAll) {
     // Not while filtered: the row already IS one category, and repeating it underneath its own
     // percentage says the same thing twice and looks like a second, disagreeing number.
     row.pct != null && !row.filtered ? el("div.row-parts", categoryBreakdown(
-      ctx.state, row.memberId, addDays(ctx.today, -(isoDayOfWeek(ctx.today) - 1)), ctx.today,
+      // The same window the board row's percentage is over — this week, clamped to the season — so
+      // the parts add up to the whole and neither reaches back into the season just ended.
+      ctx.state, row.memberId, boardStart(ctx.state, ctx.today), ctx.today,
     ).map((part) => (part.judged
       ? el("span.part" + (part.pct >= 100 ? ".is-full" : part.pct < 50 ? ".is-low" : ""),
           CATEGORY_ICON[part.category] + " " + CATEGORY_SHORT[part.category] + " " + part.pct + "%")
