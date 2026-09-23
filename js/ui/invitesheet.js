@@ -14,10 +14,12 @@
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
 import { inviteCode } from "../store.js";
+import { inviteLink } from "../setup-code.js";
 
 export function openInviteSheet(host, { groupCode, onClosed } = {}) {
   const sheet = openSheet(host, { onClose: () => { if (onClosed) onClosed(); } });
   let code = "";
+  let link = "";
 
   function copyButton(text, label, kind = "ghost") {
     const button = el("button." + kind, {
@@ -42,13 +44,14 @@ export function openInviteSheet(host, { groupCode, onClosed } = {}) {
       el("div.sheet-head", el("span.sheet-title", "Invite someone")),
 
       el("p.sheet-now",
-        "Send them this. They open Goal Buddy, tap Set up habits, paste it in and join as themselves."),
+        "Send them this. On a phone with Goal Buddy already installed, opening it goes straight " +
+          "to joining — nothing to copy or paste."),
 
       el("div.codebox",
-        el("div.codebox-label", "Invite"),
-        el("div.codebox-value", code || "…"),
+        el("div.codebox-label", "Invite link"),
+        el("div.codebox-value", link || "…"),
       ),
-      el("div.sheet-actions", copyButton(code, "Copy invite", "tap")),
+      el("div.sheet-actions", copyButton(link, "Copy invite link", "tap")),
 
       // The distinction that has already gone wrong once, said at the moment somebody is about to
       // share something. Short, because a warning nobody finishes reading protects nobody.
@@ -58,6 +61,16 @@ export function openInviteSheet(host, { groupCode, onClosed } = {}) {
         " (the long one starting HS1). That one means “this phone is me”, and whoever "
         + "pastes it will post as you.",
       ),
+
+      // The link is the same invite underneath, just wrapped in a URL — this is the fallback for a
+      // phone where tapping it opens a browser instead of Goal Buddy directly (nothing installed
+      // yet, or the app link hasn't been confirmed on that phone).
+      el("div.codebox",
+        el("div.codebox-label", "Or paste this in Goal Buddy"),
+        el("div.codebox-value small", code || "…"),
+        el("div.codebox-note", "Habits → Set up habits → paste it in."),
+      ),
+      el("div.sheet-actions", copyButton(code, "Copy invite code", "ghost")),
 
       // The short one still matters: it is what somebody joining from a plain browser types, and
       // it is what the room is called in every settings screen and diagnostic.
@@ -72,7 +85,11 @@ export function openInviteSheet(host, { groupCode, onClosed } = {}) {
   }
 
   paint();
-  inviteCode().then((value) => { code = value; paint(); }).catch(() => { paint(); });
+  inviteCode().then((value) => {
+    code = value;
+    link = inviteLink(typeof location !== "undefined" ? location.origin : "", value);
+    paint();
+  }).catch(() => { paint(); });
 
   return sheet;
 }

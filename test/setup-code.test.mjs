@@ -4,7 +4,9 @@
 // half your data on each row, and nothing anywhere says why.
 
 import assert from "node:assert/strict";
-import { encodeSetup, decodeSetup, encodeInvite, decodeInvite, codeKind } from "../js/setup-code.js";
+import {
+  encodeSetup, decodeSetup, encodeInvite, decodeInvite, codeKind, inviteLink,
+} from "../js/setup-code.js";
 
 let passed = 0;
 const failures = [];
@@ -126,6 +128,46 @@ test("a malformed invite returns null rather than throwing", () => {
 test("an invite survives a group name with an accent in the web address", () => {
   const code = encodeInvite({ ...INVITE, web: "https://héllo.example.com" });
   assert.equal(decodeInvite(code).web, "https://héllo.example.com");
+});
+
+// ---------------------------------------------------------------------------
+// The invite link — the same invite, made tappable
+// ---------------------------------------------------------------------------
+
+test("an origin and an invite become a link under /i/", () => {
+  const code = encodeInvite(INVITE);
+  assert.equal(inviteLink("https://habit-six-inky.vercel.app", code), "https://habit-six-inky.vercel.app/i/" + code);
+});
+
+test("a trailing slash on the origin doesn't produce a double slash", () => {
+  const code = encodeInvite(INVITE);
+  assert.equal(inviteLink("https://habit-six-inky.vercel.app/", code), "https://habit-six-inky.vercel.app/i/" + code);
+});
+
+test("no origin falls back to the bare invite, which the paste field still accepts", () => {
+  const code = encodeInvite(INVITE);
+  assert.equal(inviteLink("", code), code);
+  assert.equal(inviteLink(null, code), code);
+});
+
+test("no invite is never linkified into a dead URL", () => {
+  assert.equal(inviteLink("https://habit-six-inky.vercel.app", ""), "");
+  assert.equal(inviteLink("https://habit-six-inky.vercel.app", null), "");
+});
+
+test("a setup code is refused at the door, not just by the doc comment", () => {
+  // The exact mistake the file header records already shipping once, mirrored on the way OUT this
+  // time: a future caller wiring a share button onto the setup-code box must not get a link back.
+  const setup = encodeSetup({ ...INVITE, memberId: "m1", name: "Sahil" });
+  assert.equal(inviteLink("https://habit-six-inky.vercel.app", setup), "");
+});
+
+test("an opaque origin's literal string \"null\" is treated as no origin", () => {
+  // location.origin reports the four-character string "null" (not the value null) inside a
+  // sandboxed iframe or a file:// document — truthy, and indistinguishable from a real origin by
+  // a bare `if (!origin)` check.
+  const code = encodeInvite(INVITE);
+  assert.equal(inviteLink("null", code), code);
 });
 
 if (failures.length) {

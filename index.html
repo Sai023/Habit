@@ -10,12 +10,16 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="color-scheme" content="dark" />
 
-  <link rel="stylesheet" href="./css/app.css" />
+  <!-- Absolute, not relative: this document is now sometimes served at a path other than the
+       root — /i/<code> from a tapped invite link, either resolved by the service worker's own
+       cache-first shell (service-worker.js) or, before a redirect lands, straight off the server.
+       A relative ./js/app.js would resolve one directory too deep in exactly that case. -->
+  <link rel="stylesheet" href="/css/app.css" />
 </head>
 <body>
   <div id="app" class="app"></div>
   <noscript class="noscript">Goal Buddy needs JavaScript enabled.</noscript>
-  <script type="module" src="./js/app.js"></script>
+  <script type="module" src="/js/app.js"></script>
 
 </body>
 </html>

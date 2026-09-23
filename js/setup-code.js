@@ -113,6 +113,33 @@ export function decodeInvite(text) {
   }
 }
 
+/**
+ * Wrap an invite in a link, so a tap — rather than a copy, a switch to Goal Buddy, and a paste —
+ * is enough to join. Never called on a setup code: see the file header for why forwarding one is
+ * the one mistake this whole scheme exists to prevent. There is deliberately no `setupLink` beside
+ * this — a URL is more forwardable than a pasted blob (it's what a chat app auto-previews), and a
+ * setup code has no business being any more forwardable than it already is.
+ *
+ * Refused at the door, not just by the doc comment above: a value that doesn't start with the
+ * invite prefix comes back empty rather than being linkified anyway. This is the same rule the
+ * Android side enforces on the way IN (HabitBridge.kt's inviteFromLink refuses a setup code found
+ * in a tapped link); this is its mirror on the way OUT, so a future caller can't reintroduce the
+ * exact mistake the file header records already shipping once.
+ *
+ * `origin` is taken as a parameter rather than read from `location` here, so this stays testable
+ * off a browser; falls back to the bare invite when there is no usable origin to build a link from
+ * (a non-browser caller, or the string "null" that `location.origin` itself reports in an opaque
+ * context such as a sandboxed iframe), which still works with the paste field exactly as it always
+ * has.
+ */
+export function inviteLink(origin, invite) {
+  const code = String(invite || "");
+  if (!code.startsWith(INVITE_PREFIX)) return "";
+  const from = String(origin || "");
+  if (!from || from === "null") return code;
+  return from.replace(/\/+$/, "") + "/i/" + code;
+}
+
 /** Which of the two this is, for a screen that has to say why it will not take one. */
 export function codeKind(text) {
   const trimmed = String(text || "").trim();

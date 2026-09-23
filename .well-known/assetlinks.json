@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.pause.breathe",
+      "sha256_cert_fingerprints": [
+        "60:32:6C:35:EF:D1:3E:EE:0E:AE:D6:CE:02:EB:99:70:B5:90:AC:C5:FC:15:B2:47:2F:A6:D9:7E:8F:77:D7:D7"
+      ]
+    }
+  }
+]

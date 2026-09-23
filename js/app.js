@@ -23,6 +23,13 @@ const root = document.getElementById("app");
 const params = new URLSearchParams(location.search);
 const isDemo = params.get("demo") === "1";
 
+// An invite tapped as a link: /i/<code>?i=<code> after vercel.json's redirect, or still /i/<code>
+// with no query at all when a service worker already controlling this origin answered the
+// navigation from its own cache before the redirect was ever reached (see service-worker.js's
+// navigate handler) — checked here too so that path isn't silently dropped for a returning visitor.
+const inviteParam = params.get("i")
+  || (location.pathname.startsWith("/i/") ? location.pathname.slice(3) : null);
+
 const ui = {
   tab: params.get("tab") || "today",
   sync: { state: "LOCAL_ONLY", queued: 0 },
@@ -840,8 +847,13 @@ function tellShell(state, memberId, code) {
 
 async function showOnboard() {
   const { renderOnboard } = await import("./ui/onboard.js");
+  const { decodeInvite } = await import("./setup-code.js");
   onboarding = true;
+  // decodeInvite returns null for anything malformed — a stale, truncated or tampered link falls
+  // back to the ordinary welcome screen rather than throwing.
+  const invite = inviteParam ? decodeInvite(inviteParam) : null;
   renderOnboard(root, {
+    initialJoinCode: invite ? invite.code : undefined,
     onComplete: async (opts = {}) => {
       if (opts.bindAfterSync) { bindOnNextSync = true; pendingGoals = true; }
       // Sync starts while the share screen is still up, so the group exists on the server by the

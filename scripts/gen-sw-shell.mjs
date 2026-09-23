@@ -20,9 +20,12 @@ import { dirname, resolve, relative } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rel = (abs) => relative(root, abs).replace(/\\/g, "/");
 
-// Entry module from index.html (<script type="module" src="./js/app.js">).
+// Entry module from index.html (<script type="module" src="/js/app.js">). Absolute now (see
+// index.html's own comment on why), so this matches an optional "./" or "/" prefix rather than
+// requiring the relative form — otherwise a rename here would silently fall back to the hardcoded
+// default below instead of failing loud.
 const html = readFileSync(resolve(root, "index.html"), "utf8");
-const entry = (html.match(/<script[^>]+src="\.\/(js\/[^"]+\.js)"/) || [])[1] || "js/app.js";
+const entry = (html.match(/<script[^>]+src="(?:\.\/|\/)?(js\/[^"]+\.js)"/) || [])[1] || "js/app.js";
 
 // Breadth-first walk of the static import graph. Matches: from "./x" | import "./x" | import("./x")
 const IMPORT_RE = /(?:\bfrom|\bimport)\s*\(?\s*["']([^"']+)["']/g;

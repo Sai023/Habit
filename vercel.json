@@ -1,0 +1,5 @@
+{
+  "redirects": [
+    { "source": "/i/:code", "destination": "/?i=:code", "permanent": false }
+  ]
+}

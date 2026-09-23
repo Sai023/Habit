@@ -99,16 +99,18 @@ const STARTERS = [
   },
 ];
 
-export function renderOnboard(root, { onComplete }) {
+export function renderOnboard(root, { onComplete, initialJoinCode } = {}) {
   // The creator's current zone, pinned from here on. Reading it live would let a trip stretch a
   // day and hand somebody two chances at the same streak.
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
+  // A tapped invite link decodes to a group code before it ever reaches here (see app.js) — this
+  // screen only ever deals in the short room code, same as somebody who typed one in by hand.
   const state = {
-    screen: "welcome",
+    screen: initialJoinCode ? "join" : "welcome",
     groupName: "",
     myName: "",
-    joinCode: "",
+    joinCode: initialJoinCode || "",
     picked: new Set(STARTERS.map((s) => s.key)),
     targets: Object.fromEntries(STARTERS.map((s) => [s.key, s.toInput(s.fields.target)])),
     busy: false,
