@@ -876,6 +876,15 @@ function boardTab(ctx) {
     // wrap onto two rows, so the season — the one thing that says what the numbers are FOR — was
     // the smallest thing above the board.
     seasonStrip(ctx),
+    // Away for a while. Beside the season it books days out of, rather than behind the habits
+    // menu: this is about a stretch of days, not about any one habit, and someone looking for it is
+    // usually looking the night before a flight — while looking at the season, not while editing a
+    // target. Moved here from the menu; used rarely enough (once or twice a year) that it doesn't
+    // need to compete with the standings for space, so it sits as a quiet link rather than a card.
+    ctx.onTravel
+      ? el("button.link", { onclick: () => ctx.onTravel() },
+          travelPeriod(ctx.state, ctx.me, ctx.today) ? "Travel mode — booked →" : "Travel mode →")
+      : null,
     live.length > 1 ? el("div.chips.chips-row",
       el("button.chip.chip-sm" + (!filter ? ".on" : ""), {
         onclick: () => ctx.onBoardCategory(null),

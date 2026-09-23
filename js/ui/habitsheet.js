@@ -7,14 +7,34 @@
 //
 // So it is a sheet now, reached from the header, and the two things it exists for — your own
 // targets, and adding or editing a habit — open from inside it.
+//
+// ---- Two segments, not one long scroll ----
+//
+// This used to be a single scroll: the habit list, then Retired (every habit this group has ever
+// deleted, unsorted, unbounded), then Who's in (the full roster, always shown), then Invite,
+// Travel and the settings door — in that order. The group deletes and recreates habits often
+// enough that Retired only ever grew, which meant the things worth reaching quickly (Invite, the
+// settings door) got pushed further down every time the group used the app.
+//
+// Retired is gone from here entirely rather than collapsed: retiring a habit already removes it
+// from state.habits, the map every scoring function reads, so browsing it back into view changed
+// nothing about anyone's season — it was pure UI, no data behind it. Re-adding a habit under the
+// same name already offers to bring the old one back (editor.js's matchRetired), so the recovery
+// path still exists; this screen just isn't where you browse for it.
+//
+// "Who's in" is gone entirely, roster and Remove both — the board already answers who's in the
+// group, so repeating names here was the clutter, and that goes for a collapsed copy of it too.
+// The merge-repair hint stays visible unconditionally: it isn't a roster, it's a self-hiding
+// prompt that only appears when a name actually sits split across two ids — an active repair, not
+// standing content, so it doesn't carry the same redundancy.
+//
+// Travel mode moved to the board, next to the season strip it's actually about — see dashboard.js.
 
 import { el } from "../dom.js";
 import { openSheet } from "./sheet.js";
-import {
-  targetOn, sourceFor, periodKey, periodEnd, visibilityFor, travelPeriod,
-} from "../habits.js";
+import { targetOn, sourceFor, periodKey, periodEnd, visibilityFor } from "../habits.js";
 import { AT_MOST, VISIBILITY, PERIOD } from "../schema.js";
-import { countMemberLogs, countHabitLogs, duplicateGroups, mergeTarget } from "../roster.js";
+import { countMemberLogs, duplicateGroups, mergeTarget } from "../roster.js";
 import * as fmt from "./format.js";
 
 const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
@@ -22,8 +42,8 @@ const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
 export function openHabitsSheet(
   host,
   {
-    state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite, onTravel,
-    onRemoveMember, onRestoreHabit, onMergeMember, embedded = false, onClosed,
+    state, me, today, onEditHabit, onEditGoals, onOpenSettings, onInvite,
+    onMergeMember, embedded = false, onClosed,
   },
 ) {
   const sheet = openSheet(host, { onClose: () => { if (onClosed) onClosed(); } });
@@ -34,86 +54,67 @@ export function openHabitsSheet(
     logged: countMemberLogs(state, m.memberId),
   }));
 
+  let segment = "habits"; // "habits" | "group"
+
   /** Hand off to another sheet: close this one first so they never stack. */
   const handOffTo = (open) => { sheet.close(); open(); };
 
-  sheet.paint(
-    el("div.sheet-head",
-      el("span.sheet-title", "Habits"),
-    ),
-    el("p.sheet-now",
+  function paint() {
+    sheet.paint(
+      el("div.sheet-head", el("span.sheet-title", "Habits")),
+      el("div.board-tabs",
+        el("button.chip" + (segment === "habits" ? ".on" : ""), {
+          onclick: () => { segment = "habits"; paint(); },
+        }, "Habits"),
+        el("button.chip" + (segment === "group" ? ".on" : ""), {
+          onclick: () => { segment = "group"; paint(); },
+        }, "Group"),
+      ),
+      segment === "habits" ? habitsSegment() : groupSegment(),
+    );
+  }
+
+  function habitsSegment() {
+    return [
+      el("p.sheet-now",
+        habits.length
+          ? "What the group is tracking. Tap one to set your goal or opt out."
+          : "Nothing tracked yet. Add the first one and the group can start showing up for it.",
+      ),
       habits.length
-        ? "What the group is tracking. Tap one to set your goal or opt out."
-        : "Nothing tracked yet. Add the first one and the group can start showing up for it.",
-    ),
+        ? el("div.board", habits.map((habit) => habitRow(habit, state, me, today, handOffTo, onEditGoals)))
+        : null,
+      el("div.sheet-actions",
+        el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "All my goals"),
+        el("button.tap", { onclick: () => handOffTo(() => onEditHabit(null)) }, "＋ New habit"),
+      ),
+    ];
+  }
 
-    habits.length
-      ? el("div.board", habits.map((habit) => habitRow(habit, state, me, today, handOffTo, onEditGoals)))
-      : null,
+  function groupSegment() {
+    return [
+      // Same person on more than one id, from a rejoin or a reinstall. Unconditional — this is a
+      // repair prompt, not standing content, and it hides itself the moment nothing needs fixing.
+      onMergeMember ? duplicateGroups(members).map((g) => mergeRow(g, handOffTo, onMergeMember, sheet)) : null,
 
-    el("div.sheet-actions",
-      el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "All my goals"),
-      el("button.tap", { onclick: () => handOffTo(() => onEditHabit(null)) }, "＋ New habit"),
-    ),
+      // Reachable every time, not once at the end of onboarding. Somebody joins the group months
+      // after it was made, and the code to hand them has to be findable on that day.
+      onInvite
+        ? el("button.tap", { onclick: () => handOffTo(() => onInvite()) }, "Invite someone")
+        : null,
 
-    // Deleted habits, kept so they can come back with their entries. This is the other half of
-    // making a group-wide delete safe: it is not gone, it is here, and one tap restores it under
-    // its own id so nothing that was logged against it is lost. Only shown when there is something
-    // to restore, so it costs a tidy group nothing.
-    onRestoreHabit && state.retired && state.retired.size
-      ? el("div.sec",
-          el("h2.sec-title", "Retired"),
-          el("p.sheet-now", "Deleted habits. Their entries are kept — bring one back and its history comes with it."),
-          el("div.board", [...state.retired.entries()].map(([id, r]) => retiredRow(id, r, state, handOffTo, onRestoreHabit))),
-        )
-      : null,
+      // One destination for everything that is about the person rather than about a habit: their
+      // name, their group, what this phone shares, the reminders, the permissions and the backup.
+      // Only when there IS a shell, because in a browser there is nothing to open and a dead row is
+      // worse than a missing one.
+      embedded && onOpenSettings
+        ? el("button.link", { onclick: () => handOffTo(() => onOpenSettings()) },
+            "You — name, group, reminders, backup →")
+        : null,
+    ];
+  }
 
-    // Who is actually in the room.
-    //
-    // Here because of one specific mess it exists to clean up: a person can end up with two member
-    // ids — a rejoin, a reinstall, one wrong code pasted once — and the second sits on the board at
-    // zero per cent for ever. Until now nothing could take it off, because members were
-    // append-only, and a season started on top of that would carry the ghost the whole way.
-    //
-    // Each row says what that id has actually reported, because the only safe way to remove the
-    // right one of two identical names is to be shown which of them is empty.
-    onRemoveMember && members.length > 1
-      ? el("div.sec",
-          el("h2.sec-title", "Who's in"),
-          // Same name on more than one id is one person split across a rejoin or a reinstall.
-          // Offer to fold them into one so their history stops being split — see mergeMember.
-          onMergeMember ? duplicateGroups(members).map((g) => mergeRow(g, handOffTo, onMergeMember, sheet)) : null,
-          el("div.board", members.map((m) => memberRow(m, me, onRemoveMember, sheet))),
-        )
-      : null,
-
-    // Reachable every time, not once at the end of onboarding. Somebody joins the group months
-    // after it was made, and the code to hand them has to be findable on that day.
-    onInvite
-      ? el("button.link", { onclick: () => handOffTo(() => onInvite()) }, "Invite someone →")
-      : null,
-
-    // Away for a while. Its own row rather than a line inside goals, because it is about a stretch
-    // of DAYS rather than about any one habit — and because somebody looking for it is usually
-    // looking the night before a flight, not while editing a target.
-    onTravel
-      ? el("button.link", { onclick: () => handOffTo(() => onTravel()) },
-          travelPeriod(state, me, today) ? "Travel mode — booked →" : "Travel mode →")
-      : null,
-
-    // One destination for everything that is about the person rather than about a habit: their
-    // name, their group, what this phone shares, the reminders, the permissions and the backup.
-    // Those used to be spread over two screens with different names, and the backup in particular
-    // sat under the screen-time limits, which it has nothing to do with.
-    //
-    // Only when there IS a shell, because in a browser there is nothing to open and a dead row is
-    // worse than a missing one.
-    embedded && onOpenSettings
-      ? el("button.link", { onclick: () => handOffTo(() => onOpenSettings()) },
-          "You — name, group, reminders, backup →")
-      : null,
-  );
-
+  paint();
   return sheet;
 }
 
@@ -158,31 +159,13 @@ function habitRow(habit, state, me, today, handOffTo, onEditGoals) {
   );
 }
 
-/** One retired habit: what it was, how much history is waiting, and the way to bring it back. */
-function retiredRow(id, r, state, handOffTo, onRestoreHabit) {
-  const def = r.def || {};
-  const logs = countHabitLogs(state, id);
-  const by = r.by && state.members.get(r.by);
-  return el("article.row",
-    { style: "grid-template-columns: 26px minmax(0,1fr) auto" },
-    el("div.row-rank", def.icon || "◆"),
-    el("div.row-main",
-      el("div.row-name", def.name || "Habit"),
-      el("div.row-meta",
-        (logs ? logs + (logs === 1 ? " entry kept" : " entries kept") : "no entries yet")
-        + (by && by.name ? " · deleted by " + by.name : "")),
-    ),
-    el("button.link.row-restore", { onclick: () => handOffTo(() => onRestoreHabit(id, def)) }, "Restore"),
-  );
-}
-
 /** The offer to merge a duplicate-name group into its most-logged id. */
 function mergeRow(group, handOffTo, onMergeMember, sheet) {
   const primary = mergeTarget(group);
   const others = group.filter((m) => m.memberId !== primary.memberId);
   const name = primary.name || "them";
   return el("div.merge-hint",
-    el("span.merge-hint-text", group.length + " rows named \u201c" + name + "\u201d \u2014 the same person on more than one id."),
+    el("span.merge-hint-text", group.length + " rows named “" + name + "” — the same person on more than one id."),
     el("button.link", {
       onclick: async () => {
         const { confirmSheet } = await import("./confirmsheet.js");
@@ -191,43 +174,13 @@ function mergeRow(group, handOffTo, onMergeMember, sheet) {
           title: "Merge into one " + name + "?",
           body: "Their logs, streaks and board history combine under a single person. The extra "
             + (others.length === 1 ? "id folds" : others.length + " ids fold") + " into the one that has logged the most. "
-            + "Nothing is deleted \u2014 it is one more event on the log \u2014 but it is not undone from inside the app.",
+            + "Nothing is deleted — it is one more event on the log — but it is not undone from inside the app.",
           confirmLabel: "Merge",
           cancelLabel: "Leave separate",
         });
         if (sure) for (const m of others) await onMergeMember(m.memberId, primary.memberId);
       },
-    }, "Merge into one \u2192"),
+    }, "Merge into one →"),
   );
 }
 
-function memberRow(member, me, onRemoveMember, sheet) {
-  const isMe = member.memberId === me;
-  return el("article.row.member-row",
-    el("div.row-main",
-      el("div.row-name", member.name || "Someone", isMe ? el("span.row-meta", " · you") : null),
-      el("div.row-meta", member.logged
-        ? member.logged + (member.logged === 1 ? " reading logged" : " readings logged")
-        : "nothing logged yet"),
-    ),
-    // Never yourself: removing your own row would leave this phone posting as somebody the room no
-    // longer lists, which reads to everybody else as a broken pipeline.
-    isMe ? null : el("button.link.danger.row-remove", {
-      onclick: async () => {
-        const { confirmSheet } = await import("./confirmsheet.js");
-        sheet.close();
-        const sure = await confirmSheet(document.body, {
-          title: "Remove " + (member.name || "them") + "?",
-          body: member.logged
-            ? "They have " + member.logged + " readings logged. Those stay in the group's history — "
-              + "they just stop appearing on the board and in the season."
-            : "This one has never logged anything, so nothing is lost. It stops appearing on the "
-              + "board and in the season.",
-          confirmLabel: "Remove",
-          cancelLabel: "Keep them",
-        });
-        if (sure) await onRemoveMember(member.memberId);
-      },
-    }, "Remove"),
-  );
-}

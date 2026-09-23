@@ -78,7 +78,7 @@ function paint() {
     onScoring, onWorkout, onChooseProgram, onLevel, onWeekRow,
     syncing: ui.syncing,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onSchedule, onSeasons, onHabitDetail,
-    onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow,
+    onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow, onTravel,
   });
 }
 
@@ -349,25 +349,11 @@ async function showLevelIfAsked() {
   }
 }
 
-/** Take a duplicate identity off the board. Confirmed by the sheet that offers it. */
-const onRemoveMember = guard("member", async (memberId) => {
-  const { removeMember } = await import("./store.js");
-  if (await removeMember(memberId)) await refresh();
-});
-
 /** Fold one member id into another — the same person on two ids. See mergeMember. */
 const onMergeMember = guard("merge member", async (fromId, intoId) => {
   if (demoBlocked()) return;
   const { mergeMember } = await import("./store.js");
   if (await mergeMember(fromId, intoId)) await refresh();
-});
-
-/** Bring a deleted habit back, with its history. See restoreHabit / the retired list. */
-const onRestoreHabit = guard("restore habit", async (habitId, fields) => {
-  if (demoBlocked()) return;
-  const { restoreHabit } = await import("./store.js");
-  await restoreHabit(habitId, fields);
-  await refresh();
 });
 
 /** Type a number in — the only way half these habits ever get a value. */
@@ -443,9 +429,6 @@ const onOpenHabits = guard("menu", async () => {
     onEditGoals,
     onOpenSettings,
     onInvite,
-    onTravel,
-    onRemoveMember,
-    onRestoreHabit,
     onMergeMember,
     onClosed: () => refresh(),
   });
