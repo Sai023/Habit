@@ -85,7 +85,10 @@ export function openHabitsSheet(
         ? el("div.board", habits.map((habit) => habitRow(habit, state, me, today, handOffTo, onEditGoals)))
         : null,
       el("div.sheet-actions",
-        el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "All my goals"),
+        // "Your goals", matching the destination's own H1 — not "All my goals", which reads like
+        // it might mean the GROUP's full list. The group agrees on what's tracked; this is only
+        // ever the personal half of that, and the sheet it opens already says so in its lede.
+        el("button.ghost", { onclick: () => handOffTo(() => onEditGoals()) }, "Your goals"),
         el("button.tap", { onclick: () => handOffTo(() => onEditHabit(null)) }, "＋ New habit"),
       ),
     ];
