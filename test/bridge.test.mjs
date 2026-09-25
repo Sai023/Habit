@@ -18,7 +18,7 @@
 // all", written so that adding one to the shell without adding it here fails here.
 
 import assert from "node:assert/strict";
-import { installBridge, caps } from "../js/bridge.js";
+import { installBridge, caps, setSheetOpen } from "../js/bridge.js";
 
 let passed = 0;
 const failures = [];
@@ -138,6 +138,20 @@ test("a provider name that is not a string is treated as no name at all", () => 
   // the kind of thing that ships.
   announce({ version: 1, healthApp: true });
   assert.equal(caps().healthApp, "");
+});
+
+test("setSheetOpen tells the shell whether a sheet is open, true and false alike", () => {
+  // installBridge() itself calls requestReady() on a shell that has one, so the fake's call log
+  // starts with that — only the setSheetOpen calls are this test's business.
+  const calls = fakeShell();
+  installBridge({});
+  setSheetOpen(true);
+  setSheetOpen(false);
+  const sheetCalls = calls.filter(([name]) => name === "setSheetOpen");
+  assert.deepEqual(
+    sheetCalls.map(([name, json]) => [name, JSON.parse(json).open]),
+    [["setSheetOpen", true], ["setSheetOpen", false]],
+  );
 });
 
 if (failures.length) {

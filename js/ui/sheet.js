@@ -13,6 +13,7 @@
 
 import { el, render } from "../dom.js";
 import { showProblem } from "./problem.js";
+import { setSheetOpen } from "../bridge.js";
 
 /**
  * How tall the window really is, as opposed to how tall it says it is.
@@ -62,6 +63,14 @@ export function visibleHeight() {
 }
 
 /**
+ * How many sheets are open right now, across every caller — a workout sheet can have an exercise
+ * sheet open on top of it, a Focus sheet can have Apps open on top of IT. Only the 0→1 and 1→0
+ * transitions are worth telling the shell about: it only needs to know whether the back button has
+ * anything to do here, not how deep the stack is.
+ */
+let openCount = 0;
+
+/**
  * Open a sheet. Returns a handle: `paint` replaces its contents, `close` dismisses it.
  *
  * `onClose` fires exactly once, however the sheet went away — dismissed or closed by its own
@@ -69,6 +78,8 @@ export function visibleHeight() {
  */
 export function openSheet(host = document.body, { onClose } = {}) {
   let closed = false;
+  openCount++;
+  if (openCount === 1) setSheetOpen(true);
 
   // Tapping the backdrop dismisses. DRAGGING across it does not — which is not the same thing,
   // and the difference is the whole of a real complaint: a sheet that does not fill the screen
@@ -105,12 +116,19 @@ export function openSheet(host = document.body, { onClose } = {}) {
   document.addEventListener("keydown", onKey);
   host.append(layer);
   attachDrag(layer, close);
+  // The system back button's only way to find this sheet — see window.onShellBack in bridge.js.
+  // A plain DOM expando rather than a module-level registry, so it works from a global that has
+  // no reason to import this module and no way to know which layer is "on top" except by asking
+  // the DOM, which already keeps them in open order.
+  layer.__close = close;
 
   function close() {
     if (closed) return; // dismissing twice must not fire onClose twice
     closed = true;
     document.removeEventListener("keydown", onKey);
     layer.remove();
+    openCount = Math.max(0, openCount - 1);
+    if (openCount === 0) setSheetOpen(false);
     if (onClose) onClose();
   }
 

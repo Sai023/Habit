@@ -205,6 +205,16 @@ export function installBridge({ onData, onReady: ready, onNavigate: navigate } =
     document.documentElement.style.setProperty("--shell-vh", h + "px");
   };
 
+  // The shell calls this when the system back button is pressed and setSheetOpen(true) was the
+  // last thing this page said. Closes whichever sheet is on top — see js/ui/sheet.js, which is
+  // the only thing that sets `.sheet-layer.__close`. No return value: the shell already knows a
+  // sheet was open, and finds out it closed the same way it always does, from setSheetOpen(false).
+  window.onShellBack = () => {
+    const layers = document.querySelectorAll(".sheet-layer");
+    const top = layers[layers.length - 1];
+    if (top && top.__close) top.__close();
+  };
+
   if (n && typeof n.requestReady === "function") { try { n.requestReady(); } catch { /* ignore */ } }
 }
 
@@ -356,6 +366,15 @@ export function openHealthApp() {
 /** Play a video in the shell's own player. Only offered where caps().video is true. */
 export function openVideo({ id, title }) {
   return call("openVideo", { id, title });
+}
+
+/**
+ * Tell the shell whether a sheet is open right now — see js/ui/sheet.js, which is the one place
+ * that calls this. Lets the system back button close the sheet instead of leaving the app; a shell
+ * without the method just never asks for it back, which is the same as today.
+ */
+export function setSheetOpen(open) {
+  return call("setSheetOpen", { open: !!open });
 }
 
 function safeParse(json) {
