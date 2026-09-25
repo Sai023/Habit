@@ -26,6 +26,11 @@ export function levelMark(standing, size = 22, opts = {}) {
   svg.setAttribute("height", String(size));
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "Level " + standing.level + (standing.max ? ", the top" : ", " + standing.pct + "% of the way to the next"));
+  // Every interpolated value here is a number from the scoring engine (standing.level/pct, the
+  // r/c/dash geometry constants); nothing free-text or member-supplied ever reaches this template.
+  // See dom.js's el() for the general-purpose sink this app deliberately does NOT have — that one
+  // was removed for exactly this rule's reason.
+  // eslint-disable-next-line no-unsanitized/property -- see comment above
   svg.innerHTML =
     '<circle class="lvl-track" cx="50" cy="50" r="' + r + '"/>' +
     (tip ? '<circle class="lvl-tip" cx="50" cy="50" r="' + r + '" stroke-dasharray="' + dash(solid + tip)

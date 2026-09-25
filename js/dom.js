@@ -28,7 +28,6 @@ export function el(spec, attrs, ...children) {
     if (v == null || v === false) continue;
     if (k === "class") node.className = [node.className, v].filter(Boolean).join(" ");
     else if (k === "text") node.textContent = v;
-    else if (k === "html") node.innerHTML = v;
     else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
     else node.setAttribute(k, v === true ? "" : String(v));
   }
