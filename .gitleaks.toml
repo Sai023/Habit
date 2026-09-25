@@ -1,0 +1,14 @@
+title = "Habit gitleaks config"
+
+[extend]
+useDefault = true
+
+# The Supabase anon/publishable key is PUBLIC BY DESIGN — see js/config.js's own comment. The
+# database is protected by RLS + SECURITY DEFINER functions (see supabase/schema.sql), not by
+# keeping this key secret, so it's committed on purpose here and mirrored in a test fixture
+# (test/setup-code.test.mjs). Allowlisted by exact value, not by file or path, so config.js stays
+# covered against the ONE key that must never appear here: the Supabase service_role secret.
+[[allowlists]]
+regexes = [
+  '''sb_publishable_UZKTY0NhHnkuTSRAo7bcoQ_SGjoTcag''',
+]
