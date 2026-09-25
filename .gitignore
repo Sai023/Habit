@@ -5,3 +5,9 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Playwright's own run artifacts (e2e/) — reports, traces, screenshots on failure.
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
