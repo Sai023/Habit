@@ -1,0 +1,38 @@
+name: CodeQL
+
+# Enabled, unlike the Pause/Passport repos' own CodeQL workflows: GitHub's free code scanning
+# (what codeql-action/analyze uploads to) requires GitHub Advanced Security only on a PRIVATE repo
+# under a personal account — this repo is public (confirmed: github.com/Sai023/Habit resolves
+# without auth), so it's available at no cost here with no Org needed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Catches newly-published query rules against unchanged code, not just new commits.
+    - cron: "23 3 * * 1"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+
+      # No build step: this is plain JS with no bundler/transpile, so CodeQL's JS extractor scans
+      # source directly. Autobuild would just look for a build script that doesn't exist.
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
