@@ -33,7 +33,7 @@ import { openSheet } from "./sheet.js";
 import { logValue, logMeter, clearManual } from "../store.js";
 import {
   valueForPeriod, targetFor, periodKey, periodEnd, manualOn, sourceFor, keptByHandAllWeek,
-  addDays, isoDayOfWeek, lastReading, meterEntry, looksLikeCounterReading,
+  addDays, isoDayOfWeek, lastReading, lastTypedAt, meterEntry, looksLikeCounterReading,
 } from "../habits.js";
 import * as fmt from "./format.js";
 import { AGGREGATE, AT_MOST, AUTOMATIC_SOURCES, METRIC, PERIOD, SOURCE } from "../schema.js";
@@ -206,6 +206,15 @@ export function openLogSheet(host, { state, habit, me, today, onSaved }) {
             + (habit.direction === AT_MOST ? "limit " : "goal ")
             + (scale ? scale.to(target) : target),
       ),
+
+      // When the vape was last logged, so a stale count is visibly stale. Read fresh on every
+      // paint: an entry saved a moment ago is the newest thing in the log.
+      isMeter
+        ? el("p.note-inline.log-updated", (() => {
+            const at = lastTypedAt(state, habit, me);
+            return at ? "Last updated " + fmt.updatedLabel(at) : "Never updated yet.";
+          })())
+        : null,
 
       // Two doors, named and shown rather than a default with a link hidden under the field. Typing
       // the vape's counter (thousands) into "puffs today" was landing as one ruinous day nobody

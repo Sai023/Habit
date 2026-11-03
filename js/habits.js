@@ -1023,6 +1023,27 @@ export function lastReading(state, habit, memberId, beforeDay) {
 }
 
 /**
+ * When this member last wrote a number on this habit by hand, on any day — the "updated" stamp a
+ * hand-kept habit shows so a stale count is visibly stale. Null when nothing was ever typed.
+ *
+ * The time the entry was AUTHORED (what the log's ts is), not the day it was about: a Tuesday
+ * reading entered on Wednesday morning was updated Wednesday morning. Sensor entries are skipped
+ * on purpose — a watch syncing in the background says nothing about whether the person has logged.
+ */
+export function lastTypedAt(state, habit, memberId) {
+  let best = null;
+  const prefix = habit.habitId + "|" + memberId + "|";
+  for (const [key, entries] of state.logs) {
+    if (!key.startsWith(prefix)) continue;
+    for (const e of entries) {
+      if (e.source !== SOURCE.MANUAL || !Number.isFinite(e.ts) || e.ts <= 0) continue;
+      if (best === null || e.ts > best) best = e.ts;
+    }
+  }
+  return best;
+}
+
+/**
  * How far past a day's plausible ceiling a directly-typed puff count has to be before it reads as
  * the vape's lifetime counter entered by mistake. Fifteen times the goal, never below the floor for
  * a goal that is tiny or unset. A counter shows hundreds to thousands (a friend logged 3,174); even

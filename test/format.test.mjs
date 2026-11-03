@@ -5,7 +5,7 @@
 // field is the one here that turns free text into a stored number, so it is the one worth pinning.
 
 import assert from "node:assert/strict";
-import { toClock, fromClock, axisValue, dateRange, chartTicks, niceTop, seasonNextTag, dayLabel } from "../js/ui/format.js";
+import { toClock, fromClock, axisValue, dateRange, chartTicks, niceTop, seasonNextTag, dayLabel, updatedLabel } from "../js/ui/format.js";
 import { METRIC, PERIOD } from "../js/schema.js";
 
 let passed = 0;
@@ -115,6 +115,20 @@ test("chartTicks labels every bar once and marks where the calendar turns", () =
     { main: "Nov", sub: "2025" }, { main: "Dec", sub: null }, { main: "Jan", sub: "2026" },
   ], "a month is its name, and the year appears under the first and each January");
   assert.deepEqual(chartTicks([]), []);
+});
+
+test("updatedLabel says today / yesterday / a dated stamp, to the minute", () => {
+  const now = new Date(2026, 10, 3, 15, 0).getTime();
+  const clock = (d) => d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+  const morning = new Date(2026, 10, 3, 8, 5);
+  assert.equal(updatedLabel(morning.getTime(), now), "today " + clock(morning));
+  const lateLast = new Date(2026, 10, 2, 23, 59);
+  assert.equal(updatedLabel(lateLast.getTime(), now), "yesterday " + clock(lateLast), "calendar day, not 24 hours");
+  const old = new Date(2026, 9, 28, 21, 10);
+  const label = updatedLabel(old.getTime(), now);
+  assert.ok(label.endsWith(", " + clock(old)) && label.includes("28"), label);
+  assert.equal(updatedLabel(null, now), "");
+  assert.equal(updatedLabel(0, now), "");
 });
 
 if (failures.length) {

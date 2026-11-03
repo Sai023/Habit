@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import {
-  replay, addDays, rawDayStatus, valueOn, lastReading, meterEntry, HIT, MISS,
+  replay, addDays, rawDayStatus, valueOn, lastReading, lastTypedAt, meterEntry, HIT, MISS,
   looksLikeCounterReading, COUNTER_SUSPECT_FLOOR, COUNTER_SUSPECT_MULT,
 } from "../js/habits.js";
 import { ev, METRIC, AT_MOST, AGGREGATE, SOURCE, PERIOD } from "../js/schema.js";
@@ -185,6 +185,19 @@ test("junk and nothing never flag", () => {
   assert.equal(looksLikeCounterReading(-5, 80), false);
   assert.equal(looksLikeCounterReading(NaN, 80), false);
   assert.equal(looksLikeCounterReading("", 80), false);
+});
+
+test("lastTypedAt is the newest hand-typed entry on any day, by when it was written", () => {
+  const s = world([entry(0, 40, 1000), entry(2, 30, 1030), entry(1, 20, 1050)]);
+  assert.equal(lastTypedAt(s, habitOf(s), ME), at(2), "the latest ts, not the latest day");
+});
+
+test("lastTypedAt is null before anything is logged, and ignores a sensor and other people", () => {
+  const empty = world();
+  assert.equal(lastTypedAt(empty, habitOf(empty), ME), null);
+  const s = world([E(ev.log("puffs", ME, day(0), 5, SOURCE.HEALTH_CONNECT), at(3)), entry(0, 4, 900)]);
+  assert.equal(lastTypedAt(s, habitOf(s), ME), at(0), "the sensor sync at(3) does not count");
+  assert.equal(lastTypedAt(s, habitOf(s), "someone-else"), null);
 });
 
 if (failures.length) {

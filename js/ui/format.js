@@ -84,6 +84,23 @@ export function whenLabel(ts, now = Date.now()) {
 }
 
 /**
+ * When something was last written, to the minute: "today 14:32" / "yesterday 21:10" / "Sat 31 Oct, 08:05".
+ *
+ * Compared by the viewer's own calendar day, because it answers "how stale is this to me". Same
+ * 24-hour clock as whenLabel, so the two never disagree about a time on one screen.
+ */
+export function updatedLabel(ts, now = Date.now()) {
+  if (!Number.isFinite(ts) || ts <= 0) return "";
+  const t = new Date(ts);
+  const clock = t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+  const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const ago = Math.round((midnight(new Date(now)) - midnight(t)) / DAY_MS);
+  if (ago <= 0) return "today " + clock;
+  if (ago === 1) return "yesterday " + clock;
+  return t.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) + ", " + clock;
+}
+
+/**
  * A feed row's day, relative and unambiguous: "today" / "yesterday" / "Mon" / "Sat 13".
  *
  * Reads off the day the thing is ABOUT (a habit-day), not when the event was written — a reading
