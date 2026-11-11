@@ -142,6 +142,36 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--teal);
 
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 
+/* ---------- arranging the cards ----------
+   A mode, not a long-press: a long press is cancelled by the browser the moment it reads the finger
+   as a scroll, so the grip carries touch-action:none instead (see ui/cardorder.js). The card's own
+   buttons go quiet while arranging, so a tap meant to steady a drag cannot open a history. */
+.card.is-arranging { position: relative; padding-bottom: 54px; }
+.card.is-arranging .card-open,
+.card.is-arranging .card-foot { pointer-events: none; opacity: 0.55; }
+.card-arrange {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 44px;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 6px;
+  background: var(--surface-hi); border-radius: 0 0 var(--r) var(--r);
+}
+.card-step {
+  width: 44px; height: 36px; border-radius: var(--r-sm); color: var(--teal);
+  font-size: 22px; line-height: 1; display: grid; place-items: center;
+}
+.card-step:disabled { color: var(--dim); opacity: 0.35; }
+.card-grip {
+  flex: 1; height: 36px; display: grid; place-items: center; border-radius: var(--r-sm);
+  color: var(--dim); font-size: 18px; letter-spacing: -2px; cursor: grab; user-select: none;
+  -webkit-user-select: none; touch-action: none;
+}
+.card-grip:active { cursor: grabbing; color: var(--teal); }
+.card.is-dragging {
+  position: relative; z-index: 5; transition: none; opacity: 0.94;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); scale: 1.03;
+}
+.card.is-drop { outline: 2px solid var(--teal); outline-offset: 2px; }
+body.is-reordering-now { user-select: none; -webkit-user-select: none; }
+
 .card {
   background: var(--surface);
   border-radius: var(--r);

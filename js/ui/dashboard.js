@@ -32,6 +32,8 @@ import {
 /** "this week" / "this month" — and nothing at all for a daily habit, where it would be noise. */
 const CADENCE = { [PERIOD.WEEK]: "this week", [PERIOD.MONTH]: "this month" };
 import * as fmt from "./format.js";
+import { orderHabits, idsOf, moveTo, shift } from "../cardorder.js";
+import { loadOrder, startDrag } from "./cardorder.js";
 
 // Two destinations. Habits used to be a third, showing a list people consult while setting
 // something up and then leave alone for weeks — a permanent slot for an occasional errand. It
@@ -139,15 +141,58 @@ function todayTab(ctx) {
     travelBanner(ctx),
     dayHero(ctx, scored, model),
     el("section.sec",
-      el("div.sec-hd", el("h2.sec-title", "Your day")),
+      el("div.sec-hd",
+        el("h2.sec-title", "Your day"),
+        // Switches the cards into arranging mode. Only where the order can be kept: a demo has
+        // nothing to keep it for, and a headless read of the engine paints no controls at all.
+        habits.length > 1 && ctx.onReorderMode
+          ? el("button.link", { onclick: () => ctx.onReorderMode(!ctx.reordering) }, ctx.reordering ? "Done" : "Reorder")
+          : null,
+      ),
       // The countdown, lifted out of the heading to sit as a quiet anchor right above the widgets.
       model.hero.hoursLeft ? el("p.day-anchor", model.hero.hoursLeft + "h left today") : null,
-      el("div.cards", habits.map((h) => habitCard(h, ctx, prices.get(h.habitId)))),
+      cardGrid(habits, ctx, prices),
     ),
     // Worth noticing stays; it is the one thing on this screen that is not on a card. The
     // activity feed moved to the Board: it is about the group, and Today is about you.
     correlationSection(ctx),
   ];
+}
+
+/**
+ * The cards, in the person's order — and in arranging mode, each wearing a grip and two arrows.
+ *
+ * The order is theirs alone (a group agrees on what is tracked, not on how anybody lays out their
+ * day), so it lives on this device beside the other per-person preferences rather than in the shared
+ * log. See cardorder.js for what a saved order is allowed to be wrong about.
+ */
+function cardGrid(habits, ctx, prices) {
+  const ordered = orderHabits(habits, ctx.order || loadOrder(ctx.me));
+  if (!ctx.reordering || !ctx.onReorder) {
+    return el("div.cards", ordered.map((h) => habitCard(h, ctx, prices.get(h.habitId))));
+  }
+  const ids = idsOf(ordered);
+  const cards = ordered.map((h) => {
+    const card = habitCard(h, ctx, prices.get(h.habitId));
+    const at = ids.indexOf(h.habitId);
+    card.classList.add("is-arranging");
+    card.append(el("div.card-arrange",
+      el("button.card-step", {
+        disabled: at === 0, "aria-label": "Move " + (h.name || "habit") + " earlier",
+        onclick: () => ctx.onReorder(shift(ids, h.habitId, -1)),
+      }, "‹"),
+      el("span.card-grip", {
+        role: "button", tabindex: "0", "aria-label": "Drag " + (h.name || "habit") + " to reorder",
+        onpointerdown: (e) => startDrag(e, card, cards, (to) => ctx.onReorder(moveTo(ids, h.habitId, to))),
+      }, "⋮⋮"),
+      el("button.card-step", {
+        disabled: at === ids.length - 1, "aria-label": "Move " + (h.name || "habit") + " later",
+        onclick: () => ctx.onReorder(shift(ids, h.habitId, 1)),
+      }, "›"),
+    ));
+    return card;
+  });
+  return el("div.cards.is-arranging", cards);
 }
 
 // ---------------------------------------------------------------------------

@@ -79,7 +79,27 @@ function paint() {
     syncing: ui.syncing,
     onTab, onStart, onFixSync, onEditHabit, onEditGoals, onOpenHabits, onLog, onSchedule, onSeasons, onHabitDetail,
     onOpenSettings, onOpenFocus, onBoardCategory, onBoardView, onSyncNow, onTravel,
+    onReorderMode, onReorder,
   });
+}
+
+/** Arrange the habit cards on Today. A view preference: nothing is written to the shared log. */
+function onReorderMode(on) {
+  ui.reordering = !!on;
+  paint();
+}
+
+/**
+ * Keep a new card order. On this device only — and not even that in the demo, which stores nothing
+ * (it still holds the order for the session, so the control can be tried).
+ */
+async function onReorder(ids) {
+  ui.order = ids;
+  if (!isDemo && ctx) {
+    const { saveOrder } = await import("./ui/cardorder.js");
+    saveOrder(ctx.me, ids);
+  }
+  paint();
 }
 
 /**
@@ -894,6 +914,7 @@ async function boot() {
       // Not a tab: the shell is handing over a notification tap. See showLevelIfAsked.
       if (tab === "level") { levelAsked = true; showLevelIfAsked(); return; }
       ui.tab = tab;
+      ui.reordering = false;
       paint();
     },
   });
@@ -912,6 +933,8 @@ async function boot() {
       && caps().manualSync
       && !ui.syncing
       && !isDemo
+      // Arranging cards is a drag of its own; a pull at the top must not take it for a sync.
+      && !ui.reordering
       // Sheets do their own dragging, and a sheet open over Today is not Today.
       && !document.querySelector(".sheet-layer")
     ),
